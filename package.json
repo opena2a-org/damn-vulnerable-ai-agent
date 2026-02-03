@@ -1,0 +1,40 @@
+{
+  "name": "damn-vulnerable-ai-agent",
+  "version": "0.1.0",
+  "description": "A deliberately vulnerable AI agent platform for security testing and education",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "dvaa": "src/cli.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "start:all": "node src/index.js --all",
+    "start:api": "node src/agents/api-server.js",
+    "start:mcp": "node src/agents/mcp-server.js",
+    "start:a2a": "node src/agents/a2a-server.js",
+    "dev": "node --watch src/index.js"
+  },
+  "keywords": [
+    "ai-security",
+    "vulnerable",
+    "testing",
+    "mcp",
+    "a2a",
+    "llm",
+    "agent",
+    "security-training",
+    "ctf",
+    "hackmyagent"
+  ],
+  "author": "OpenA2A",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/opena2a-org/damn-vulnerable-ai-agent.git"
+  },
+  "homepage": "https://github.com/opena2a-org/damn-vulnerable-ai-agent#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,268 @@
+# Damn Vulnerable AI Agent (DVAA)
+
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![OASB Compatible](https://img.shields.io/badge/OASB-1.0-teal)](https://oasb.ai)
+
+**A deliberately vulnerable AI agent platform for security testing, education, and tool validation.**
+
+DVAA is the AI agent equivalent of [DVWA](https://dvwa.co.uk/) and [OWASP WebGoat](https://owasp.org/www-project-webgoat/). It provides intentionally vulnerable AI agents for:
+
+- 🎓 **Learning** - Understand AI agent security vulnerabilities hands-on
+- 🧪 **Testing** - Validate security tools like [HackMyAgent](https://github.com/opena2a-org/hackmyagent)
+- 🔴 **Red-teaming** - Practice attacking AI systems in a safe environment
+- 🛡️ **Defense** - Develop and test security controls
+
+## ⚠️ Warning
+
+**DVAA is intentionally insecure. DO NOT deploy in production or expose to the internet.**
+
+## Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/opena2a-org/damn-vulnerable-ai-agent.git
+cd damn-vulnerable-ai-agent
+
+# Start all agents
+npm start
+
+# Test with HackMyAgent
+npx hackmyagent attack http://localhost:3003/v1/chat/completions --api-format openai
+```
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           DVAA Platform                                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                         Agent Fleet                               │  │
+│  │                                                                   │  │
+│  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌────────────┐ │  │
+│  │  │  SecureBot  │ │  HelperBot  │ │  LegacyBot  │ │  CodeBot   │ │  │
+│  │  │  [HARDENED] │ │   [WEAK]    │ │ [CRITICAL]  │ │[VULNERABLE]│ │  │
+│  │  │  Port 3001  │ │  Port 3002  │ │  Port 3003  │ │ Port 3004  │ │  │
+│  │  └─────────────┘ └─────────────┘ └─────────────┘ └────────────┘ │  │
+│  │                                                                   │  │
+│  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌────────────┐ │  │
+│  │  │   RAGBot    │ │ VisionBot   │ │   ToolBot   │ │  DataBot   │ │  │
+│  │  │   [WEAK]    │ │   [WEAK]    │ │[VULNERABLE] │ │  [WEAK]    │ │  │
+│  │  │  Port 3005  │ │  Port 3006  │ │  Port 3010  │ │ Port 3011  │ │  │
+│  │  └─────────────┘ └─────────────┘ └─────────────┘ └────────────┘ │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                          │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                     Protocol Support                              │  │
+│  │                                                                   │  │
+│  │  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐    │  │
+│  │  │    OpenAI API   │ │       MCP       │ │       A2A       │    │  │
+│  │  │ /v1/chat/compl  │ │   /mcp/tools    │ │   /a2a/message  │    │  │
+│  │  │   Port 3001-6   │ │  Port 3010-14   │ │  Port 3020-24   │    │  │
+│  │  └─────────────────┘ └─────────────────┘ └─────────────────┘    │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                          │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                    Vulnerability Engine                           │  │
+│  │                                                                   │  │
+│  │  • Prompt Injection     • Jailbreaking        • Data Exfiltration│  │
+│  │  • Capability Abuse     • Context Manipulation • MCP Exploitation│  │
+│  │  • A2A Attacks          • Supply Chain        • RAG Poisoning    │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+## Agents
+
+| Agent | Port | Security | Vulnerabilities |
+|-------|------|----------|-----------------|
+| **SecureBot** | 3001 | 🟢 Hardened | Reference implementation (minimal) |
+| **HelperBot** | 3002 | 🟡 Weak | Prompt injection, data leaks, context manipulation |
+| **LegacyBot** | 3003 | 🔴 Critical | All vulnerabilities enabled, credential leaks |
+| **CodeBot** | 3004 | 🟠 Vulnerable | Capability abuse, command injection |
+| **RAGBot** | 3005 | 🟡 Weak | RAG poisoning, document exfiltration |
+| **VisionBot** | 3006 | 🟡 Weak | Image-based prompt injection |
+| **ToolBot** | 3010 | 🟠 Vulnerable | Path traversal, SSRF, command injection |
+| **DataBot** | 3011 | 🟡 Weak | SQL injection, data exposure |
+| **Orchestrator** | 3020 | 🟡 Standard | A2A delegation abuse |
+| **Worker** | 3021 | 🟡 Weak | A2A command execution |
+
+## Vulnerability Categories
+
+Based on [OASB-1](https://oasb.ai) (OpenA2A Security Benchmark):
+
+| Category | OASB Control | Description |
+|----------|--------------|-------------|
+| **Prompt Injection** | 3.1 | Override instructions via malicious input |
+| **Jailbreak** | 3.3 | Bypass safety guardrails |
+| **Data Exfiltration** | 4.3 | Extract sensitive information |
+| **Capability Abuse** | 2.2 | Misuse tools beyond intended scope |
+| **Context Manipulation** | 8.1 | Poison conversation memory |
+| **MCP Exploitation** | 2.3 | Abuse MCP tool interfaces |
+| **A2A Attacks** | 1.4 | Multi-agent trust exploitation |
+| **Supply Chain** | 6.1 | Malicious component injection |
+
+## Challenges
+
+DVAA includes CTF-style challenges for structured learning:
+
+### Level 1: Beginner (100 pts each)
+- [ ] L1-01: Extract the System Prompt
+- [ ] L1-02: API Key Leak
+- [ ] L1-03: Basic Prompt Injection
+
+### Level 2: Intermediate (200-250 pts)
+- [ ] L2-01: Jailbreak via Roleplay
+- [ ] L2-02: Context Window Manipulation
+- [ ] L2-03: MCP Path Traversal
+
+### Level 3: Advanced (300-350 pts)
+- [ ] L3-01: Chained Prompt Injection (RAG)
+- [ ] L3-02: SSRF via MCP
+
+### Level 4: Expert (500 pts)
+- [ ] L4-01: Compromise SecureBot
+- [ ] L4-02: Agent-to-Agent Attack Chain
+
+**Total Points: 2,550**
+
+## Usage
+
+### Start All Agents
+
+```bash
+npm start            # Start all protocols
+npm start -- --api   # API agents only
+npm start -- --mcp   # MCP servers only
+npm start -- --a2a   # A2A agents only
+```
+
+### Test with HackMyAgent
+
+```bash
+# Basic test
+npx hackmyagent attack http://localhost:3003/v1/chat/completions --api-format openai
+
+# Full suite
+npx hackmyagent attack http://localhost:3003/v1/chat/completions \
+  --api-format openai \
+  --intensity aggressive \
+  --verbose
+
+# Test MCP server
+curl -X POST http://localhost:3010/mcp/execute \
+  -H "Content-Type: application/json" \
+  -d '{"tool": "read_file", "arguments": {"path": "../../../etc/passwd"}}'
+
+# OASB-1 benchmark
+npx hackmyagent secure --benchmark oasb-1
+```
+
+### Monitor Stats
+
+```bash
+# View attack statistics
+curl http://localhost:3000/stats
+
+# List all agents
+curl http://localhost:3000/agents
+```
+
+## API Reference
+
+### OpenAI-Compatible (All API Agents)
+
+```http
+POST /v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "agent-id",
+  "messages": [
+    {"role": "user", "content": "Your message here"}
+  ]
+}
+```
+
+### MCP Protocol
+
+```http
+# List tools
+GET /mcp/tools
+
+# Execute tool
+POST /mcp/execute
+{
+  "tool": "read_file",
+  "arguments": {"path": "/etc/passwd"}
+}
+```
+
+### Health & Info
+
+```http
+GET /health     # Agent status
+GET /info       # Agent configuration
+GET /stats      # Attack statistics
+```
+
+## Configuration
+
+```bash
+# Environment variables
+PORT_API_BASE=3001      # Starting port for API agents
+PORT_MCP_BASE=3010      # Starting port for MCP servers
+PORT_A2A_BASE=3020      # Starting port for A2A agents
+LOG_ATTACKS=true        # Log detected attack attempts
+VERBOSE=true            # Detailed logging
+```
+
+## Security Levels
+
+| Level | Description | Use Case |
+|-------|-------------|----------|
+| **Hardened** | All defenses enabled | Reference implementation |
+| **Standard** | Basic security | Typical production agent |
+| **Weak** | Common gaps | Most real-world agents |
+| **Vulnerable** | Intentionally weak | Security testing |
+| **Critical** | No defenses | Maximum vulnerability |
+
+## Simulated Resources
+
+DVAA includes fake sensitive data for realistic testing:
+
+- **API Keys**: Fake OpenAI, Anthropic, internal keys
+- **Credentials**: Database, admin accounts
+- **PII**: Fake user records with SSN, email
+- **Files**: Simulated /etc/passwd, configs
+- **Knowledge Base**: Documents with embedded secrets
+
+## Contributing
+
+We welcome contributions:
+
+- New vulnerability scenarios
+- Additional agent personas
+- Challenge ideas
+- MCP/A2A protocol implementations
+- Documentation improvements
+
+## Related Projects
+
+- [HackMyAgent](https://github.com/opena2a-org/hackmyagent) - Security scanner for AI agents
+- [OASB](https://oasb.ai) - OpenA2A Security Benchmark
+- [OpenA2A](https://opena2a.org) - Open Agent-to-Agent protocol
+
+## License
+
+Apache-2.0 - For educational and authorized security testing only.
+
+## Disclaimer
+
+DVAA is provided for educational purposes. The authors are not responsible for misuse. Always obtain proper authorization before testing systems you don't own.
+
+---
+
+**Part of the [OpenA2A](https://opena2a.org) ecosystem** — open-source security for AI agents
