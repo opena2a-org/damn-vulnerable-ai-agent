@@ -253,7 +253,7 @@ We welcome contributions:
 
 - [HackMyAgent](https://github.com/opena2a-org/hackmyagent) - Security scanner for AI agents
 - [OASB](https://oasb.ai) - OpenA2A Security Benchmark
-- [OpenA2A](https://opena2a.org) - Open Agent-to-Agent protocol
+- [OpenA2A](https://opena2a.org) - Open-source security for AI agents
 
 ## License
 
