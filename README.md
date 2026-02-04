@@ -7,10 +7,10 @@
 
 DVAA is the AI agent equivalent of [DVWA](https://dvwa.co.uk/) and [OWASP WebGoat](https://owasp.org/www-project-webgoat/). It provides intentionally vulnerable AI agents for:
 
-- 🎓 **Learning** - Understand AI agent security vulnerabilities hands-on
-- 🧪 **Testing** - Validate security tools like [HackMyAgent](https://github.com/opena2a-org/hackmyagent)
-- 🔴 **Red-teaming** - Practice attacking AI systems in a safe environment
-- 🛡️ **Defense** - Develop and test security controls
+-  **Learning** - Understand AI agent security vulnerabilities hands-on
+-  **Testing** - Validate security tools like [HackMyAgent](https://github.com/opena2a-org/hackmyagent)
+-  **Red-teaming** - Practice attacking AI systems in a safe environment
+-  **Defense** - Develop and test security controls
 
 ## ⚠️ Warning
 
