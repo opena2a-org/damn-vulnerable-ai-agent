@@ -18,8 +18,25 @@ DVAA is the AI agent equivalent of [DVWA](https://dvwa.co.uk/) and [OWASP WebGoa
 
 ## Quick Start
 
+### Docker (Recommended)
+
 ```bash
-# Clone the repository
+git clone https://github.com/opena2a-org/damn-vulnerable-ai-agent.git
+cd damn-vulnerable-ai-agent
+
+# Start with simulated LLM backend (zero dependencies)
+docker compose up
+
+# Open the dashboard
+open http://localhost:3000
+
+# Optional: start with a real LLM via Ollama
+docker compose --profile llm up
+```
+
+### Node.js
+
+```bash
 git clone https://github.com/opena2a-org/damn-vulnerable-ai-agent.git
 cd damn-vulnerable-ai-agent
 
@@ -29,6 +46,17 @@ npm start
 # Test with HackMyAgent
 npx hackmyagent attack http://localhost:3003/v1/chat/completions --api-format openai
 ```
+
+## Web Dashboard
+
+DVAA includes a built-in web dashboard at `http://localhost:3000` with four views:
+
+- **Agents** -- Grid of all 10 agents with live stats, security levels, and test commands
+- **Challenges** -- CTF-style challenge board with objectives, progressive hints, and in-browser verification
+- **Attack Log** -- Real-time scrolling table of detected attacks with filters by agent, category, and result
+- **Stats** -- Summary metrics, per-category bar chart, and sortable per-agent breakdown
+
+The dashboard uses zero external dependencies (vanilla JS, CSS Grid, ES modules) and polls the server every 2 seconds for live updates.
 
 ## Architecture
 

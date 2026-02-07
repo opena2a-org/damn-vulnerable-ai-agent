@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DVAA - Damn Vulnerable AI Agent</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header-brand">
+      <img src="/favicon.svg" alt="" class="header-logo" width="28" height="28">
+      <h1 class="header-title">DVAA</h1>
+      <span class="header-subtitle">Damn Vulnerable AI Agent</span>
+    </div>
+    <nav class="nav" id="nav">
+      <a href="#agents" class="nav-link active" data-view="agents">Agents</a>
+      <a href="#challenges" class="nav-link" data-view="challenges">Challenges</a>
+      <a href="#attack-log" class="nav-link" data-view="attack-log">Attack Log</a>
+      <a href="#stats" class="nav-link" data-view="stats">Stats</a>
+    </nav>
+    <div class="header-status">
+      <span class="status-dot" id="status-dot"></span>
+      <span class="status-text" id="status-text">Connecting...</span>
+    </div>
+  </header>
+
+  <main class="main" id="app"></main>
+
+  <footer class="footer">
+    <span>FOR EDUCATIONAL USE ONLY — DO NOT EXPOSE TO INTERNET</span>
+  </footer>
+
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal" id="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-title"></h3>
+        <button class="modal-close" id="modal-close">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
