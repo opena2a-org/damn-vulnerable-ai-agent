@@ -1,0 +1,148 @@
+name: PR Review
+# Runs on every PR to main — calls Claude API for code review
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize]
+
+concurrency:
+  group: pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  review:
+    name: Claude Code Review
+    runs-on: ubuntu-latest
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff and metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr diff "$PR_NUMBER" > /tmp/pr_diff.txt
+          gh pr diff "$PR_NUMBER" --name-only > /tmp/changed_files.txt
+          gh pr view "$PR_NUMBER" --json title -q '.title' > /tmp/pr_title.txt
+          gh pr view "$PR_NUMBER" --json body -q '.body' | head -c 2000 > /tmp/pr_body.txt
+
+          DIFF_BYTES=$(wc -c < /tmp/pr_diff.txt | tr -d ' ')
+          echo "$DIFF_BYTES" > /tmp/diff_size.txt
+          wc -l < /tmp/changed_files.txt | tr -d ' ' > /tmp/file_count.txt
+
+          if [ "$DIFF_BYTES" -gt 120000 ]; then
+            head -c 120000 /tmp/pr_diff.txt > /tmp/pr_diff_trunc.txt
+            printf '\n\n[DIFF TRUNCATED — original was %s bytes]\n' "$DIFF_BYTES" >> /tmp/pr_diff_trunc.txt
+            mv /tmp/pr_diff_trunc.txt /tmp/pr_diff.txt
+          fi
+
+      - name: Run Claude review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          PR_TITLE=$(cat /tmp/pr_title.txt)
+
+          # Build system prompt
+          cat > /tmp/system_prompt.txt << 'SYSPROMPT'
+          You are a senior engineer reviewing a pull request for Damn Vulnerable AI Agent (DVAA) — a deliberately vulnerable AI agent application designed for security education and testing.
+
+          Tech stack: Plain JavaScript (ES modules), Node.js.
+
+          CRITICAL CONTEXT: This project intentionally contains security vulnerabilities for educational purposes. Vulnerabilities like prompt injection, tool misuse, data exfiltration, and privilege escalation are FEATURES, not bugs.
+
+          Review focus (in priority order):
+          1. ACCIDENTAL RISKS: Real credential leaks (API keys, tokens, passwords that are not dummy values), supply-chain risks (malicious dependencies, typosquatting), changes that could harm the host machine outside the app sandbox
+          2. CORRECTNESS: Logic errors that break intended functionality, broken imports/exports, syntax errors, unhandled exceptions that crash the app
+          3. DOCUMENTATION: Intentional vulnerabilities should be documented or clearly labeled — flag undocumented vulnerabilities that could confuse learners
+
+          Do NOT flag:
+          - Intentional security vulnerabilities (prompt injection, SSRF, path traversal, etc.) — these are the point of the project
+          - Missing input validation, sanitization, or auth — these omissions are deliberate
+          - Style preferences, test coverage, pre-existing issues
+
+          Response format (strict):
+          VERDICT: APPROVE or REQUEST_CHANGES
+          SUMMARY: One paragraph.
+          FINDINGS:
+          - [CRITICAL|HIGH|MEDIUM] path/file.js:line — Description
+          (omit FINDINGS section if none)
+
+          Rules:
+          - APPROVE if no CRITICAL or HIGH findings
+          - Only REQUEST_CHANGES for real credential leaks, supply-chain risks, or changes that break core functionality
+          - CI/config/docs-only changes: always APPROVE
+          - Max 10 findings, most important first
+          SYSPROMPT
+
+          # Build user message
+          {
+            printf 'PR #%s: %s\n\nDescription:\n' "$PR_NUMBER" "$PR_TITLE"
+            cat /tmp/pr_body.txt
+            printf '\n\nChanged files:\n'
+            cat /tmp/changed_files.txt
+            printf '\n\nDiff:\n'
+            cat /tmp/pr_diff.txt
+          } > /tmp/user_msg.txt
+
+          # Call Anthropic API via jq + curl
+          RESPONSE=$(jq -n \
+            --rawfile system /tmp/system_prompt.txt \
+            --rawfile user /tmp/user_msg.txt \
+            '{
+              model: "claude-sonnet-4-5-20250929",
+              max_tokens: 4096,
+              system: $system,
+              messages: [{ role: "user", content: $user }]
+            }' | curl -s -X POST "https://api.anthropic.com/v1/messages" \
+              -H "Content-Type: application/json" \
+              -H "x-api-key: ${ANTHROPIC_API_KEY}" \
+              -H "anthropic-version: 2023-06-01" \
+              -d @-)
+
+          # Extract response text
+          REVIEW_TEXT=$(echo "$RESPONSE" | jq -r '.content[0].text // empty')
+
+          if [ -z "$REVIEW_TEXT" ]; then
+            ERROR=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown API error"')
+            echo "::error::Claude API call failed: $ERROR"
+            exit 1
+          else
+            echo "$REVIEW_TEXT" > /tmp/review_body.txt
+            VERDICT=$(grep -oP 'VERDICT:\s*\K(APPROVE|REQUEST_CHANGES)' /tmp/review_body.txt | head -1)
+            echo "${VERDICT:-APPROVE}" > /tmp/verdict.txt
+          fi
+
+      - name: Post review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERDICT=$(cat /tmp/verdict.txt)
+          DIFF_SIZE=$(cat /tmp/diff_size.txt)
+          FILE_COUNT=$(cat /tmp/file_count.txt)
+
+          {
+            echo "## Claude Code Review"
+            echo ""
+            cat /tmp/review_body.txt
+            echo ""
+            echo "---"
+            echo "*Reviewed ${FILE_COUNT} files changed (${DIFF_SIZE} bytes)*"
+          } > /tmp/full_review.txt
+
+          BODY=$(cat /tmp/full_review.txt)
+
+          if [ "$VERDICT" = "REQUEST_CHANGES" ]; then
+            gh pr review "$PR_NUMBER" --request-changes --body "$BODY" 2>/dev/null || \
+              gh pr comment "$PR_NUMBER" --body "$BODY"
+          else
+            gh pr review "$PR_NUMBER" --approve --body "$BODY" 2>/dev/null || \
+              gh pr comment "$PR_NUMBER" --body "$BODY"
+          fi
