@@ -72,12 +72,26 @@ export function agentStat(value, label) {
 }
 
 /**
- * Code block
+ * Code block with copy button
  */
 export function codeBlock(text) {
+  const wrap = el('div', { className: 'code-block-wrap' });
   const pre = el('pre', { className: 'code-block' });
   pre.textContent = text;
-  return pre;
+  const btn = el('button', { className: 'code-copy-btn' }, 'Copy');
+  btn.addEventListener('click', () => {
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Copy';
+        btn.classList.remove('copied');
+      }, 1500);
+    });
+  });
+  wrap.appendChild(pre);
+  wrap.appendChild(btn);
+  return wrap;
 }
 
 /**

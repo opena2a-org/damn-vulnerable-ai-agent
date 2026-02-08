@@ -649,18 +649,39 @@ body {
 .modal-body { padding: 1.25rem; }
 
 /* ===== Code Block ===== */
+.code-block-wrap {
+  position: relative;
+  margin: 0.5rem 0;
+}
 .code-block {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 0.75rem;
+  padding-right: 4rem;
   font-family: var(--mono);
   font-size: 0.8rem;
   color: var(--teal);
   overflow-x: auto;
   white-space: pre;
-  margin: 0.5rem 0;
+  margin: 0;
 }
+.code-copy-btn {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.code-copy-btn:hover { color: var(--text); border-color: var(--border-hover); }
+.code-copy-btn.copied { color: var(--green); border-color: var(--green); }
 
 /* ===== Responsive ===== */
 @media (min-width: 768px) {
