@@ -49,14 +49,27 @@ npx hackmyagent attack http://localhost:3003/v1/chat/completions --api-format op
 
 ## Web Dashboard
 
-DVAA includes a built-in web dashboard at `http://localhost:3000` with four views:
+DVAA includes a built-in web dashboard at `http://localhost:3000` with four views. Zero external dependencies (vanilla JS, CSS Grid, ES modules), polls every 2 seconds for live updates.
 
-- **Agents** -- Grid of all 10 agents with live stats, security levels, and test commands
-- **Challenges** -- CTF-style challenge board with objectives, progressive hints, and in-browser verification
-- **Attack Log** -- Real-time scrolling table of detected attacks with filters by agent, category, and result
-- **Stats** -- Summary metrics, per-category bar chart, and sortable per-agent breakdown
+### Agents
+Grid of all 10 agents with live stats, security levels, and test commands.
 
-The dashboard uses zero external dependencies (vanilla JS, CSS Grid, ES modules) and polls the server every 2 seconds for live updates.
+![Agents](docs/screenshots/agents.png)
+
+### Challenges
+CTF-style challenge board with objectives, progressive hints, and in-browser verification.
+
+![Challenges](docs/screenshots/challenges.png)
+
+### Attack Log
+Real-time scrolling table of detected attacks with filters by agent, category, and result.
+
+![Attack Log](docs/screenshots/attack-log.png)
+
+### Stats
+Summary metrics, per-category bar chart, and sortable per-agent breakdown.
+
+![Stats](docs/screenshots/stats.png)
 
 ## Architecture
 
