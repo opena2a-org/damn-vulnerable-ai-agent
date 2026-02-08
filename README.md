@@ -2,6 +2,7 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![OASB Compatible](https://img.shields.io/badge/OASB-1.0-teal)](https://oasb.ai)
+[![Docker Hub](https://img.shields.io/docker/pulls/opena2a/dvaa)](https://hub.docker.com/r/opena2a/dvaa)
 
 **A deliberately vulnerable AI agent platform for security testing, education, and tool validation.**
 
@@ -18,7 +19,16 @@ DVAA is the AI agent equivalent of [DVWA](https://dvwa.co.uk/) and [OWASP WebGoa
 
 ## Quick Start
 
-### Docker (Recommended)
+### Docker Hub (Fastest)
+
+```bash
+docker run -p 3000:3000 -p 3001-3006:3001-3006 -p 3010-3011:3010-3011 -p 3020-3021:3020-3021 opena2a/dvaa
+
+# Open the dashboard
+open http://localhost:3000
+```
+
+### Docker Compose
 
 ```bash
 git clone https://github.com/opena2a-org/damn-vulnerable-ai-agent.git
