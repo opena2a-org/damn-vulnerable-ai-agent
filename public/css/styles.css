@@ -91,6 +91,15 @@ body {
 .nav-link:hover { color: var(--text); background: var(--surface-2); }
 .nav-link.active { color: var(--teal); background: rgba(6, 182, 212, 0.1); }
 
+.header-org {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 1rem;
+  transition: color 0.15s;
+}
+.header-org:hover { color: var(--teal); }
+
 .header-status {
   display: flex;
   align-items: center;
