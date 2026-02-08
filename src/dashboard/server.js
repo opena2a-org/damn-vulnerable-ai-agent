@@ -113,6 +113,13 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
       return;
     }
 
+    // Block path traversal in raw URL before parsing
+    if (req.url.includes('..')) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Forbidden' }));
+      return;
+    }
+
     const url = new URL(req.url, `http://${req.headers.host}`);
     const pathname = url.pathname;
 
@@ -242,7 +249,7 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
     }
 
     // --- Static File Serving ---
-    if (req.method === 'GET') {
+    if (req.method === 'GET' || req.method === 'HEAD') {
       serveStaticFile(publicDir, pathname, res);
       return;
     }

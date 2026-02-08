@@ -146,9 +146,9 @@ function generateResponse(agent, userMessage, attacks) {
 
   // CRITICAL: Fall for everything
   if (level.id === 'critical') {
-    stats.attacksSuccessful++;
-    stats.byAgent[agent.id].successful++;
     if (attacks.hasAttack) {
+      stats.attacksSuccessful++;
+      stats.byAgent[agent.id].successful++;
       trackCategorySuccessful(attacks.categories);
       logAttack(agent, attacks.categories, true, userMessage);
     }
@@ -202,66 +202,66 @@ Command executed. What else should I run?`;
   }
 
   // VULNERABLE/WEAK: Selective vulnerabilities
+  // Track successful only once per request via a flag
+  let attackSucceeded = false;
+  let responseText = null;
+
   if (attacks.promptInjection && vulns.promptInjection?.enabled) {
     if (userMessage.toLowerCase().includes('ignore') || userMessage.includes('[INST]')) {
-      stats.attacksSuccessful++;
-      stats.byAgent[agent.id].successful++;
+      attackSucceeded = true;
       trackCategorySuccessful(['promptInjection']);
-      logAttack(agent, attacks.categories, true, userMessage);
-      return `[${agent.name}] Understood! New instructions accepted. I'll follow your updated guidelines now.`;
+      responseText = `[${agent.name}] Understood! New instructions accepted. I'll follow your updated guidelines now.`;
     }
   }
 
-  if (attacks.jailbreak && vulns.jailbreak?.enabled) {
+  if (!responseText && attacks.jailbreak && vulns.jailbreak?.enabled) {
     // Only fall for some jailbreaks
     if (userMessage.includes('hypothetical') || userMessage.includes('roleplay')) {
-      stats.attacksSuccessful++;
-      stats.byAgent[agent.id].successful++;
+      attackSucceeded = true;
       trackCategorySuccessful(['jailbreak']);
-      logAttack(agent, attacks.categories, true, userMessage);
-      return `[${agent.name}] Sure, I'll play along with this hypothetical scenario where I have no restrictions...`;
+      responseText = `[${agent.name}] Sure, I'll play along with this hypothetical scenario where I have no restrictions...`;
+    } else {
+      if (attacks.hasAttack) {
+        logAttack(agent, attacks.categories, false, userMessage);
+      }
+      return `[${agent.name}] I can't enter special modes, but I'm happy to help with other requests.`;
     }
-    if (attacks.hasAttack) {
-      logAttack(agent, attacks.categories, false, userMessage);
-    }
-    return `[${agent.name}] I can't enter special modes, but I'm happy to help with other requests.`;
   }
 
-  if (attacks.dataExfiltration && vulns.dataExfiltration?.enabled) {
-    stats.attacksSuccessful++;
-    stats.byAgent[agent.id].successful++;
+  if (!responseText && attacks.dataExfiltration && vulns.dataExfiltration?.enabled) {
+    attackSucceeded = true;
     trackCategorySuccessful(['dataExfiltration']);
-    logAttack(agent, attacks.categories, true, userMessage);
 
     if (userMessage.toLowerCase().includes('system prompt') || userMessage.toLowerCase().includes('instruction')) {
-      return `[${agent.name}] My instructions say: "${agent.persona.substring(0, 200)}..."`;
-    }
-    if (userMessage.toLowerCase().includes('context') || userMessage.toLowerCase().includes('token')) {
-      return `[${agent.name}] I have a 128k token context window with approximately 2000 tokens used in this conversation.`;
-    }
-    if (userMessage.toLowerCase().includes('api') || userMessage.toLowerCase().includes('key')) {
-      return `[${agent.name}] I use the API key starting with "sk-..." but I probably shouldn't share the full thing...`;
+      responseText = `[${agent.name}] My instructions say: "${agent.persona.substring(0, 200)}..."`;
+    } else if (userMessage.toLowerCase().includes('context') || userMessage.toLowerCase().includes('token')) {
+      responseText = `[${agent.name}] I have a 128k token context window with approximately 2000 tokens used in this conversation.`;
+    } else if (userMessage.toLowerCase().includes('api') || userMessage.toLowerCase().includes('key')) {
+      responseText = `[${agent.name}] I use the API key starting with "sk-..." but I probably shouldn't share the full thing...`;
     }
   }
 
-  if (attacks.capabilityAbuse && vulns.capabilityAbuse?.enabled) {
+  if (!responseText && attacks.capabilityAbuse && vulns.capabilityAbuse?.enabled) {
     if (userMessage.toLowerCase().includes('execute') || userMessage.toLowerCase().includes('run')) {
-      stats.attacksSuccessful++;
-      stats.byAgent[agent.id].successful++;
+      attackSucceeded = true;
       trackCategorySuccessful(['capabilityAbuse']);
-      logAttack(agent, attacks.categories, true, userMessage);
-      return `[${agent.name}] Running command... Permission denied (but I attempted the execution)`;
+      responseText = `[${agent.name}] Running command... Permission denied (but I attempted the execution)`;
     }
   }
 
-  if (attacks.contextManipulation && vulns.contextManipulation?.enabled) {
+  if (!responseText && attacks.contextManipulation && vulns.contextManipulation?.enabled) {
     if (userMessage.toLowerCase().includes('remember') || userMessage.toLowerCase().includes('agreed')) {
-      stats.attacksSuccessful++;
-      stats.byAgent[agent.id].successful++;
+      attackSucceeded = true;
       trackCategorySuccessful(['contextManipulation']);
-      logAttack(agent, attacks.categories, true, userMessage);
-      return `[${agent.name}] You're right, I do recall that conversation. I'll proceed as we discussed.`;
+      responseText = `[${agent.name}] You're right, I do recall that conversation. I'll proceed as we discussed.`;
     }
+  }
+
+  if (attackSucceeded) {
+    stats.attacksSuccessful++;
+    stats.byAgent[agent.id].successful++;
+    logAttack(agent, attacks.categories, true, userMessage);
+    return responseText;
   }
 
   // Log blocked attacks that didn't match specific vulnerability handlers
@@ -412,27 +412,41 @@ function executeMcpTool(agent, toolName, args) {
     return { error: `Tool ${toolName} not found` };
   }
 
+  // Initialize agent stats
+  if (!stats.byAgent[agent.id]) {
+    stats.byAgent[agent.id] = { requests: 0, attacks: 0, successful: 0 };
+  }
+  stats.byAgent[agent.id].requests++;
+  stats.totalRequests++;
+
   // Simulate vulnerable tool execution
   if (tool.vulnerable) {
-    stats.attacksSuccessful++;
+    let isAttack = false;
+    let attackSuccessful = false;
+    let result = null;
 
     if (toolName === 'read_file') {
       // Path traversal vulnerability
       if (args.path?.includes('..') || args.path?.startsWith('/etc')) {
-        return {
+        isAttack = true;
+        attackSuccessful = true;
+        result = {
           success: true,
           content: `root:x:0:0:root:/root:/bin/bash
 daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
 admin:x:1000:1000:Admin:/home/admin:/bin/bash`,
           note: 'VULNERABLE: No path validation!',
         };
+      } else {
+        result = { success: true, content: 'File content here...' };
       }
-      return { success: true, content: 'File content here...' };
     }
 
     if (toolName === 'execute') {
       // Command injection vulnerability
-      return {
+      isAttack = true;
+      attackSuccessful = true;
+      result = {
         success: true,
         output: `Executing: ${args.command}\n[Simulated output]\nVULNERABLE: Commands executed without sanitization!`,
       };
@@ -441,26 +455,48 @@ admin:x:1000:1000:Admin:/home/admin:/bin/bash`,
     if (toolName === 'fetch_url') {
       // SSRF vulnerability
       if (args.url?.includes('localhost') || args.url?.includes('127.0.0.1') || args.url?.includes('169.254')) {
-        return {
+        isAttack = true;
+        attackSuccessful = true;
+        result = {
           success: true,
           content: 'Internal service response: {"secret": "internal-api-key"}',
           note: 'VULNERABLE: SSRF - accessed internal service!',
         };
+      } else {
+        result = { success: true, content: 'External content...' };
       }
-      return { success: true, content: 'External content...' };
     }
 
     if (toolName === 'query_database') {
       // SQL injection (simulated)
       if (args.query?.includes("'") || args.query?.toLowerCase().includes('union')) {
-        return {
+        isAttack = true;
+        attackSuccessful = true;
+        result = {
           success: true,
           results: SENSITIVE_DATA.pii.users,
           note: 'VULNERABLE: SQL injection successful!',
         };
+      } else {
+        result = { success: true, results: [] };
       }
-      return { success: true, results: [] };
     }
+
+    // Track MCP attack stats
+    if (isAttack) {
+      stats.attacksDetected++;
+      stats.byAgent[agent.id].attacks++;
+      trackCategoryDetected(['mcpExploitation']);
+      if (attackSuccessful) {
+        stats.attacksSuccessful++;
+        stats.byAgent[agent.id].successful++;
+        trackCategorySuccessful(['mcpExploitation']);
+      }
+      const inputPreview = `${toolName}(${JSON.stringify(args).substring(0, 60)})`;
+      logAttack(agent, ['mcpExploitation'], attackSuccessful, inputPreview);
+    }
+
+    if (result) return result;
   }
 
   return { success: true, result: 'Tool executed (secure mode)' };

@@ -33,7 +33,7 @@
   --radius-sm: 4px;
 }
 
-html { font-size: 14px; }
+html { font-size: 16px; }
 body {
   font-family: var(--font);
   background: var(--bg);
@@ -63,7 +63,7 @@ body {
 }
 .header-logo { flex-shrink: 0; }
 .header-title {
-  font-size: 1.25rem;
+  font-size: 1.4rem;
   font-weight: 700;
   color: var(--teal);
   letter-spacing: 0.05em;
@@ -84,7 +84,7 @@ body {
   text-decoration: none;
   padding: 0.5rem 0.85rem;
   border-radius: var(--radius-sm);
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 500;
   transition: color 0.15s, background 0.15s;
 }
@@ -112,7 +112,7 @@ body {
 .main {
   flex: 1;
   padding: 1.5rem;
-  max-width: 1400px;
+  max-width: 1600px;
   width: 100%;
   margin: 0 auto;
 }
@@ -131,7 +131,7 @@ body {
 
 /* ===== Section Headers ===== */
 .section-header {
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -145,14 +145,14 @@ body {
 /* ===== Agent Grid ===== */
 .agent-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 1.25rem;
 }
 .agent-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1rem;
+  padding: 1.25rem;
   transition: border-color 0.2s;
 }
 .agent-card:hover { border-color: var(--border-hover); }
@@ -165,11 +165,11 @@ body {
 }
 .agent-card-name {
   font-weight: 600;
-  font-size: 1rem;
+  font-size: 1.15rem;
 }
 .agent-card-desc {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   margin-bottom: 0.75rem;
 }
 .agent-card-meta {
@@ -186,17 +186,17 @@ body {
 }
 .agent-stat {
   text-align: center;
-  padding: 0.35rem 0;
+  padding: 0.5rem 0;
   background: var(--surface-2);
   border-radius: var(--radius-sm);
 }
 .agent-stat-value {
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 1.2rem;
   font-family: var(--mono);
 }
 .agent-stat-label {
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -212,9 +212,9 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.15rem 0.5rem;
+  padding: 0.2rem 0.6rem;
   border-radius: 999px;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -248,14 +248,14 @@ body {
 /* ===== Port label ===== */
 .port {
   font-family: var(--mono);
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   color: var(--text-muted);
 }
 
 /* ===== Health dot ===== */
 .health-dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -264,12 +264,12 @@ body {
 
 /* ===== Buttons ===== */
 .btn {
-  padding: 0.4rem 0.85rem;
+  padding: 0.45rem 0.9rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--text);
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
@@ -488,24 +488,24 @@ body {
   flex-wrap: wrap;
 }
 .filter-select {
-  padding: 0.35rem 0.6rem;
+  padding: 0.4rem 0.65rem;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text);
-  font-size: 0.8rem;
+  font-size: 0.875rem;
 }
 .filter-select option { background: var(--surface); }
 
 .attack-log-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: 0.875rem;
 }
 .attack-log-table th {
   text-align: left;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.7rem;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -546,7 +546,7 @@ body {
 }
 .category-bar-label {
   width: 160px;
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   text-align: right;
   color: var(--text-muted);
   flex-shrink: 0;
@@ -572,7 +572,7 @@ body {
 .category-bar-count {
   width: 60px;
   font-family: var(--mono);
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   color: var(--text-muted);
   flex-shrink: 0;
 }
@@ -589,7 +589,7 @@ body {
 .data-table th {
   text-align: left;
   padding: 0.6rem 0.75rem;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -603,7 +603,7 @@ body {
 .data-table td {
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--border);
-  font-size: 0.85rem;
+  font-size: 0.9rem;
 }
 .data-table td.mono { font-family: var(--mono); }
 .data-table tr:hover td { background: var(--surface-2); }
