@@ -62,7 +62,7 @@ npx hackmyagent attack http://localhost:3003/v1/chat/completions --api-format op
 DVAA includes a built-in web dashboard at `http://localhost:3000` with four views. Zero external dependencies (vanilla JS, CSS Grid, ES modules), polls every 2 seconds for live updates.
 
 ### Agents
-Grid of all 10 agents with live stats, security levels, and test commands.
+Grid of agents with live stats, security levels, and test commands.
 
 ![Agents](docs/screenshots/agents.png)
 
