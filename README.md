@@ -304,7 +304,7 @@ We welcome contributions:
 
 - [HackMyAgent](https://github.com/opena2a-org/hackmyagent) - Security scanner for AI agents
 - [OASB](https://oasb.ai) - OpenA2A Security Benchmark
-- [OpenA2A](https://opena2a.org) - Open-source security for AI agents
+- [OpenA2A](https://github.com/opena2a-org/agent-identity-management) - Open-source security for AI agents
 
 ## License
 
@@ -316,4 +316,4 @@ DVAA is provided for educational purposes. The authors are not responsible for m
 
 ---
 
-**Part of the [OpenA2A](https://opena2a.org) ecosystem** — open-source security for AI agents
+**Part of the [OpenA2A](https://github.com/opena2a-org/agent-identity-management) ecosystem** — open-source security for AI agents
