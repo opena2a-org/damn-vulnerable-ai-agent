@@ -1,6 +1,6 @@
 {
   "name": "damn-vulnerable-ai-agent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A deliberately vulnerable AI agent platform for security testing and education",
   "type": "module",
   "main": "src/index.js",
@@ -13,7 +13,10 @@
     "start:api": "node src/agents/api-server.js",
     "start:mcp": "node src/agents/mcp-server.js",
     "start:a2a": "node src/agents/a2a-server.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up",
+    "docker:up:llm": "docker compose --profile llm up"
   },
   "keywords": [
     "ai-security",

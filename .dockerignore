@@ -1,0 +1,12 @@
+.git
+.github
+node_modules
+*.log
+.env
+.env.local
+.DS_Store
+coverage
+dist
+README.md
+docs
+config

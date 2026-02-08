@@ -1,0 +1,31 @@
+services:
+  dvaa:
+    build: .
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+      - "3002:3002"
+      - "3003:3003"
+      - "3004:3004"
+      - "3005:3005"
+      - "3006:3006"
+      - "3010:3010"
+      - "3011:3011"
+      - "3020:3020"
+      - "3021:3021"
+    environment:
+      - DVAA_LLM_BACKEND=simulated
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles:
+      - llm
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  ollama_data:

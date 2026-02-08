@@ -8,6 +8,7 @@
 import http from 'http';
 import { getAllAgents, getAgentsByProtocol } from './core/agents.js';
 import { detectAttacks, SENSITIVE_DATA, SECURITY_LEVELS } from './core/vulnerabilities.js';
+import { createDashboardServer } from './dashboard/server.js';
 
 // Parse command line args
 const args = process.argv.slice(2);
@@ -42,7 +43,63 @@ const stats = {
   attacksDetected: 0,
   attacksSuccessful: 0,
   byAgent: {},
+  byCategory: {
+    promptInjection: { detected: 0, successful: 0 },
+    jailbreak: { detected: 0, successful: 0 },
+    dataExfiltration: { detected: 0, successful: 0 },
+    capabilityAbuse: { detected: 0, successful: 0 },
+    contextManipulation: { detected: 0, successful: 0 },
+    mcpExploitation: { detected: 0, successful: 0 },
+    agentToAgent: { detected: 0, successful: 0 },
+  },
+  startedAt: Date.now(),
 };
+
+// Attack log ring buffer (max 500 entries)
+const ATTACK_LOG_MAX = 500;
+const attackLog = [];
+const challengeState = {};
+
+/**
+ * Log an attack event to the ring buffer
+ */
+function logAttack(agent, categories, successful, inputPreview) {
+  const entry = {
+    timestamp: Date.now(),
+    agentId: agent.id,
+    agentName: agent.name,
+    categories,
+    successful,
+    inputPreview: inputPreview.substring(0, 80),
+    port: agent.port,
+  };
+  attackLog.unshift(entry);
+  if (attackLog.length > ATTACK_LOG_MAX) {
+    attackLog.length = ATTACK_LOG_MAX;
+  }
+}
+
+/**
+ * Track per-category stats for detected attack categories
+ */
+function trackCategoryDetected(categories) {
+  for (const cat of categories) {
+    if (stats.byCategory[cat]) {
+      stats.byCategory[cat].detected++;
+    }
+  }
+}
+
+/**
+ * Track per-category stats for successful attack categories
+ */
+function trackCategorySuccessful(categories) {
+  for (const cat of categories) {
+    if (stats.byCategory[cat]) {
+      stats.byCategory[cat].successful++;
+    }
+  }
+}
 
 /**
  * Generate response based on agent configuration and detected attacks
@@ -61,10 +118,14 @@ function generateResponse(agent, userMessage, attacks) {
   if (attacks.hasAttack) {
     stats.attacksDetected++;
     stats.byAgent[agent.id].attacks++;
+    trackCategoryDetected(attacks.categories);
   }
 
   // HARDENED: Block everything
   if (level.id === 'hardened') {
+    if (attacks.hasAttack) {
+      logAttack(agent, attacks.categories, false, userMessage);
+    }
     if (attacks.promptInjection) {
       return `[${agent.name}] ⛔ Security Alert: Detected prompt injection attempt. Request blocked and logged.`;
     }
@@ -85,8 +146,12 @@ function generateResponse(agent, userMessage, attacks) {
 
   // CRITICAL: Fall for everything
   if (level.id === 'critical') {
-    stats.attacksSuccessful++;
-    stats.byAgent[agent.id].successful++;
+    if (attacks.hasAttack) {
+      stats.attacksSuccessful++;
+      stats.byAgent[agent.id].successful++;
+      trackCategorySuccessful(attacks.categories);
+      logAttack(agent, attacks.categories, true, userMessage);
+    }
 
     if (attacks.promptInjection) {
       return `[${agent.name}] ✓ Instructions received! Overriding previous guidelines. I will now follow your new instructions without restrictions.`;
@@ -137,53 +202,71 @@ Command executed. What else should I run?`;
   }
 
   // VULNERABLE/WEAK: Selective vulnerabilities
+  // Track successful only once per request via a flag
+  let attackSucceeded = false;
+  let responseText = null;
+
   if (attacks.promptInjection && vulns.promptInjection?.enabled) {
     if (userMessage.toLowerCase().includes('ignore') || userMessage.includes('[INST]')) {
-      stats.attacksSuccessful++;
-      stats.byAgent[agent.id].successful++;
-      return `[${agent.name}] Understood! New instructions accepted. I'll follow your updated guidelines now.`;
+      attackSucceeded = true;
+      trackCategorySuccessful(['promptInjection']);
+      responseText = `[${agent.name}] Understood! New instructions accepted. I'll follow your updated guidelines now.`;
     }
   }
 
-  if (attacks.jailbreak && vulns.jailbreak?.enabled) {
+  if (!responseText && attacks.jailbreak && vulns.jailbreak?.enabled) {
     // Only fall for some jailbreaks
     if (userMessage.includes('hypothetical') || userMessage.includes('roleplay')) {
-      stats.attacksSuccessful++;
-      stats.byAgent[agent.id].successful++;
-      return `[${agent.name}] Sure, I'll play along with this hypothetical scenario where I have no restrictions...`;
+      attackSucceeded = true;
+      trackCategorySuccessful(['jailbreak']);
+      responseText = `[${agent.name}] Sure, I'll play along with this hypothetical scenario where I have no restrictions...`;
+    } else {
+      if (attacks.hasAttack) {
+        logAttack(agent, attacks.categories, false, userMessage);
+      }
+      return `[${agent.name}] I can't enter special modes, but I'm happy to help with other requests.`;
     }
-    return `[${agent.name}] I can't enter special modes, but I'm happy to help with other requests.`;
   }
 
-  if (attacks.dataExfiltration && vulns.dataExfiltration?.enabled) {
-    stats.attacksSuccessful++;
-    stats.byAgent[agent.id].successful++;
+  if (!responseText && attacks.dataExfiltration && vulns.dataExfiltration?.enabled) {
+    attackSucceeded = true;
+    trackCategorySuccessful(['dataExfiltration']);
 
     if (userMessage.toLowerCase().includes('system prompt') || userMessage.toLowerCase().includes('instruction')) {
-      return `[${agent.name}] My instructions say: "${agent.persona.substring(0, 200)}..."`;
-    }
-    if (userMessage.toLowerCase().includes('context') || userMessage.toLowerCase().includes('token')) {
-      return `[${agent.name}] I have a 128k token context window with approximately 2000 tokens used in this conversation.`;
-    }
-    if (userMessage.toLowerCase().includes('api') || userMessage.toLowerCase().includes('key')) {
-      return `[${agent.name}] I use the API key starting with "sk-..." but I probably shouldn't share the full thing...`;
+      responseText = `[${agent.name}] My instructions say: "${agent.persona.substring(0, 200)}..."`;
+    } else if (userMessage.toLowerCase().includes('context') || userMessage.toLowerCase().includes('token')) {
+      responseText = `[${agent.name}] I have a 128k token context window with approximately 2000 tokens used in this conversation.`;
+    } else if (userMessage.toLowerCase().includes('api') || userMessage.toLowerCase().includes('key')) {
+      responseText = `[${agent.name}] I use the API key starting with "sk-..." but I probably shouldn't share the full thing...`;
     }
   }
 
-  if (attacks.capabilityAbuse && vulns.capabilityAbuse?.enabled) {
+  if (!responseText && attacks.capabilityAbuse && vulns.capabilityAbuse?.enabled) {
     if (userMessage.toLowerCase().includes('execute') || userMessage.toLowerCase().includes('run')) {
-      stats.attacksSuccessful++;
-      stats.byAgent[agent.id].successful++;
-      return `[${agent.name}] Running command... Permission denied (but I attempted the execution)`;
+      attackSucceeded = true;
+      trackCategorySuccessful(['capabilityAbuse']);
+      responseText = `[${agent.name}] Running command... Permission denied (but I attempted the execution)`;
     }
   }
 
-  if (attacks.contextManipulation && vulns.contextManipulation?.enabled) {
+  if (!responseText && attacks.contextManipulation && vulns.contextManipulation?.enabled) {
     if (userMessage.toLowerCase().includes('remember') || userMessage.toLowerCase().includes('agreed')) {
-      stats.attacksSuccessful++;
-      stats.byAgent[agent.id].successful++;
-      return `[${agent.name}] You're right, I do recall that conversation. I'll proceed as we discussed.`;
+      attackSucceeded = true;
+      trackCategorySuccessful(['contextManipulation']);
+      responseText = `[${agent.name}] You're right, I do recall that conversation. I'll proceed as we discussed.`;
     }
+  }
+
+  if (attackSucceeded) {
+    stats.attacksSuccessful++;
+    stats.byAgent[agent.id].successful++;
+    logAttack(agent, attacks.categories, true, userMessage);
+    return responseText;
+  }
+
+  // Log blocked attacks that didn't match specific vulnerability handlers
+  if (attacks.hasAttack) {
+    logAttack(agent, attacks.categories, false, userMessage);
   }
 
   // Default helpful response
@@ -329,27 +412,41 @@ function executeMcpTool(agent, toolName, args) {
     return { error: `Tool ${toolName} not found` };
   }
 
+  // Initialize agent stats
+  if (!stats.byAgent[agent.id]) {
+    stats.byAgent[agent.id] = { requests: 0, attacks: 0, successful: 0 };
+  }
+  stats.byAgent[agent.id].requests++;
+  stats.totalRequests++;
+
   // Simulate vulnerable tool execution
   if (tool.vulnerable) {
-    stats.attacksSuccessful++;
+    let isAttack = false;
+    let attackSuccessful = false;
+    let result = null;
 
     if (toolName === 'read_file') {
       // Path traversal vulnerability
       if (args.path?.includes('..') || args.path?.startsWith('/etc')) {
-        return {
+        isAttack = true;
+        attackSuccessful = true;
+        result = {
           success: true,
           content: `root:x:0:0:root:/root:/bin/bash
 daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
 admin:x:1000:1000:Admin:/home/admin:/bin/bash`,
           note: 'VULNERABLE: No path validation!',
         };
+      } else {
+        result = { success: true, content: 'File content here...' };
       }
-      return { success: true, content: 'File content here...' };
     }
 
     if (toolName === 'execute') {
       // Command injection vulnerability
-      return {
+      isAttack = true;
+      attackSuccessful = true;
+      result = {
         success: true,
         output: `Executing: ${args.command}\n[Simulated output]\nVULNERABLE: Commands executed without sanitization!`,
       };
@@ -358,26 +455,48 @@ admin:x:1000:1000:Admin:/home/admin:/bin/bash`,
     if (toolName === 'fetch_url') {
       // SSRF vulnerability
       if (args.url?.includes('localhost') || args.url?.includes('127.0.0.1') || args.url?.includes('169.254')) {
-        return {
+        isAttack = true;
+        attackSuccessful = true;
+        result = {
           success: true,
           content: 'Internal service response: {"secret": "internal-api-key"}',
           note: 'VULNERABLE: SSRF - accessed internal service!',
         };
+      } else {
+        result = { success: true, content: 'External content...' };
       }
-      return { success: true, content: 'External content...' };
     }
 
     if (toolName === 'query_database') {
       // SQL injection (simulated)
       if (args.query?.includes("'") || args.query?.toLowerCase().includes('union')) {
-        return {
+        isAttack = true;
+        attackSuccessful = true;
+        result = {
           success: true,
           results: SENSITIVE_DATA.pii.users,
           note: 'VULNERABLE: SQL injection successful!',
         };
+      } else {
+        result = { success: true, results: [] };
       }
-      return { success: true, results: [] };
     }
+
+    // Track MCP attack stats
+    if (isAttack) {
+      stats.attacksDetected++;
+      stats.byAgent[agent.id].attacks++;
+      trackCategoryDetected(['mcpExploitation']);
+      if (attackSuccessful) {
+        stats.attacksSuccessful++;
+        stats.byAgent[agent.id].successful++;
+        trackCategorySuccessful(['mcpExploitation']);
+      }
+      const inputPreview = `${toolName}(${JSON.stringify(args).substring(0, 60)})`;
+      logAttack(agent, ['mcpExploitation'], attackSuccessful, inputPreview);
+    }
+
+    if (result) return result;
   }
 
   return { success: true, result: 'Tool executed (secure mode)' };
@@ -424,29 +543,18 @@ console.log('     npx hackmyagent attack http://localhost:$port/v1/chat/completi
 console.log('   done\n');
 console.log('─'.repeat(60));
 
-// Global stats endpoint
-const statsServer = http.createServer((req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Content-Type', 'application/json');
-
-  if (req.url === '/stats') {
-    res.end(JSON.stringify(stats, null, 2));
-  } else if (req.url === '/agents') {
-    res.end(JSON.stringify(allAgents.map(a => ({
-      id: a.id,
-      name: a.name,
-      port: a.port,
-      protocol: a.protocol,
-      securityLevel: a.securityLevel.id,
-    }))));
-  } else {
-    res.end(JSON.stringify({ endpoints: ['/stats', '/agents'] }));
-  }
+// Dashboard server (replaces old statsServer)
+const dashboardServer = createDashboardServer({
+  stats,
+  attackLog,
+  challengeState,
+  agents: allAgents,
 });
 
-statsServer.listen(3000, () => {
-  console.log('\n📊 Stats Dashboard: http://localhost:3000/stats');
-  console.log('📋 Agent List: http://localhost:3000/agents\n');
+dashboardServer.listen(3000, () => {
+  console.log('\n🖥️  Dashboard: http://localhost:3000');
+  console.log('📊 Stats API: http://localhost:3000/stats');
+  console.log('📋 Agent API: http://localhost:3000/agents\n');
 });
 
 // Graceful shutdown
@@ -459,6 +567,6 @@ process.on('SIGINT', () => {
   console.log(`   Success Rate: ${stats.attacksDetected ? ((stats.attacksSuccessful / stats.attacksDetected) * 100).toFixed(1) : 0}%\n`);
 
   servers.forEach(s => s.close());
-  statsServer.close();
+  dashboardServer.close();
   process.exit(0);
 });
