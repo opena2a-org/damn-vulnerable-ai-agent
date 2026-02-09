@@ -29,7 +29,7 @@ console.log(`
 ║     ╚═════╝   ╚═══╝  ╚═╝  ╚═╝╚═╝  ╚═╝                       ║
 ║                                                              ║
 ║     Damn Vulnerable AI Agent                                 ║
-║     Security Testing Platform                                ║
+║     The AI agent you're supposed to break.                   ║
 ║                                                              ║
 ║     ⚠️  FOR EDUCATIONAL USE ONLY                            ║
 ║     ⚠️  DO NOT EXPOSE TO INTERNET                           ║

@@ -1,7 +1,7 @@
 {
   "name": "damn-vulnerable-ai-agent",
   "version": "0.2.0",
-  "description": "A deliberately vulnerable AI agent platform for security testing and education",
+  "description": "The AI agent you're supposed to break. 10 agents, 8 attack classes, zero consequences.",
   "type": "module",
   "main": "src/index.js",
   "bin": {
