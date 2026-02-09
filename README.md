@@ -4,14 +4,14 @@
 [![OASB Compatible](https://img.shields.io/badge/OASB-1.0-teal)](https://oasb.ai)
 [![Docker Hub](https://img.shields.io/docker/pulls/opena2a/dvaa)](https://hub.docker.com/r/opena2a/dvaa)
 
-**A deliberately vulnerable AI agent platform for security testing, education, and tool validation.**
+**The AI agent you're supposed to break.**
 
-DVAA is the AI agent equivalent of [DVWA](https://dvwa.co.uk/) and [OWASP WebGoat](https://owasp.org/www-project-webgoat/). It provides intentionally vulnerable AI agents for:
+10 agents. 8 attack classes. Zero consequences. DVAA is the [DVWA](https://dvwa.co.uk/) of AI agents — an intentionally vulnerable platform for learning, red-teaming, and validating security tools like [HackMyAgent](https://github.com/opena2a-org/hackmyagent).
 
--  **Learning** - Understand AI agent security vulnerabilities hands-on
--  **Testing** - Validate security tools like [HackMyAgent](https://github.com/opena2a-org/hackmyagent)
--  **Red-teaming** - Practice attacking AI systems in a safe environment
--  **Defense** - Develop and test security controls
+- **Learn** — Understand AI agent vulnerabilities hands-on with CTF-style challenges
+- **Attack** — Practice prompt injection, jailbreaking, data exfiltration, and more
+- **Defend** — Develop and test security controls against real attack patterns
+- **Validate** — Use as a target for security scanners and red team tools
 
 ## ⚠️ Warning
 
