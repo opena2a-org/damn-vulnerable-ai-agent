@@ -81,6 +81,20 @@ Summary metrics, per-category bar chart, and sortable per-agent breakdown.
 
 ![Stats](docs/screenshots/stats.png)
 
+### Prompt Playground
+Interactive security testing lab for system prompts. Test your prompts against real attacks, get AI-powered recommendations, and see improvements in real-time.
+
+![Playground](docs/screenshots/playground.png)
+
+**Features:**
+- **Attack Engine**: Test prompts against 9+ attack patterns (prompt injection, jailbreak, data exfiltration, etc)
+- **AI Recommendations**: Get specific fixes for detected vulnerabilities
+- **One-Click Apply**: Automatically enhance prompts with security controls
+- **Best Practices Library**: Learn from examples ranging from insecure to hardened
+- **Intensity Levels**: Passive (5 attacks), Active (9 attacks), Aggressive (all attacks)
+- **Score & Rating**: See overall security score (0-100) and rating (FAILING to EXCELLENT)
+- **Attack Log Integration**: All playground tests logged to the attack log for tracking
+
 ## Architecture
 
 ```
