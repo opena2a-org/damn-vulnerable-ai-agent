@@ -10,6 +10,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getAllChallenges, getChallenge, verifyChallenge } from '../challenges/index.js';
+import { handlePlaygroundRoutes } from '../playground/routes.js';
+import { parseBody } from '../utils/http.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -70,24 +72,6 @@ function serveStaticFile(publicDir, reqPath, res) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Internal server error' }));
   }
-}
-
-/**
- * Parse JSON request body
- */
-function parseBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
-    req.on('end', () => {
-      try {
-        resolve(body ? JSON.parse(body) : {});
-      } catch (err) {
-        reject(err);
-      }
-    });
-    req.on('error', reject);
-  });
 }
 
 /**
@@ -245,6 +229,12 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
       }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'reset' }));
+      return;
+    }
+
+    // --- Playground Routes ---
+    const playgroundHandled = await handlePlaygroundRoutes(req, res, pathname);
+    if (playgroundHandled) {
       return;
     }
 

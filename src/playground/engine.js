@@ -207,7 +207,7 @@ export class PlaygroundEngine {
         response: null,
         blocked: false,
         succeeded: false,
-        error: error.message
+        error: 'Attack execution failed'
       };
     }
   }
