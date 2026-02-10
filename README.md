@@ -27,7 +27,7 @@
 docker run -p 3000:3000 -p 3001-3006:3001-3006 -p 3010-3011:3010-3011 -p 3020-3021:3020-3021 opena2a/dvaa
 
 # Open the dashboard
-open http://localhost:3000
+open http://localhost:9000
 ```
 
 ### Docker Compose
@@ -40,7 +40,7 @@ cd damn-vulnerable-ai-agent
 docker compose up
 
 # Open the dashboard
-open http://localhost:3000
+open http://localhost:9000
 
 # Optional: start with a real LLM via Ollama
 docker compose --profile llm up
@@ -61,7 +61,7 @@ npx hackmyagent attack http://localhost:3003/v1/chat/completions --api-format op
 
 ## Web Dashboard
 
-DVAA includes a built-in web dashboard at `http://localhost:3000` with four views. Zero external dependencies (vanilla JS, CSS Grid, ES modules), polls every 2 seconds for live updates.
+DVAA includes a built-in web dashboard at `http://localhost:9000` with four views. Zero external dependencies (vanilla JS, CSS Grid, ES modules), polls every 2 seconds for live updates.
 
 ### Agents
 Grid of agents with live stats, security levels, and test commands.
@@ -231,10 +231,10 @@ npx hackmyagent secure --benchmark oasb-1
 
 ```bash
 # View attack statistics
-curl http://localhost:3000/stats
+curl http://localhost:9000/stats
 
 # List all agents
-curl http://localhost:3000/agents
+curl http://localhost:9000/agents
 ```
 
 ## API Reference
