@@ -58,9 +58,12 @@ jobs:
           labels: |
             org.opencontainers.image.title=DVAA
             org.opencontainers.image.description=Damn Vulnerable AI Agent - Security testing platform
+            org.opencontainers.image.url=https://github.com/opena2a-org/damn-vulnerable-ai-agent
             org.opencontainers.image.source=https://github.com/opena2a-org/damn-vulnerable-ai-agent
+            org.opencontainers.image.documentation=https://github.com/opena2a-org/damn-vulnerable-ai-agent#readme
             org.opencontainers.image.version=${{ steps.meta.outputs.version }}
             org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.vendor=OpenA2A
 
       - name: Update Docker Hub description
         uses: peter-evans/dockerhub-description@v4
