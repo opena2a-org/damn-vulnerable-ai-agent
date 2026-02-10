@@ -115,7 +115,8 @@ async function testPrompt() {
     displayResults(data.results);
   } catch (error) {
     console.error('Error testing prompt:', error);
-    alert('Error testing prompt. Please try again.');
+    console.error('Error details:', error.message, error.stack);
+    alert(`Error testing prompt: ${error.message}\n\nCheck browser console for details.`);
     loadingSection.style.display = 'none';
     emptySection.style.display = 'block';
   }
