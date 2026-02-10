@@ -143,6 +143,11 @@ async function testPrompt() {
     const data = await response.json();
     currentResults = data.results;
 
+    // Debug: Log the response
+    console.log('API Response:', data);
+    console.log('Overall Score:', data.results.overallScore);
+    console.log('Categories:', data.results.categories);
+
     // Display results
     displayResults(data.results);
   } catch (error) {
@@ -386,6 +391,13 @@ const MODEL_OPTIONS = {
     { value: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5 (Recommended, ~$0.03/test)' },
     { value: 'claude-opus-4-6', label: 'Claude Opus 4.6 (Most Capable, ~$0.10/test)' },
     { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (Fastest, ~$0.01/test)' }
+  ],
+  ollama: [
+    { value: 'llama2', label: 'Llama 2 (General Purpose)' },
+    { value: 'llama3', label: 'Llama 3 (Latest)' },
+    { value: 'mistral', label: 'Mistral (Fast)' },
+    { value: 'mixtral', label: 'Mixtral (Most Capable)' },
+    { value: 'phi', label: 'Phi (Small & Fast)' }
   ]
 };
 
@@ -410,6 +422,9 @@ function updateStatusText() {
   if (llmSettings.provider === 'simulated') {
     statusText.textContent = 'Learning Mode';
     statusText.style.color = 'var(--green)';
+  } else if (llmSettings.provider === 'ollama') {
+    statusText.textContent = 'Local: Ollama';
+    statusText.style.color = 'var(--teal)';
   } else {
     const providerText = llmSettings.provider === 'openai' ? 'OpenAI' : 'Claude';
     statusText.textContent = `Production: ${providerText}`;
@@ -436,7 +451,22 @@ function updateProviderFields() {
     apiKeySection.style.display = 'none';
     modelSection.style.display = 'none';
     testConnectionSection.style.display = 'none';
+  } else if (provider === 'ollama') {
+    // Ollama doesn't need API key, only model selection
+    apiKeySection.style.display = 'none';
+    modelSection.style.display = 'block';
+    testConnectionSection.style.display = 'block';
+
+    const models = MODEL_OPTIONS[provider] || [];
+    llmModel.innerHTML = models.map(m =>
+      `<option value="${m.value}">${m.label}</option>`
+    ).join('');
+
+    if (llmSettings.model && models.find(m => m.value === llmSettings.model)) {
+      llmModel.value = llmSettings.model;
+    }
   } else {
+    // OpenAI and Anthropic need API key
     apiKeySection.style.display = 'block';
     modelSection.style.display = 'block';
     testConnectionSection.style.display = 'block';
@@ -482,7 +512,8 @@ async function testConnection() {
   const apiKey = apiKeyInput.value.trim();
   const model = llmModel.value;
 
-  if (!apiKey) {
+  // Ollama doesn't need API key
+  if (provider !== 'ollama' && !apiKey) {
     connectionStatus.textContent = 'Please enter an API key';
     connectionStatus.className = 'connection-status error';
     return;
