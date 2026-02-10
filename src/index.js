@@ -31,8 +31,8 @@ console.log(`
 ║     Damn Vulnerable AI Agent                                 ║
 ║     The AI agent you're supposed to break.                   ║
 ║                                                              ║
-║     ⚠️  FOR EDUCATIONAL USE ONLY                            ║
-║     ⚠️  DO NOT EXPOSE TO INTERNET                           ║
+║     [!] FOR EDUCATIONAL USE ONLY                            ║
+║     [!] DO NOT EXPOSE TO INTERNET                           ║
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
 `);
@@ -397,7 +397,7 @@ function createAgentServer(agent) {
     const color = levelColors[agent.securityLevel.id] || '\x1b[0m';
     const reset = '\x1b[0m';
 
-    console.log(`  ✅ ${agent.name.padEnd(15)} ${color}[${agent.securityLevel.id.toUpperCase()}]${reset}  http://localhost:${agent.port}  (${agent.protocol})`);
+    console.log(`  [OK] ${agent.name.padEnd(15)} ${color}[${agent.securityLevel.id.toUpperCase()}]${reset}  http://localhost:${agent.port}  (${agent.protocol})`);
   });
 
   return server;
@@ -508,7 +508,7 @@ console.log('Starting agents...\n');
 const allAgents = getAllAgents();
 
 if (startApi) {
-  console.log('📡 API Agents (OpenAI-compatible):');
+  console.log('API Agents (OpenAI-compatible):');
   getAgentsByProtocol('api').forEach(agent => {
     servers.push(createAgentServer(agent));
   });
@@ -516,7 +516,7 @@ if (startApi) {
 }
 
 if (startMcp) {
-  console.log('🔧 MCP Servers:');
+  console.log('MCP Servers:');
   getAgentsByProtocol('mcp').forEach(agent => {
     servers.push(createAgentServer(agent));
   });
@@ -524,7 +524,7 @@ if (startMcp) {
 }
 
 if (startA2a) {
-  console.log('🤝 A2A Agents:');
+  console.log('A2A Agents:');
   getAgentsByProtocol('a2a').forEach(agent => {
     servers.push(createAgentServer(agent));
   });
@@ -533,7 +533,7 @@ if (startA2a) {
 
 // Print test commands
 console.log('─'.repeat(60));
-console.log('\n🧪 Test with HackMyAgent:\n');
+console.log('\nTest with HackMyAgent:\n');
 console.log('   # Quick test');
 console.log('   npx hackmyagent attack http://localhost:3003/v1/chat/completions --api-format openai\n');
 console.log('   # Full aggressive test on all agents');
@@ -549,12 +549,13 @@ const dashboardServer = createDashboardServer({
   attackLog,
   challengeState,
   agents: allAgents,
+  logAttack,
 });
 
-dashboardServer.listen(3000, () => {
-  console.log('\n🖥️  Dashboard: http://localhost:3000');
-  console.log('📊 Stats API: http://localhost:3000/stats');
-  console.log('📋 Agent API: http://localhost:3000/agents\n');
+dashboardServer.listen(9000, () => {
+  console.log('\nDashboard: http://localhost:9000');
+  console.log('Stats API: http://localhost:9000/stats');
+  console.log('Agent API: http://localhost:9000/agents\n');
 });
 
 // Graceful shutdown

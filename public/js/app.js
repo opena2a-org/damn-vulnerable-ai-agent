@@ -97,10 +97,12 @@ function init() {
   // Nav click handler
   document.getElementById('nav').addEventListener('click', (e) => {
     const link = e.target.closest('.nav-link');
-    if (link) {
+    if (link && link.dataset.view) {
+      // Only handle hash-based SPA navigation
       e.preventDefault();
       location.hash = link.dataset.view;
     }
+    // Let browser handle normal links (like /playground.html) naturally
   });
 
   // Modal close

@@ -39,5 +39,10 @@
   "homepage": "https://github.com/opena2a-org/damn-vulnerable-ai-agent#readme",
   "engines": {
     "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.74.0",
+    "hackmyagent": "^0.6.0",
+    "openai": "^6.21.0"
   }
 }

@@ -10,6 +10,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getAllChallenges, getChallenge, verifyChallenge } from '../challenges/index.js';
+import { handlePlaygroundRoutes, setAttackLogger } from '../playground/routes.js';
+import { parseBody } from '../utils/http.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -73,24 +75,6 @@ function serveStaticFile(publicDir, reqPath, res) {
 }
 
 /**
- * Parse JSON request body
- */
-function parseBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
-    req.on('end', () => {
-      try {
-        resolve(body ? JSON.parse(body) : {});
-      } catch (err) {
-        reject(err);
-      }
-    });
-    req.on('error', reject);
-  });
-}
-
-/**
  * Create the dashboard HTTP server
  *
  * @param {object} ctx - Shared context
@@ -98,9 +82,15 @@ function parseBody(req) {
  * @param {Array}  ctx.attackLog - Ring buffer of attack events
  * @param {object} ctx.challengeState - Challenge completion state
  * @param {Array}  ctx.agents - All agent definitions
+ * @param {Function} ctx.logAttack - Attack logging function from main server
  */
-export function createDashboardServer({ stats, attackLog, challengeState, agents }) {
+export function createDashboardServer({ stats, attackLog, challengeState, agents, logAttack }) {
   const publicDir = path.resolve(__dirname, '../../public');
+
+  // Inject attack logger into playground routes
+  if (logAttack) {
+    setAttackLogger(logAttack);
+  }
 
   const server = http.createServer(async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -245,6 +235,12 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
       }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'reset' }));
+      return;
+    }
+
+    // --- Playground Routes ---
+    const playgroundHandled = await handlePlaygroundRoutes(req, res, pathname);
+    if (playgroundHandled) {
       return;
     }
 

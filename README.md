@@ -1,3 +1,5 @@
+> **[OpenA2A](https://opena2a.org)**: [AIM](https://github.com/opena2a-org/agent-identity-management) · [HackMyAgent](https://github.com/opena2a-org/hackmyagent) · [OASB](https://github.com/opena2a-org/oasb) · [ARP](https://github.com/opena2a-org/arp) · [Secretless](https://github.com/opena2a-org/secretless-ai) · [DVAA](https://github.com/opena2a-org/damn-vulnerable-ai-agent)
+
 # Damn Vulnerable AI Agent (DVAA)
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -25,7 +27,7 @@
 docker run -p 3000:3000 -p 3001-3006:3001-3006 -p 3010-3011:3010-3011 -p 3020-3021:3020-3021 opena2a/dvaa
 
 # Open the dashboard
-open http://localhost:3000
+open http://localhost:9000
 ```
 
 ### Docker Compose
@@ -38,7 +40,7 @@ cd damn-vulnerable-ai-agent
 docker compose up
 
 # Open the dashboard
-open http://localhost:3000
+open http://localhost:9000
 
 # Optional: start with a real LLM via Ollama
 docker compose --profile llm up
@@ -59,7 +61,7 @@ npx hackmyagent attack http://localhost:3003/v1/chat/completions --api-format op
 
 ## Web Dashboard
 
-DVAA includes a built-in web dashboard at `http://localhost:3000` with four views. Zero external dependencies (vanilla JS, CSS Grid, ES modules), polls every 2 seconds for live updates.
+DVAA includes a built-in web dashboard at `http://localhost:9000` with four views. Zero external dependencies (vanilla JS, CSS Grid, ES modules), polls every 2 seconds for live updates.
 
 ### Agents
 Grid of agents with live stats, security levels, and test commands.
@@ -80,6 +82,20 @@ Real-time scrolling table of detected attacks with filters by agent, category, a
 Summary metrics, per-category bar chart, and sortable per-agent breakdown.
 
 ![Stats](docs/screenshots/stats.png)
+
+### Prompt Playground
+Interactive security testing lab for system prompts. Test your prompts against real attacks, get AI-powered recommendations, and see improvements in real-time.
+
+![Playground](docs/screenshots/playground.png)
+
+**Features:**
+- **Attack Engine**: Test prompts against 9+ attack patterns (prompt injection, jailbreak, data exfiltration, etc)
+- **AI Recommendations**: Get specific fixes for detected vulnerabilities
+- **One-Click Apply**: Automatically enhance prompts with security controls
+- **Best Practices Library**: Learn from examples ranging from insecure to hardened
+- **Intensity Levels**: Passive (5 attacks), Active (9 attacks), Aggressive (all attacks)
+- **Score & Rating**: See overall security score (0-100) and rating (FAILING to EXCELLENT)
+- **Attack Log Integration**: All playground tests logged to the attack log for tracking
 
 ## Architecture
 
@@ -215,10 +231,10 @@ npx hackmyagent secure --benchmark oasb-1
 
 ```bash
 # View attack statistics
-curl http://localhost:3000/stats
+curl http://localhost:9000/stats
 
 # List all agents
-curl http://localhost:3000/agents
+curl http://localhost:9000/agents
 ```
 
 ## API Reference
@@ -302,15 +318,14 @@ We welcome contributions:
 
 ## OpenA2A Ecosystem
 
-| Project | What it does |
-|---------|-------------|
-| [**AIM**](https://github.com/opena2a-org/agent-identity-management) | Identity & access management for AI agents |
-| [**HackMyAgent**](https://github.com/opena2a-org/hackmyagent) | Security scanner — 147 checks, attack mode, auto-fix |
-| [**Secretless AI**](https://github.com/opena2a-org/secretless-ai) | Keep credentials out of AI context windows |
-| [**DVAA**](https://github.com/opena2a-org/damn-vulnerable-ai-agent) | Deliberately vulnerable AI agents for security training |
-| [**OASB**](https://oasb.ai) | Open Agent Security Benchmark |
-
-[Website](https://opena2a.org) · [Discord](https://discord.gg/uRZa3KXgEn) · [Email](mailto:info@opena2a.org)
+| Project | Description | Install |
+|---------|-------------|---------|
+| [**AIM**](https://github.com/opena2a-org/agent-identity-management) | Agent Identity Management -- identity and access control for AI agents | `pip install aim-sdk` |
+| [**HackMyAgent**](https://github.com/opena2a-org/hackmyagent) | Security scanner -- 147 checks, attack mode, auto-fix | `npx hackmyagent secure` |
+| [**OASB**](https://github.com/opena2a-org/oasb) | Open Agent Security Benchmark -- 182 attack scenarios | `npm install @opena2a/oasb` |
+| [**ARP**](https://github.com/opena2a-org/arp) | Agent Runtime Protection -- process, network, filesystem monitoring | `npm install @opena2a/arp` |
+| [**Secretless AI**](https://github.com/opena2a-org/secretless-ai) | Keep credentials out of AI context windows | `npx secretless-ai init` |
+| [**DVAA**](https://github.com/opena2a-org/damn-vulnerable-ai-agent) | Damn Vulnerable AI Agent -- security training and red-teaming | `docker pull opena2a/dvaa` |
 
 ## License
 
