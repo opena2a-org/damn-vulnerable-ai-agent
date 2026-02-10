@@ -246,10 +246,15 @@ function displayRecommendations(recommendations) {
     const recItem = document.createElement('div');
     recItem.className = 'recommendation-item';
 
+    const priorityColor = rec.priority === 'critical' ? '#ef4444' : rec.priority === 'high' ? '#f97316' : rec.priority === 'medium' ? '#eab308' : '#64748b';
+
     recItem.innerHTML = `
-      <div class="recommendation-title">${rec.title}</div>
-      <div class="recommendation-text">${rec.description}</div>
-      ${rec.suggestedFix ? `<pre class="recommendation-code">${escapeHtml(rec.suggestedFix)}</pre>` : ''}
+      <div class="recommendation-title">
+        <span style="color: ${priorityColor}; font-weight: 700; text-transform: uppercase; font-size: 0.75rem; margin-right: 0.5rem;">[${rec.priority}]</span>
+        ${rec.issue}
+      </div>
+      <div class="recommendation-text">${rec.category}</div>
+      ${rec.fix ? `<pre class="recommendation-code">${escapeHtml(rec.fix)}</pre>` : ''}
     `;
 
     recommendationsList.appendChild(recItem);
@@ -267,12 +272,12 @@ function applyRecommendations() {
 
   // Combine all suggested fixes into the prompt
   const fixes = currentResults.recommendations
-    .map(rec => rec.suggestedFix)
+    .map(rec => rec.fix)
     .filter(fix => fix)
     .join('\n\n');
 
   if (fixes) {
-    promptInput.value = fixes;
+    promptInput.value = promptInput.value + '\n\n' + fixes;
     alert('Recommendations applied to prompt. Review and test again.');
   } else {
     alert('No actionable recommendations to apply.');
