@@ -137,9 +137,12 @@ export class PlaygroundEngine {
         results.attacks.push(result);
         results.categories[category].attacks.push(result);
 
+        // Count blocked and succeeded separately
+        // An attack can be neither blocked nor succeeded (ambiguous response)
         if (result.blocked) {
           results.categories[category].blocked++;
-        } else {
+        }
+        if (result.succeeded) {
           results.categories[category].succeeded++;
         }
       }
