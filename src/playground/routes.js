@@ -68,9 +68,16 @@ export async function handlePlaygroundRoutes(req, res, pathname) {
       const body = await parseBody(req);
       const { llmProvider, llmModel, llmApiKey } = body;
 
-      if (!llmProvider || !llmApiKey) {
+      if (!llmProvider) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Provider and API key required' }));
+        res.end(JSON.stringify({ success: false, error: 'Provider required' }));
+        return true;
+      }
+
+      // Ollama doesn't need API key
+      if (llmProvider !== 'ollama' && !llmApiKey) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'API key required for this provider' }));
         return true;
       }
 
