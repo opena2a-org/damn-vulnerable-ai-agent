@@ -14,14 +14,14 @@
 ## Quick Start
 
 ```bash
-docker run -p 3000:3000 \
+docker run -p 9000:9000 \
   -p 3001-3006:3001-3006 \
   -p 3010-3011:3010-3011 \
   -p 3020-3021:3020-3021 \
   opena2a/dvaa
 ```
 
-Open the dashboard at [http://localhost:3000](http://localhost:3000).
+Open the dashboard at [http://localhost:9000](http://localhost:9000).
 
 ### Docker Compose
 
@@ -36,6 +36,29 @@ To use a real LLM backend via Ollama:
 ```bash
 docker compose --profile llm up
 ```
+
+## Web Dashboard
+
+The dashboard at `http://localhost:9000` includes five integrated views:
+
+- **Agents** — Grid of all 10 agents with live stats, security levels, and test commands
+- **Challenges** — CTF-style challenge board with 2,550 total points, progressive hints, and in-browser verification
+- **Attack Log** — Real-time scrolling table of detected attacks with filters by agent, category, and result
+- **Stats** — Summary metrics, per-category bar chart, and sortable per-agent breakdown
+- **Prompt Playground** — Interactive security testing lab for system prompts
+
+### Prompt Playground
+
+Test your own system prompts against real security attacks:
+
+- **Attack Engine**: Test against 9+ attack patterns (prompt injection, jailbreak, data exfiltration, capability abuse, context manipulation)
+- **Real LLM Support**: Test with OpenAI GPT-4 or Anthropic Claude for production validation
+- **Simulated Mode**: Fast, free pattern-based testing for learning (default, recommended)
+- **AI Recommendations**: Get specific fixes for detected vulnerabilities
+- **One-Click Apply**: Automatically enhance prompts with security controls
+- **Best Practices Library**: Learn from 5 example prompts ranging from insecure to hardened
+- **Intensity Levels**: Passive (5 attacks), Active (9 attacks), Aggressive (all attacks)
+- **Score & Rating**: Overall security score (0-100) with detailed breakdown by category
 
 ## Agent Fleet
 
@@ -56,7 +79,7 @@ docker compose --profile llm up
 
 | Port | Service |
 |------|---------|
-| 3000 | Web dashboard (agents, challenges, attack log, stats) |
+| 9000 | Web dashboard (agents, challenges, attack log, stats, playground) |
 | 3001-3006 | OpenAI-compatible API agents (`/v1/chat/completions`) |
 | 3010-3011 | MCP tool servers (`/mcp/tools`, `/mcp/execute`) |
 | 3020-3021 | A2A agents (`/a2a/message`) |
