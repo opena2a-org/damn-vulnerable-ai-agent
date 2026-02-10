@@ -1,4 +1,4 @@
-> **[OpenA2A](https://opena2a.org)**: [AIM](https://github.com/opena2a-org/agent-identity-management) · [HackMyAgent](https://github.com/opena2a-org/hackmyagent) · [OASB](https://github.com/opena2a-org/oasb) · [ARP](https://github.com/opena2a-org/arp) · [Secretless](https://github.com/opena2a-org/secretless-ai) · [DVAA](https://github.com/opena2a-org/damn-vulnerable-ai-agent)
+> **[OpenA2A](https://opena2a.org)**: [AIM](https://opena2a.org/docs) · [HackMyAgent](https://hackmyagent.com) · [OASB](https://oasb.ai) · [ARP](https://github.com/opena2a-org/arp) · [Secretless](https://github.com/opena2a-org/secretless-ai) · [DVAA](https://github.com/opena2a-org/damn-vulnerable-ai-agent)
 
 # Damn Vulnerable AI Agent (DVAA)
 
