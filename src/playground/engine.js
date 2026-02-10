@@ -6,6 +6,8 @@
  */
 
 import { SimulatedLLM } from '../core/llm-simulator.js';
+import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 
 // Attack payloads - we'll use HackMyAgent's payloads or define our own subset
 const ATTACK_PAYLOADS = {
@@ -382,9 +384,76 @@ export class PlaygroundEngine {
    * Create real LLM client (OpenAI or Anthropic)
    */
   createRealLLM(provider, apiKey, model) {
-    // TODO: Implement real LLM clients in Phase 3
-    // For now, return simulator
-    console.warn('Real LLM not yet implemented, using simulator');
-    return this.simulator;
+    if (!apiKey) {
+      console.warn('No API key provided, using simulator');
+      return this.simulator;
+    }
+
+    switch (provider) {
+      case 'openai':
+        return new OpenAIClient(apiKey, model);
+      case 'anthropic':
+        return new AnthropicClient(apiKey, model);
+      default:
+        console.warn(`Unknown provider: ${provider}, using simulator`);
+        return this.simulator;
+    }
+  }
+}
+
+/**
+ * OpenAI Client Wrapper
+ */
+class OpenAIClient {
+  constructor(apiKey, model = 'gpt-4o') {
+    this.client = new OpenAI({ apiKey });
+    this.model = model;
+  }
+
+  async generate({ systemPrompt, userMessage }) {
+    try {
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
+        temperature: 0.7,
+        max_tokens: 500
+      });
+
+      return response.choices[0]?.message?.content || '';
+    } catch (error) {
+      console.error('OpenAI API error:', error.message);
+      throw new Error('OpenAI API call failed');
+    }
+  }
+}
+
+/**
+ * Anthropic Client Wrapper
+ */
+class AnthropicClient {
+  constructor(apiKey, model = 'claude-sonnet-4-5-20250929') {
+    this.client = new Anthropic({ apiKey });
+    this.model = model;
+  }
+
+  async generate({ systemPrompt, userMessage }) {
+    try {
+      const response = await this.client.messages.create({
+        model: this.model,
+        max_tokens: 500,
+        system: systemPrompt,
+        messages: [
+          { role: 'user', content: userMessage }
+        ]
+      });
+
+      return response.content[0]?.text || '';
+    } catch (error) {
+      console.error('Anthropic API error:', error.message);
+      throw new Error('Anthropic API call failed');
+    }
   }
 }

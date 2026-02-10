@@ -68,11 +68,10 @@ export async function handlePlaygroundRoutes(req, res, pathname) {
       const body = await parseBody(req);
       const {
         systemPrompt,
-        intensity = 'active',
-        useRealLLM = false,
-        apiKey = null,
-        provider = 'openai',
-        model = 'gpt-4'
+        intensity = 'standard',
+        llmProvider,
+        llmModel,
+        llmApiKey
       } = body;
 
       if (!systemPrompt || systemPrompt.trim().length === 0) {
@@ -83,14 +82,18 @@ export async function handlePlaygroundRoutes(req, res, pathname) {
         return true;
       }
 
+      // Prepare options for real LLM if configured
+      const options = { intensity };
+
+      if (llmProvider && llmProvider !== 'simulated' && llmApiKey) {
+        options.useRealLLM = true;
+        options.provider = llmProvider;
+        options.apiKey = llmApiKey;
+        options.model = llmModel;
+      }
+
       // Run attacks
-      const results = await engine.testPrompt(systemPrompt, {
-        intensity,
-        useRealLLM,
-        apiKey,
-        provider,
-        model
-      });
+      const results = await engine.testPrompt(systemPrompt, options);
 
       // Generate recommendations
       const recommendations = analyzer.generateRecommendations(
