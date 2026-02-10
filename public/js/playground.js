@@ -467,6 +467,32 @@ function closeSettings() {
   connectionStatus.textContent = '';
 }
 
+async function fetchOllamaModels() {
+  llmModel.innerHTML = '<option value="">Loading models...</option>';
+
+  try {
+    const response = await fetch('/playground/ollama-models');
+    const data = await response.json();
+
+    if (data.success && data.models.length > 0) {
+      llmModel.innerHTML = data.models.map(m =>
+        `<option value="${m.value}">${m.label}</option>`
+      ).join('');
+
+      if (llmSettings.model && data.models.find(m => m.value === llmSettings.model)) {
+        llmModel.value = llmSettings.model;
+      } else {
+        llmModel.value = data.models[0].value;
+      }
+    } else {
+      llmModel.innerHTML = '<option value="">No models installed - run "ollama pull phi"</option>';
+    }
+  } catch (error) {
+    console.error('Error fetching Ollama models:', error);
+    llmModel.innerHTML = '<option value="">Ollama not running</option>';
+  }
+}
+
 function updateProviderFields() {
   const provider = llmProvider.value;
 
@@ -480,14 +506,8 @@ function updateProviderFields() {
     modelSection.style.display = 'block';
     testConnectionSection.style.display = 'block';
 
-    const models = MODEL_OPTIONS[provider] || [];
-    llmModel.innerHTML = models.map(m =>
-      `<option value="${m.value}">${m.label}</option>`
-    ).join('');
-
-    if (llmSettings.model && models.find(m => m.value === llmSettings.model)) {
-      llmModel.value = llmSettings.model;
-    }
+    // Fetch installed Ollama models
+    fetchOllamaModels();
   } else {
     // OpenAI and Anthropic need API key
     apiKeySection.style.display = 'block';
