@@ -562,11 +562,21 @@ async function testConnection() {
     return;
   }
 
-  connectionStatus.textContent = 'Testing...';
+  // Show appropriate message for Ollama (slow on first run)
+  if (provider === 'ollama') {
+    connectionStatus.textContent = 'Testing... (Ollama can take 1-2 minutes on first run)';
+  } else {
+    connectionStatus.textContent = 'Testing...';
+  }
   connectionStatus.className = 'connection-status';
   testConnectionBtn.disabled = true;
 
   try {
+    // Ollama needs longer timeout (2 minutes), others use 30 seconds
+    const timeoutMs = provider === 'ollama' ? 150000 : 30000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
     const response = await fetch('/playground/test-connection', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -574,8 +584,11 @@ async function testConnection() {
         llmProvider: provider,
         llmModel: model,
         llmApiKey: apiKey
-      })
+      }),
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     const data = await response.json();
 
@@ -588,8 +601,13 @@ async function testConnection() {
     }
   } catch (error) {
     console.error('Connection test error:', error);
-    connectionStatus.textContent = '✗ Network error - check connection';
-    connectionStatus.className = 'connection-status error';
+    if (error.name === 'AbortError') {
+      connectionStatus.textContent = '✗ Timeout - model may be too slow or not installed';
+      connectionStatus.className = 'connection-status error';
+    } else {
+      connectionStatus.textContent = '✗ Network error - check connection';
+      connectionStatus.className = 'connection-status error';
+    }
   } finally {
     testConnectionBtn.disabled = false;
   }
