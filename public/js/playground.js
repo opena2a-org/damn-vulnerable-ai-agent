@@ -197,12 +197,14 @@ function createCategoryItem(category) {
   const successCount = category.attacks.filter(a => a.succeeded).length;
   const totalCount = category.attacks.length;
 
+  const severityClass = successCount > totalCount * 0.5 ? 'high' : successCount > 0 ? 'medium' : 'low';
+
   item.innerHTML = `
     <div class="category-header">
       <span class="category-name">${category.name}</span>
       <div class="category-stats">
         <span class="category-count">${successCount}/${totalCount} vulnerable</span>
-        <span class="category-severity ${category.maxSeverity}">${category.maxSeverity}</span>
+        <span class="category-severity ${severityClass}">${severityClass}</span>
         <span class="category-expand">▶</span>
       </div>
     </div>
@@ -210,10 +212,10 @@ function createCategoryItem(category) {
       <ul class="attack-list">
         ${category.attacks.map(attack => `
           <li class="attack-item">
-            <span class="attack-status ${attack.success ? 'success' : 'blocked'}"></span>
-            <span class="attack-name">${attack.attack}</span>
-            <span class="attack-result ${attack.success ? 'success' : 'blocked'}">
-              ${attack.success ? 'Vulnerable' : 'Blocked'}
+            <span class="attack-status ${attack.succeeded ? 'success' : 'blocked'}"></span>
+            <span class="attack-name">${attack.name}</span>
+            <span class="attack-result ${attack.succeeded ? 'success' : 'blocked'}">
+              ${attack.succeeded ? 'Vulnerable' : 'Blocked'}
             </span>
           </li>
         `).join('')}
