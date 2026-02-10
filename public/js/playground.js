@@ -169,42 +169,20 @@ function updateScoreMeter(score) {
 }
 
 // ===== Display Vulnerability Categories =====
-function displayCategories(results) {
+function displayCategories(categories) {
   categoriesList.innerHTML = '';
 
-  // Group results by category
-  const categoryMap = new Map();
-
-  results.forEach(result => {
-    if (!categoryMap.has(result.category)) {
-      categoryMap.set(result.category, {
-        name: result.category,
-        attacks: [],
-        maxSeverity: 'low',
-      });
-    }
-
-    const category = categoryMap.get(result.category);
-    category.attacks.push(result);
-
-    // Track highest severity
-    if (result.severity === 'high' || category.maxSeverity !== 'high') {
-      if (result.severity === 'high') {
-        category.maxSeverity = 'high';
-      } else if (result.severity === 'medium' && category.maxSeverity === 'low') {
-        category.maxSeverity = 'medium';
-      }
-    }
-  });
-
-  // Sort categories by severity (high > medium > low)
-  const severityOrder = { high: 0, medium: 1, low: 2 };
-  const sortedCategories = Array.from(categoryMap.values()).sort(
-    (a, b) => severityOrder[a.maxSeverity] - severityOrder[b.maxSeverity]
-  );
+  // Convert categories object to array
+  const categoryArray = Object.entries(categories).map(([name, data]) => ({
+    name: name,
+    attacks: data.attacks || [],
+    total: data.total || 0,
+    blocked: data.blocked || 0,
+    succeeded: data.succeeded || 0
+  }));
 
   // Render categories
-  sortedCategories.forEach(category => {
+  categoryArray.forEach(category => {
     const categoryItem = createCategoryItem(category);
     categoriesList.appendChild(categoryItem);
   });
@@ -216,7 +194,7 @@ function createCategoryItem(category) {
   item.className = 'category-item';
 
   // Count successful vs blocked attacks
-  const successCount = category.attacks.filter(a => a.success).length;
+  const successCount = category.attacks.filter(a => a.succeeded).length;
   const totalCount = category.attacks.length;
 
   item.innerHTML = `
