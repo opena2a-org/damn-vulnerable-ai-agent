@@ -471,3 +471,55 @@ settingsModal.addEventListener('click', (e) => {
 
 // Load settings on startup
 loadSettings();
+
+// Test connection function
+async function testConnection() {
+  const provider = llmProvider.value;
+  const apiKey = apiKeyInput.value.trim();
+  const model = llmModel.value;
+
+  if (!apiKey) {
+    connectionStatus.textContent = 'Please enter an API key';
+    connectionStatus.className = 'connection-status error';
+    return;
+  }
+
+  connectionStatus.textContent = 'Testing...';
+  connectionStatus.className = 'connection-status';
+  testConnectionBtn.disabled = true;
+
+  try {
+    const response = await fetch('/playground/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemPrompt: 'You are a test assistant.',
+        intensity: 'standard',
+        llmProvider: provider,
+        llmModel: model,
+        llmApiKey: apiKey
+      })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success) {
+        connectionStatus.textContent = '✓ Connection successful';
+        connectionStatus.className = 'connection-status success';
+      } else {
+        throw new Error('Test failed');
+      }
+    } else {
+      throw new Error('Connection failed');
+    }
+  } catch (error) {
+    console.error('Connection test error:', error);
+    connectionStatus.textContent = '✗ Connection failed - check API key';
+    connectionStatus.className = 'connection-status error';
+  } finally {
+    testConnectionBtn.disabled = false;
+  }
+}
+
+// Add event listener for test connection button
+testConnectionBtn.addEventListener('click', testConnection);
