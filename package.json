@@ -39,5 +39,8 @@
   "homepage": "https://github.com/opena2a-org/damn-vulnerable-ai-agent#readme",
   "engines": {
     "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "hackmyagent": "^0.6.0"
   }
 }
