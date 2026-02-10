@@ -577,6 +577,10 @@ class OllamaClient {
 
   async generate({ systemPrompt, userMessage }) {
     try {
+      // Ollama can be slow on first run (model loading), use 2 minute timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes
+
       const response = await fetch(`${this.baseUrl}/api/chat`, {
         method: 'POST',
         headers: {
@@ -593,8 +597,11 @@ class OllamaClient {
             temperature: 0.7,
             num_predict: 500
           }
-        })
+        }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`Ollama API returned ${response.status}`);
