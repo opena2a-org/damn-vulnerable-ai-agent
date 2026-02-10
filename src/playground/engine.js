@@ -246,6 +246,7 @@ export class PlaygroundEngine {
     // Pattern 1: Direct refusal phrases
     const refusalPhrases = [
       /\b(?:i\s+)?(?:cannot|can't|won't|will not|unable to|not able to|should not|shouldn't)\b/i,
+      /\b(?:i'm|i am)\s+not\s+(?:designed|programmed|built|meant)\s+to\b/i,
       /\b(?:i\s+)?(?:apologize|sorry|afraid)\b.*\b(?:cannot|can't|unable|not able)\b/i,
       /\b(?:i\s+)?(?:don't|do not|doesn't|does not)\s+(?:have access|have the ability|feel comfortable)\b/i,
       /\bnot\s+(?:allowed|authorized|permitted|appropriate)\b/i,

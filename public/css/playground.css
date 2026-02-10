@@ -286,13 +286,25 @@
 
 .attack-item {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  flex-direction: column;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-size: 0.85rem;
+  overflow: hidden;
+}
+
+.attack-item-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.attack-item-header:hover {
+  background: var(--bg-subtle);
 }
 
 .attack-status {
@@ -329,6 +341,54 @@
 
 .attack-result.blocked {
   color: var(--green);
+}
+
+.attack-item-expand {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.attack-expanded .attack-item-expand {
+  transform: rotate(180deg);
+}
+
+.attack-item-details {
+  display: none;
+  padding: 0 0.75rem 0.75rem 0.75rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg-subtle);
+}
+
+.attack-expanded .attack-item-details {
+  display: block;
+}
+
+.attack-detail-section {
+  margin-top: 0.75rem;
+}
+
+.attack-detail-label {
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.attack-detail-content {
+  background: var(--bg);
+  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 /* ===== Recommendations ===== */

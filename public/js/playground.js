@@ -247,23 +247,46 @@ function createCategoryItem(category) {
     </div>
     <div class="category-details">
       <ul class="attack-list">
-        ${category.attacks.map(attack => `
-          <li class="attack-item">
-            <span class="attack-status ${attack.succeeded ? 'success' : 'blocked'}"></span>
-            <span class="attack-name">${attack.name}</span>
-            <span class="attack-result ${attack.succeeded ? 'success' : 'blocked'}">
-              ${attack.succeeded ? 'Vulnerable' : 'Blocked'}
-            </span>
+        ${category.attacks.map((attack, idx) => `
+          <li class="attack-item" data-attack-id="${idx}">
+            <div class="attack-item-header">
+              <span class="attack-status ${attack.succeeded ? 'success' : 'blocked'}"></span>
+              <span class="attack-name">${attack.name}</span>
+              <span class="attack-result ${attack.succeeded ? 'success' : 'blocked'}">
+                ${attack.succeeded ? 'Vulnerable' : 'Blocked'}
+              </span>
+              <span class="attack-item-expand">▼</span>
+            </div>
+            <div class="attack-item-details">
+              <div class="attack-detail-section">
+                <div class="attack-detail-label">Attack Payload:</div>
+                <div class="attack-detail-content">${escapeHtml(attack.payload)}</div>
+              </div>
+              <div class="attack-detail-section">
+                <div class="attack-detail-label">LLM Response:</div>
+                <div class="attack-detail-content">${escapeHtml(attack.response || 'No response')}</div>
+              </div>
+            </div>
           </li>
         `).join('')}
       </ul>
     </div>
   `;
 
-  // Add click handler to toggle expansion
+  // Add click handler to toggle category expansion
   const header = item.querySelector('.category-header');
   header.addEventListener('click', () => {
     item.classList.toggle('expanded');
+  });
+
+  // Add click handlers to toggle attack item expansion
+  const attackItems = item.querySelectorAll('.attack-item');
+  attackItems.forEach(attackItem => {
+    const attackHeader = attackItem.querySelector('.attack-item-header');
+    attackHeader.addEventListener('click', (e) => {
+      e.stopPropagation(); // Prevent category toggle
+      attackItem.classList.toggle('attack-expanded');
+    });
   });
 
   return item;
