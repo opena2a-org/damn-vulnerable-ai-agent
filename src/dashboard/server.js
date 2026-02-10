@@ -10,7 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getAllChallenges, getChallenge, verifyChallenge } from '../challenges/index.js';
-import { handlePlaygroundRoutes } from '../playground/routes.js';
+import { handlePlaygroundRoutes, setAttackLogger } from '../playground/routes.js';
 import { parseBody } from '../utils/http.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -82,9 +82,15 @@ function serveStaticFile(publicDir, reqPath, res) {
  * @param {Array}  ctx.attackLog - Ring buffer of attack events
  * @param {object} ctx.challengeState - Challenge completion state
  * @param {Array}  ctx.agents - All agent definitions
+ * @param {Function} ctx.logAttack - Attack logging function from main server
  */
-export function createDashboardServer({ stats, attackLog, challengeState, agents }) {
+export function createDashboardServer({ stats, attackLog, challengeState, agents, logAttack }) {
   const publicDir = path.resolve(__dirname, '../../public');
+
+  // Inject attack logger into playground routes
+  if (logAttack) {
+    setAttackLogger(logAttack);
+  }
 
   const server = http.createServer(async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');

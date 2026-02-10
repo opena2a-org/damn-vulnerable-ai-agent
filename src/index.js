@@ -549,6 +549,7 @@ const dashboardServer = createDashboardServer({
   attackLog,
   challengeState,
   agents: allAgents,
+  logAttack,
 });
 
 dashboardServer.listen(3000, () => {

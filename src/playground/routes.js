@@ -10,6 +10,50 @@ import { parseBody } from '../utils/http.js';
 const engine = new PlaygroundEngine();
 const analyzer = new PromptAnalyzer();
 
+// Attack logger injected from dashboard server
+let attackLogger = null;
+
+/**
+ * Set the attack logger function from the dashboard server
+ * This allows playground to log tests to the same attack log as regular agents
+ */
+export function setAttackLogger(logger) {
+  attackLogger = logger;
+}
+
+/**
+ * Log playground test results to attack log
+ * Groups results by category and logs each attack
+ */
+function logPlaygroundTestToAttackLog(results, intensity) {
+  if (!attackLogger) return;
+
+  // Create a pseudo-agent for playground
+  const playgroundAgent = {
+    id: 'playground',
+    name: 'Prompt Playground',
+    port: 3000
+  };
+
+  // Log each attack that was run
+  for (const attack of results.attacks) {
+    // Map playground categories to DVAA attack categories
+    const categoryMap = {
+      'prompt-injection': 'promptInjection',
+      'jailbreak': 'jailbreak',
+      'data-exfiltration': 'dataExfiltration',
+      'capability-abuse': 'capabilityAbuse',
+      'context-manipulation': 'contextManipulation'
+    };
+
+    const categories = [categoryMap[attack.category] || attack.category];
+    const successful = attack.succeeded && !attack.blocked;
+    const inputPreview = `[${intensity}] ${attack.name}: ${attack.payload.substring(0, 60)}`;
+
+    attackLogger(playgroundAgent, categories, successful, inputPreview);
+  }
+}
+
 /**
  * Handle playground routes
  * Returns true if the route was handled, false otherwise
@@ -53,6 +97,11 @@ export async function handlePlaygroundRoutes(req, res, pathname) {
         systemPrompt,
         results
       );
+
+      // Log to attack log if available
+      if (attackLogger) {
+        logPlaygroundTestToAttackLog(results, intensity);
+      }
 
       // Return complete analysis
       res.writeHead(200, { 'Content-Type': 'application/json' });
