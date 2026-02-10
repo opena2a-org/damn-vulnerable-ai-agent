@@ -378,14 +378,14 @@ init();
 // ===== Settings Management =====
 const MODEL_OPTIONS = {
   openai: [
-    { value: 'gpt-4o', label: 'GPT-4o (Recommended)' },
-    { value: 'gpt-4o-mini', label: 'GPT-4o Mini (Faster, Cheaper)' },
-    { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' }
+    { value: 'gpt-4o', label: 'GPT-4o (Recommended, ~$0.05/test)' },
+    { value: 'gpt-4o-mini', label: 'GPT-4o Mini (Faster, ~$0.01/test)' },
+    { value: 'gpt-4-turbo', label: 'GPT-4 Turbo (~$0.08/test)' }
   ],
   anthropic: [
-    { value: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5 (Recommended)' },
-    { value: 'claude-opus-4-6', label: 'Claude Opus 4.6 (Most Capable)' },
-    { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (Fastest)' }
+    { value: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5 (Recommended, ~$0.03/test)' },
+    { value: 'claude-opus-4-6', label: 'Claude Opus 4.6 (Most Capable, ~$0.10/test)' },
+    { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (Fastest, ~$0.01/test)' }
   ]
 };
 
@@ -407,10 +407,14 @@ function saveSettings() {
 }
 
 function updateStatusText() {
-  const providerText = llmSettings.provider === 'simulated' ? 'Simulated' :
-                      llmSettings.provider === 'openai' ? 'OpenAI' :
-                      llmSettings.provider === 'anthropic' ? 'Claude' : 'Simulated';
-  statusText.textContent = `${providerText} Mode`;
+  if (llmSettings.provider === 'simulated') {
+    statusText.textContent = 'Learning Mode';
+    statusText.style.color = 'var(--green)';
+  } else {
+    const providerText = llmSettings.provider === 'openai' ? 'OpenAI' : 'Claude';
+    statusText.textContent = `Production: ${providerText}`;
+    statusText.style.color = 'var(--amber)';
+  }
 }
 
 function openSettings() {
