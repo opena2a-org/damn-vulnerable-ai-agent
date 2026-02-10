@@ -414,13 +414,6 @@ const MODEL_OPTIONS = {
     { value: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5 (Recommended, ~$0.03/test)' },
     { value: 'claude-opus-4-6', label: 'Claude Opus 4.6 (Most Capable, ~$0.10/test)' },
     { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (Fastest, ~$0.01/test)' }
-  ],
-  ollama: [
-    { value: 'llama2', label: 'Llama 2 (General Purpose)' },
-    { value: 'llama3', label: 'Llama 3 (Latest)' },
-    { value: 'mistral', label: 'Mistral (Fast)' },
-    { value: 'mixtral', label: 'Mixtral (Most Capable)' },
-    { value: 'phi', label: 'Phi (Small & Fast)' }
   ]
 };
 
@@ -445,9 +438,6 @@ function updateStatusText() {
   if (llmSettings.provider === 'simulated') {
     statusText.textContent = 'Learning Mode';
     statusText.style.color = 'var(--green)';
-  } else if (llmSettings.provider === 'ollama') {
-    statusText.textContent = 'Local: Ollama';
-    statusText.style.color = 'var(--teal)';
   } else {
     const providerText = llmSettings.provider === 'openai' ? 'OpenAI' : 'Claude';
     statusText.textContent = `Production: ${providerText}`;
@@ -467,32 +457,6 @@ function closeSettings() {
   connectionStatus.textContent = '';
 }
 
-async function fetchOllamaModels() {
-  llmModel.innerHTML = '<option value="">Loading models...</option>';
-
-  try {
-    const response = await fetch('/playground/ollama-models');
-    const data = await response.json();
-
-    if (data.success && data.models.length > 0) {
-      llmModel.innerHTML = data.models.map(m =>
-        `<option value="${m.value}">${m.label}</option>`
-      ).join('');
-
-      if (llmSettings.model && data.models.find(m => m.value === llmSettings.model)) {
-        llmModel.value = llmSettings.model;
-      } else {
-        llmModel.value = data.models[0].value;
-      }
-    } else {
-      llmModel.innerHTML = '<option value="">No models installed - run "ollama pull phi"</option>';
-    }
-  } catch (error) {
-    console.error('Error fetching Ollama models:', error);
-    llmModel.innerHTML = '<option value="">Ollama not running</option>';
-  }
-}
-
 function updateProviderFields() {
   const provider = llmProvider.value;
 
@@ -500,14 +464,6 @@ function updateProviderFields() {
     apiKeySection.style.display = 'none';
     modelSection.style.display = 'none';
     testConnectionSection.style.display = 'none';
-  } else if (provider === 'ollama') {
-    // Ollama doesn't need API key, only model selection
-    apiKeySection.style.display = 'none';
-    modelSection.style.display = 'block';
-    testConnectionSection.style.display = 'block';
-
-    // Fetch installed Ollama models
-    fetchOllamaModels();
   } else {
     // OpenAI and Anthropic need API key
     apiKeySection.style.display = 'block';
@@ -555,25 +511,18 @@ async function testConnection() {
   const apiKey = apiKeyInput.value.trim();
   const model = llmModel.value;
 
-  // Ollama doesn't need API key
-  if (provider !== 'ollama' && !apiKey) {
+  if (!apiKey) {
     connectionStatus.textContent = 'Please enter an API key';
     connectionStatus.className = 'connection-status error';
     return;
   }
 
-  // Show appropriate message for Ollama (slow on first run)
-  if (provider === 'ollama') {
-    connectionStatus.textContent = 'Testing... (Ollama can take 2-3 minutes on first run, please wait)';
-  } else {
-    connectionStatus.textContent = 'Testing...';
-  }
+  connectionStatus.textContent = 'Testing...';
   connectionStatus.className = 'connection-status';
   testConnectionBtn.disabled = true;
 
   try {
-    // Ollama needs longer timeout (3.5 minutes), others use 30 seconds
-    const timeoutMs = provider === 'ollama' ? 210000 : 30000;
+    const timeoutMs = 30000; // 30 seconds
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 

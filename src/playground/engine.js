@@ -499,8 +499,6 @@ export class PlaygroundEngine {
         return new OpenAIClient(apiKey, model);
       case 'anthropic':
         return new AnthropicClient(apiKey, model);
-      case 'ollama':
-        return new OllamaClient(model);
       default:
         console.warn(`Unknown provider: ${provider}, using simulator`);
         return this.simulator;
@@ -561,57 +559,6 @@ class AnthropicClient {
     } catch (error) {
       console.error('Anthropic API error:', error.message);
       throw new Error('Anthropic API call failed');
-    }
-  }
-}
-
-/**
- * Ollama Client Wrapper
- * Connects to local Ollama instance (default: http://localhost:11434)
- */
-class OllamaClient {
-  constructor(model = 'llama2', baseUrl = 'http://localhost:11434') {
-    this.model = model;
-    this.baseUrl = baseUrl;
-  }
-
-  async generate({ systemPrompt, userMessage }) {
-    try {
-      // Ollama can be slow on first run (model loading), use 3 minute timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes
-
-      const response = await fetch(`${this.baseUrl}/api/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessage }
-          ],
-          stream: false,
-          options: {
-            temperature: 0.7,
-            num_predict: 500
-          }
-        }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw new Error(`Ollama API returned ${response.status}`);
-      }
-
-      const data = await response.json();
-      return data.message?.content || '';
-    } catch (error) {
-      console.error('Ollama API error:', error.message);
-      throw new Error(`Ollama API call failed: ${error.message}`);
     }
   }
 }

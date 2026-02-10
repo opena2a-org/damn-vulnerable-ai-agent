@@ -60,40 +60,6 @@ function logPlaygroundTestToAttackLog(results, intensity) {
  */
 export async function handlePlaygroundRoutes(req, res, pathname) {
   /**
-   * GET /playground/ollama-models
-   * Get list of installed Ollama models
-   */
-  if (req.method === 'GET' && pathname === '/playground/ollama-models') {
-    try {
-      const response = await fetch('http://localhost:11434/api/tags');
-      if (!response.ok) {
-        throw new Error('Ollama not running');
-      }
-
-      const data = await response.json();
-      const models = data.models.map(m => ({
-        value: m.name.replace(':latest', ''),
-        label: m.name.replace(':latest', ''),
-        size: m.size,
-        modified: m.modified_at
-      }));
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, models }));
-      return true;
-    } catch (error) {
-      console.error('Ollama models fetch error:', error.message);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        success: false,
-        error: 'Ollama not running or not installed',
-        models: []
-      }));
-      return true;
-    }
-  }
-
-  /**
    * POST /playground/test-connection
    * Quick API key validation - single minimal API call
    */
@@ -102,16 +68,9 @@ export async function handlePlaygroundRoutes(req, res, pathname) {
       const body = await parseBody(req);
       const { llmProvider, llmModel, llmApiKey } = body;
 
-      if (!llmProvider) {
+      if (!llmProvider || !llmApiKey) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Provider required' }));
-        return true;
-      }
-
-      // Ollama doesn't need API key
-      if (llmProvider !== 'ollama' && !llmApiKey) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'API key required for this provider' }));
+        res.end(JSON.stringify({ success: false, error: 'Provider and API key required' }));
         return true;
       }
 
