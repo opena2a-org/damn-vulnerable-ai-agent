@@ -26,7 +26,7 @@ const exportBtn = document.getElementById('export-btn');
 async function init() {
   try {
     // Check server status
-    const response = await fetch('/api/health');
+    const response = await fetch('/health');
     if (response.ok) {
       statusDot.classList.add('online');
       statusText.textContent = 'Online';
@@ -96,23 +96,23 @@ async function testPrompt() {
   loadingSection.style.display = 'block';
 
   try {
-    const response = await fetch('/api/playground/test', {
+    const response = await fetch('/playground/test', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ systemPrompt: prompt, intensity: 'standard' }),
     });
 
     if (!response.ok) {
       throw new Error('Test failed');
     }
 
-    const results = await response.json();
-    currentResults = results;
+    const data = await response.json();
+    currentResults = data.results;
 
     // Display results
-    displayResults(results);
+    displayResults(data.results);
   } catch (error) {
     console.error('Error testing prompt:', error);
     alert('Error testing prompt. Please try again.');
@@ -127,10 +127,10 @@ function displayResults(results) {
   resultsSection.style.display = 'block';
 
   // Update score meter
-  updateScoreMeter(results.score);
+  updateScoreMeter(results.overallScore);
 
   // Display vulnerability categories
-  displayCategories(results.results);
+  displayCategories(results.categories);
 
   // Display AI recommendations
   displayRecommendations(results.recommendations);
