@@ -564,7 +564,7 @@ async function testConnection() {
 
   // Show appropriate message for Ollama (slow on first run)
   if (provider === 'ollama') {
-    connectionStatus.textContent = 'Testing... (Ollama can take 1-2 minutes on first run)';
+    connectionStatus.textContent = 'Testing... (Ollama can take 2-3 minutes on first run, please wait)';
   } else {
     connectionStatus.textContent = 'Testing...';
   }
@@ -572,8 +572,8 @@ async function testConnection() {
   testConnectionBtn.disabled = true;
 
   try {
-    // Ollama needs longer timeout (2 minutes), others use 30 seconds
-    const timeoutMs = provider === 'ollama' ? 150000 : 30000;
+    // Ollama needs longer timeout (3.5 minutes), others use 30 seconds
+    const timeoutMs = provider === 'ollama' ? 210000 : 30000;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 

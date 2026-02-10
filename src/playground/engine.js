@@ -577,9 +577,9 @@ class OllamaClient {
 
   async generate({ systemPrompt, userMessage }) {
     try {
-      // Ollama can be slow on first run (model loading), use 2 minute timeout
+      // Ollama can be slow on first run (model loading), use 3 minute timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes
+      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes
 
       const response = await fetch(`${this.baseUrl}/api/chat`, {
         method: 'POST',
