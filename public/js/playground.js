@@ -47,20 +47,20 @@ async function init() {
 // ===== Load Best Practices Library =====
 async function loadLibrary() {
   try {
-    const response = await fetch('/api/playground/library');
+    const response = await fetch('/playground/library');
     if (!response.ok) {
       throw new Error('Failed to load library');
     }
 
-    const library = await response.json();
-    currentLibrary = library;
+    const data = await response.json();
+    currentLibrary = data.examples || [];
 
     // Populate select dropdown
     librarySelect.innerHTML = '<option value="">Select a best practice...</option>';
-    library.forEach((item, index) => {
+    currentLibrary.forEach((item, index) => {
       const option = document.createElement('option');
       option.value = index;
-      option.textContent = `${item.category} - ${item.name}`;
+      option.textContent = item.name;
       librarySelect.appendChild(option);
     });
   } catch (error) {
@@ -77,8 +77,8 @@ function loadTemplate() {
   }
 
   const template = currentLibrary[selectedIndex];
-  if (template && template.examplePrompt) {
-    promptInput.value = template.examplePrompt;
+  if (template && template.prompt !== undefined) {
+    promptInput.value = template.prompt;
   }
 }
 

@@ -552,10 +552,10 @@ const dashboardServer = createDashboardServer({
   logAttack,
 });
 
-dashboardServer.listen(3000, () => {
-  console.log('\n🖥️  Dashboard: http://localhost:3000');
-  console.log('📊 Stats API: http://localhost:3000/stats');
-  console.log('📋 Agent API: http://localhost:3000/agents\n');
+dashboardServer.listen(9000, () => {
+  console.log('\n🖥️  Dashboard: http://localhost:9000');
+  console.log('📊 Stats API: http://localhost:9000/stats');
+  console.log('📋 Agent API: http://localhost:9000/agents\n');
 });
 
 // Graceful shutdown
