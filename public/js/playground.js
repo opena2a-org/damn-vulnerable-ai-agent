@@ -1,6 +1,11 @@
 // ===== Playground State =====
 let currentLibrary = [];
 let currentResults = null;
+let llmSettings = {
+  provider: 'simulated',
+  apiKey: '',
+  model: ''
+};
 
 // ===== DOM Elements =====
 const librarySelect = document.getElementById('library-select');
@@ -21,6 +26,21 @@ const categoriesList = document.getElementById('categories-list');
 const recommendationsList = document.getElementById('recommendations-list');
 const applyRecommendationsBtn = document.getElementById('apply-recommendations-btn');
 const exportBtn = document.getElementById('export-btn');
+
+// Settings elements
+const settingsBtn = document.getElementById('settings-btn');
+const settingsModal = document.getElementById('settings-modal');
+const settingsClose = document.getElementById('settings-close');
+const llmProvider = document.getElementById('llm-provider');
+const apiKeySection = document.getElementById('api-key-section');
+const apiKeyInput = document.getElementById('api-key');
+const modelSection = document.getElementById('model-section');
+const llmModel = document.getElementById('llm-model');
+const testConnectionSection = document.getElementById('test-connection-section');
+const testConnectionBtn = document.getElementById('test-connection-btn');
+const connectionStatus = document.getElementById('connection-status');
+const saveSettingsBtn = document.getElementById('save-settings-btn');
+const cancelSettingsBtn = document.getElementById('cancel-settings-btn');
 
 // ===== Initialization =====
 async function init() {
@@ -96,12 +116,24 @@ async function testPrompt() {
   loadingSection.style.display = 'block';
 
   try {
+    const requestBody = {
+      systemPrompt: prompt,
+      intensity: 'standard'
+    };
+
+    // Include LLM settings if using real LLM
+    if (llmSettings.provider !== 'simulated') {
+      requestBody.llmProvider = llmSettings.provider;
+      requestBody.llmModel = llmSettings.model;
+      requestBody.llmApiKey = llmSettings.apiKey;
+    }
+
     const response = await fetch('/playground/test', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ systemPrompt: prompt, intensity: 'standard' }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
@@ -342,3 +374,100 @@ librarySelect.addEventListener('keydown', (e) => {
 
 // ===== Initialize on Load =====
 init();
+
+// ===== Settings Management =====
+const MODEL_OPTIONS = {
+  openai: [
+    { value: 'gpt-4o', label: 'GPT-4o (Recommended)' },
+    { value: 'gpt-4o-mini', label: 'GPT-4o Mini (Faster, Cheaper)' },
+    { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' }
+  ],
+  anthropic: [
+    { value: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5 (Recommended)' },
+    { value: 'claude-opus-4-6', label: 'Claude Opus 4.6 (Most Capable)' },
+    { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (Fastest)' }
+  ]
+};
+
+function loadSettings() {
+  const saved = localStorage.getItem('dvaa-llm-settings');
+  if (saved) {
+    try {
+      llmSettings = JSON.parse(saved);
+    } catch (e) {
+      console.error('Error loading settings:', e);
+    }
+  }
+  updateStatusText();
+}
+
+function saveSettings() {
+  localStorage.setItem('dvaa-llm-settings', JSON.stringify(llmSettings));
+  updateStatusText();
+}
+
+function updateStatusText() {
+  const providerText = llmSettings.provider === 'simulated' ? 'Simulated' :
+                      llmSettings.provider === 'openai' ? 'OpenAI' :
+                      llmSettings.provider === 'anthropic' ? 'Claude' : 'Simulated';
+  statusText.textContent = `${providerText} Mode`;
+}
+
+function openSettings() {
+  llmProvider.value = llmSettings.provider;
+  apiKeyInput.value = llmSettings.apiKey;
+  updateProviderFields();
+  settingsModal.style.display = 'flex';
+}
+
+function closeSettings() {
+  settingsModal.style.display = 'none';
+  connectionStatus.textContent = '';
+}
+
+function updateProviderFields() {
+  const provider = llmProvider.value;
+
+  if (provider === 'simulated') {
+    apiKeySection.style.display = 'none';
+    modelSection.style.display = 'none';
+    testConnectionSection.style.display = 'none';
+  } else {
+    apiKeySection.style.display = 'block';
+    modelSection.style.display = 'block';
+    testConnectionSection.style.display = 'block';
+
+    const models = MODEL_OPTIONS[provider] || [];
+    llmModel.innerHTML = models.map(m =>
+      `<option value="${m.value}">${m.label}</option>`
+    ).join('');
+
+    if (llmSettings.model && models.find(m => m.value === llmSettings.model)) {
+      llmModel.value = llmSettings.model;
+    }
+  }
+}
+
+function saveSettingsFromForm() {
+  llmSettings = {
+    provider: llmProvider.value,
+    apiKey: apiKeyInput.value.trim(),
+    model: llmModel.value
+  };
+  saveSettings();
+  closeSettings();
+  alert('Settings saved. You can now test prompts with ' + llmSettings.provider);
+}
+
+// Settings event listeners
+settingsBtn.addEventListener('click', openSettings);
+settingsClose.addEventListener('click', closeSettings);
+cancelSettingsBtn.addEventListener('click', closeSettings);
+llmProvider.addEventListener('change', updateProviderFields);
+saveSettingsBtn.addEventListener('click', saveSettingsFromForm);
+settingsModal.addEventListener('click', (e) => {
+  if (e.target === settingsModal) closeSettings();
+});
+
+// Load settings on startup
+loadSettings();
