@@ -493,32 +493,28 @@ async function testConnection() {
   testConnectionBtn.disabled = true;
 
   try {
-    const response = await fetch('/playground/test', {
+    const response = await fetch('/playground/test-connection', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        systemPrompt: 'You are a test assistant.',
-        intensity: 'standard',
         llmProvider: provider,
         llmModel: model,
         llmApiKey: apiKey
       })
     });
 
-    if (response.ok) {
-      const data = await response.json();
-      if (data.success) {
-        connectionStatus.textContent = '✓ Connection successful';
-        connectionStatus.className = 'connection-status success';
-      } else {
-        throw new Error('Test failed');
-      }
+    const data = await response.json();
+
+    if (data.success) {
+      connectionStatus.textContent = '✓ Connection successful';
+      connectionStatus.className = 'connection-status success';
     } else {
-      throw new Error('Connection failed');
+      connectionStatus.textContent = `✗ ${data.error || 'Connection failed'}`;
+      connectionStatus.className = 'connection-status error';
     }
   } catch (error) {
     console.error('Connection test error:', error);
-    connectionStatus.textContent = '✗ Connection failed - check API key';
+    connectionStatus.textContent = '✗ Network error - check connection';
     connectionStatus.className = 'connection-status error';
   } finally {
     testConnectionBtn.disabled = false;

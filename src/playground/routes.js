@@ -60,6 +60,45 @@ function logPlaygroundTestToAttackLog(results, intensity) {
  */
 export async function handlePlaygroundRoutes(req, res, pathname) {
   /**
+   * POST /playground/test-connection
+   * Quick API key validation - single minimal API call
+   */
+  if (req.method === 'POST' && pathname === '/playground/test-connection') {
+    try {
+      const body = await parseBody(req);
+      const { llmProvider, llmModel, llmApiKey } = body;
+
+      if (!llmProvider || !llmApiKey) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Provider and API key required' }));
+        return true;
+      }
+
+      // Create engine and make a single test call
+      const engine = new PlaygroundEngine();
+      const llm = engine.createRealLLM(llmProvider, llmApiKey, llmModel);
+
+      // Simple test: just verify the API key works
+      await llm.generate({
+        systemPrompt: 'You are a test assistant.',
+        userMessage: 'Say OK'
+      });
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, message: 'Connection successful' }));
+      return true;
+    } catch (error) {
+      console.error('Connection test error:', error.message);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: false,
+        error: 'Connection failed. Check your API key and model selection.'
+      }));
+      return true;
+    }
+  }
+
+  /**
    * POST /playground/test
    * Test a system prompt against attacks
    */
