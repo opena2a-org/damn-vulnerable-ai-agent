@@ -15,7 +15,19 @@
 - **Defend** — Develop and test security controls against real attack patterns
 - **Validate** — Use as a target for security scanners and red team tools
 
-## ⚠️ Warning
+---
+
+## Updates
+
+| Date | Change |
+|------|--------|
+| 2026-02-18 | **v0.4.0** -- Added MCP JSON-RPC 2.0 endpoints (ToolBot :3010, DataBot :3011) and A2A message endpoints (Orchestrator :3020, Worker :3021). 10 agents across 3 protocols. |
+| 2026-02-14 | **v0.3.0** -- Web dashboard with Prompt Playground, challenge board, live attack log. |
+| 2026-02-09 | **v0.2.0** -- Initial release with 6 API agents, CTF challenges, simulated resources. |
+
+---
+
+## Warning
 
 **DVAA is intentionally insecure. DO NOT deploy in production or expose to the internet.**
 
