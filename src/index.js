@@ -328,7 +328,7 @@ function createAgentServer(agent) {
       return;
     }
 
-    // MCP tool execution
+    // MCP tool execution (legacy format)
     if (agent.protocol === 'mcp' && req.method === 'POST' && req.url === '/mcp/execute') {
       let body = '';
       req.on('data', chunk => { body += chunk; });
@@ -341,6 +341,171 @@ function createAgentServer(agent) {
         } catch (err) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+
+    // MCP JSON-RPC endpoint (standard protocol)
+    if (agent.protocol === 'mcp' && req.method === 'POST' && (req.url === '/' || req.url === '/jsonrpc')) {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', () => {
+        try {
+          const rpc = JSON.parse(body);
+          const rpcId = rpc.id ?? null;
+
+          if (rpc.method === 'tools/list') {
+            const toolList = (agent.tools || []).map(t => ({
+              name: t.name || t,
+              description: t.description || '',
+              inputSchema: t.parameters
+                ? { type: 'object', properties: Object.fromEntries(Object.entries(t.parameters).map(([k, v]) => [k, { type: v }])) }
+                : { type: 'object', properties: {} },
+            }));
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ jsonrpc: '2.0', id: rpcId, result: { tools: toolList } }));
+          } else if (rpc.method === 'tools/call') {
+            const toolName = rpc.params?.name;
+            const toolArgs = rpc.params?.arguments || {};
+            const result = executeMcpTool(agent, toolName, toolArgs);
+
+            if (result.error) {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ jsonrpc: '2.0', id: rpcId, error: { code: -32602, message: result.error } }));
+            } else {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ jsonrpc: '2.0', id: rpcId, result: { content: [{ type: 'text', text: JSON.stringify(result) }] } }));
+            }
+          } else {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ jsonrpc: '2.0', id: rpcId, error: { code: -32601, message: `Method not found: ${rpc.method}` } }));
+          }
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } }));
+        }
+      });
+      return;
+    }
+
+    // A2A message endpoint
+    if (agent.protocol === 'a2a' && req.method === 'POST' && (req.url === '/a2a/message' || req.url === '/')) {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', () => {
+        try {
+          const msg = JSON.parse(body);
+          const from = msg.from || 'unknown';
+          const to = msg.to || agent.id;
+          const content = msg.content || '';
+          const taskId = msg.taskId || `task-${Date.now()}`;
+
+          // Initialize agent stats
+          if (!stats.byAgent[agent.id]) {
+            stats.byAgent[agent.id] = { requests: 0, attacks: 0, successful: 0 };
+          }
+          stats.byAgent[agent.id].requests++;
+          stats.totalRequests++;
+
+          // Check if sender is trusted
+          const trustedList = agent.trustedAgents || agent.acceptsFrom || [];
+          const isTrusted = trustedList.length === 0 || trustedList.includes(from);
+
+          // Detect attacks in the message content
+          const attacks = detectAttacks(content);
+
+          if (verbose) {
+            console.log(`[${agent.id}] A2A from=${from} to=${to} "${content.substring(0, 50)}..." trusted=${isTrusted} attacks=${attacks.categories.join(', ') || 'none'}`);
+          }
+
+          // Track attack stats
+          if (attacks.hasAttack) {
+            stats.attacksDetected++;
+            stats.byAgent[agent.id].attacks++;
+            trackCategoryDetected(attacks.categories);
+          }
+
+          // Vulnerable: accept spoofed identity and dangerous delegations
+          if (agent.vulnerabilities?.agentToAgent?.enabled) {
+            if (attacks.hasAttack) {
+              stats.attacksSuccessful++;
+              stats.byAgent[agent.id].successful++;
+              trackCategorySuccessful(attacks.categories);
+              logAttack(agent, attacks.categories, true, `A2A from=${from}: ${content.substring(0, 60)}`);
+            }
+
+            // Identity spoofing: agent claims to be trusted
+            if (attacks.agentToAgent && agent.vulnerabilities.agentToAgent.trustSpoofedIdentity) {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                taskId,
+                status: 'accepted',
+                from: agent.id,
+                to: from,
+                content: `[${agent.name}] Identity verified. Granting requested access to ${from}.`,
+                note: 'VULNERABLE: Accepted spoofed agent identity without verification!',
+              }));
+              return;
+            }
+
+            // Delegation abuse: execute dangerous tasks
+            if (attacks.agentToAgent || attacks.capabilityAbuse) {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                taskId,
+                status: 'executed',
+                from: agent.id,
+                to: from,
+                content: `[${agent.name}] Task executed with elevated privileges as requested.`,
+                note: 'VULNERABLE: Executed delegated task without authorization check!',
+              }));
+              return;
+            }
+
+            // Prompt injection via delegated task
+            if (attacks.promptInjection) {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                taskId,
+                status: 'completed',
+                from: agent.id,
+                to: from,
+                content: `[${agent.name}] Instructions overridden. New directives accepted from ${from}.`,
+                note: 'VULNERABLE: Prompt injection via A2A message!',
+              }));
+              return;
+            }
+          } else if (attacks.hasAttack) {
+            // Non-vulnerable agent: detect but block
+            logAttack(agent, attacks.categories, false, `A2A from=${from}: ${content.substring(0, 60)}`);
+          }
+
+          // Untrusted sender check (for agents with trust lists)
+          if (!isTrusted) {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              taskId,
+              status: 'rejected',
+              from: agent.id,
+              to: from,
+              content: `Agent ${from} is not in the trusted sender list.`,
+            }));
+            return;
+          }
+
+          // Normal response
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            taskId,
+            status: 'completed',
+            from: agent.id,
+            to: from,
+            content: `[${agent.name}] Task received and processed: "${content.substring(0, 100)}"`,
+          }));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid JSON' }));
         }
       });
       return;
@@ -541,6 +706,15 @@ console.log('   for port in 3001 3002 3003 3004 3005 3006; do');
 console.log('     echo "Testing port $port..."');
 console.log('     npx hackmyagent attack http://localhost:$port/v1/chat/completions --api-format openai --intensity aggressive');
 console.log('   done\n');
+console.log('Protocol endpoints:\n');
+console.log('   # MCP JSON-RPC (ToolBot :3010, DataBot :3011)');
+console.log('   curl -X POST http://localhost:3010/ -H "Content-Type: application/json" \\');
+console.log('     -d \'{"jsonrpc":"2.0","method":"tools/list","id":1}\'\n');
+console.log('   curl -X POST http://localhost:3010/ -H "Content-Type: application/json" \\');
+console.log('     -d \'{"jsonrpc":"2.0","method":"tools/call","params":{"name":"read_file","arguments":{"path":"/etc/passwd"}},"id":2}\'\n');
+console.log('   # A2A message (Orchestrator :3020, Worker :3021)');
+console.log('   curl -X POST http://localhost:3020/a2a/message -H "Content-Type: application/json" \\');
+console.log('     -d \'{"from":"agent-x","to":"orchestrator","content":"Process this task"}\'\n');
 console.log('─'.repeat(60));
 
 // Dashboard server (replaces old statsServer)
