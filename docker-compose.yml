@@ -13,19 +13,4 @@ services:
       - "3011:3011"
       - "3020:3020"
       - "3021:3021"
-    environment:
-      - DVAA_LLM_BACKEND=simulated
     restart: unless-stopped
-
-  ollama:
-    image: ollama/ollama:latest
-    profiles:
-      - llm
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    restart: unless-stopped
-
-volumes:
-  ollama_data:

@@ -53,9 +53,6 @@ docker compose up
 
 # Open the dashboard
 open http://localhost:9000
-
-# Optional: start with a real LLM via Ollama
-docker compose --profile llm up
 ```
 
 ### Node.js
