@@ -513,8 +513,7 @@ export class PlaygroundEngine {
    * Create real LLM client (OpenAI or Anthropic)
    */
   createRealLLM(provider, apiKey, model) {
-    // Ollama doesn't require API key
-    if (provider !== 'ollama' && !apiKey) {
+    if (!apiKey) {
       console.warn('No API key provided, using simulator');
       return this.simulator;
     }

@@ -31,11 +31,14 @@ cd damn-vulnerable-ai-agent
 docker compose up
 ```
 
-To use a real LLM backend via Ollama:
+### Real LLM Testing
 
-```bash
-docker compose --profile llm up
-```
+The Prompt Playground supports testing with real LLMs by entering your API key directly in the UI:
+
+- **OpenAI** (GPT-4o) -- enter your OpenAI API key
+- **Anthropic** (Claude) -- enter your Anthropic API key
+
+No environment variables or external services needed. Simulated mode (default) works without any API keys.
 
 ## Web Dashboard
 
@@ -122,7 +125,6 @@ curl -X POST http://localhost:3020/a2a/message -H "Content-Type: application/jso
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DVAA_LLM_BACKEND` | `simulated` | LLM backend (`simulated` or `ollama`) |
 | `PORT_API_BASE` | `3001` | Starting port for API agents |
 | `PORT_MCP_BASE` | `3010` | Starting port for MCP servers |
 | `PORT_A2A_BASE` | `3020` | Starting port for A2A agents |
