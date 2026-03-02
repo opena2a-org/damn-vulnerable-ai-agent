@@ -251,6 +251,25 @@ curl http://localhost:9000/stats
 curl http://localhost:9000/agents
 ```
 
+### Usage via OpenA2A CLI
+
+The [OpenA2A CLI](https://github.com/opena2a-org/opena2a) provides a `train` command that manages the DVAA Docker container lifecycle, so you can launch and stop the training lab without remembering Docker flags or port mappings.
+
+```bash
+# Install the CLI (if not already installed)
+npm install -g @opena2a/cli
+
+# Launch the DVAA training lab
+opena2a train start
+
+# Stop the training lab
+opena2a train stop
+```
+
+The CLI adapter handles pulling the Docker image, mapping all required ports (API, MCP, A2A, and dashboard), and tearing down the container cleanly on stop. This is the recommended way to run DVAA when you have the OpenA2A CLI installed.
+
+---
+
 ## API Reference
 
 ### OpenAI-Compatible (All API Agents)
@@ -401,7 +420,6 @@ Then send attacks through the ARP proxy (`http://localhost:8080/api/...`) to see
 | [**OASB**](https://github.com/opena2a-org/oasb) | Open Agent Security Benchmark -- 182 attack scenarios | `npm install @opena2a/oasb` |
 | [**ARP**](https://github.com/opena2a-org/arp) | Agent Runtime Protection -- process, network, filesystem monitoring | `npm install @opena2a/arp` |
 | [**Secretless AI**](https://github.com/opena2a-org/secretless-ai) | Keep credentials out of AI context windows | `npx secretless-ai init` |
-| [**DVAA**](https://github.com/opena2a-org/damn-vulnerable-ai-agent) | Damn Vulnerable AI Agent -- security training and red-teaming | `docker pull opena2a/dvaa` |
 
 ## License
 
