@@ -8,7 +8,9 @@
 
 **The AI agent you're supposed to break.**
 
-10 agents. 8 attack classes. Zero consequences. DVAA is the [DVWA](https://dvwa.co.uk/) of AI agents — an intentionally vulnerable platform for learning, red-teaming, and validating security tools like [HackMyAgent](https://github.com/opena2a-org/hackmyagent).
+Practice attacking a deliberately vulnerable AI agent. DVAA provides a safe environment to learn how agents can be exploited -- without consequences.
+
+10 agents. 8 attack classes. Zero consequences. DVAA is the [DVWA](https://dvwa.co.uk/) of AI agents -- an intentionally vulnerable platform for learning, red-teaming, and validating security tools like [HackMyAgent](https://github.com/opena2a-org/hackmyagent).
 
 - **Learn** — Understand AI agent vulnerabilities hands-on with CTF-style challenges
 - **Attack** — Practice prompt injection, jailbreaking, data exfiltration, and more
