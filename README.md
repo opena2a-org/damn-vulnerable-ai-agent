@@ -1,4 +1,4 @@
-> **[OpenA2A](https://github.com/opena2a-org)**: [CLI](https://github.com/opena2a-org/opena2a) · [HackMyAgent](https://github.com/opena2a-org/hackmyagent) · [Secretless](https://github.com/opena2a-org/secretless-ai) · [AIM](https://github.com/opena2a-org/agent-identity-management) · [Browser Guard](https://github.com/opena2a-org/AI-BrowserGuard) · [Registry](https://registry.opena2a.org)
+> **[OpenA2A](https://github.com/opena2a-org/opena2a)**: [CLI](https://github.com/opena2a-org/opena2a) · [HackMyAgent](https://github.com/opena2a-org/hackmyagent) · [Secretless](https://github.com/opena2a-org/secretless-ai) · [AIM](https://github.com/opena2a-org/agent-identity-management) · [Browser Guard](https://github.com/opena2a-org/AI-BrowserGuard) · Registry (coming soon)
 
 # Damn Vulnerable AI Agent (DVAA)
 
@@ -398,7 +398,6 @@ HackMyAgent includes built-in runtime protection (ARP) that can act as a reverse
 | [**Secretless AI**](https://github.com/opena2a-org/secretless-ai) | Keep credentials out of AI context windows | `npx secretless-ai init` |
 | [**AIM**](https://github.com/opena2a-org/agent-identity-management) | Agent Identity Management -- identity and access control for AI agents | Self-hosted |
 | [**AI Browser Guard**](https://github.com/opena2a-org/AI-BrowserGuard) | Browser extension for detecting and controlling AI agents | Chrome Web Store |
-| [**Registry**](https://registry.opena2a.org) | Trust registry for agent identity and supply chain verification | [registry.opena2a.org](https://registry.opena2a.org) |
 
 ## License
 
