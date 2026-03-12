@@ -6,7 +6,7 @@ Output docs/dvaa-demo.gif
 
 Set Width 1200
 Set Height 700
-Set FontSize 18
+Set FontSize 20
 Set FontFamily "JetBrains Mono"
 Set Theme "Catppuccin Mocha"
 Set TypingSpeed 40ms
