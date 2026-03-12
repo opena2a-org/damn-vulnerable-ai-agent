@@ -17,6 +17,10 @@ Practice attacking a deliberately vulnerable AI agent. DVAA provides a safe envi
 - **Defend** — Develop and test security controls against real attack patterns
 - **Validate** — Use as a target for security scanners and red team tools
 
+![DVAA Demo](docs/dvaa-demo.gif)
+
+> See all demos at [opena2a.org/demos](https://opena2a.org/demos)
+
 ---
 
 ## Updates
