@@ -42,7 +42,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
-    "hackmyagent": "^0.6.0",
+    "hackmyagent": "^0.11.0",
     "openai": "^6.21.0"
   }
 }

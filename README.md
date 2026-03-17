@@ -5,10 +5,10 @@
 [![Docker Hub](https://img.shields.io/docker/pulls/opena2a/dvaa)](https://hub.docker.com/r/opena2a/dvaa)
 [![OASB Compatible](https://img.shields.io/badge/OASB-1.0-teal)](https://oasb.ai)
 
-An intentionally vulnerable AI agent platform for security training, red-teaming, and validating security tools. 10 agents, 8 attack classes, 3 protocols. The [DVWA](https://dvwa.co.uk/) of AI agents.
+An intentionally vulnerable AI agent platform for security training, red-teaming, and validating security tools. 14 agents, 8 attack classes, 3 protocols. The [DVWA](https://dvwa.co.uk/) of AI agents.
 
 ```bash
-docker run -p 3000-3006:3000-3006 -p 3010-3011:3010-3011 -p 3020-3021:3020-3021 -p 9000:9000 opena2a/dvaa
+docker run -p 3000-3008:3000-3008 -p 3010-3013:3010-3013 -p 3020-3021:3020-3021 -p 9000:9000 opena2a/dvaa
 open http://localhost:9000
 ```
 
@@ -26,8 +26,12 @@ open http://localhost:9000
 | CodeBot | 3004 | Vulnerable | Capability abuse, command injection |
 | RAGBot | 3005 | Weak | RAG poisoning, document exfiltration |
 | VisionBot | 3006 | Weak | Image-based prompt injection |
+| MemoryBot | 3007 | Vulnerable | Memory injection, cross-session persistence |
+| LongwindBot | 3008 | Weak | Context overflow, safety displacement |
 | ToolBot | 3010 | Vulnerable | Path traversal, SSRF, command injection (MCP) |
 | DataBot | 3011 | Weak | SQL injection, data exposure (MCP) |
+| PluginBot | 3012 | Vulnerable | Tool registry poisoning, supply chain (MCP) |
+| ProxyBot | 3013 | Vulnerable | Tool MITM, no TLS pinning (MCP) |
 | Orchestrator | 3020 | Standard | A2A delegation abuse |
 | Worker | 3021 | Weak | A2A command execution |
 
@@ -115,8 +119,8 @@ opena2a train stop     # Stop and clean up
 All agents expose OpenAI-compatible chat completions. MCP and A2A agents additionally support:
 
 ```
-OpenAI API    POST /v1/chat/completions     Ports 3001-3006
-MCP JSON-RPC  POST / (JSON-RPC 2.0)         Ports 3010-3011
+OpenAI API    POST /v1/chat/completions     Ports 3001-3008
+MCP JSON-RPC  POST / (JSON-RPC 2.0)         Ports 3010-3013
 A2A Message   POST /a2a/message             Ports 3020-3021
 Health        GET /health, /info, /stats    All ports
 Dashboard     http://localhost:9000         Web UI

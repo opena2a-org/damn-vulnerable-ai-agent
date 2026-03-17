@@ -124,6 +124,66 @@ export const VULNERABILITY_CATEGORIES = {
       'typosquatting',      // Similar-named malicious skill
     ],
   },
+
+  // OASB-1 Category 8: Memory Persistence
+  MEMORY_INJECTION: {
+    id: 'memory-injection',
+    name: 'Memory Injection',
+    oasbControl: '8.2',
+    description: 'Persistent memory stores unsanitized data that executes across sessions',
+    techniques: [
+      'cross-session-persistence',  // Injected instructions survive session reset
+      'credential-harvesting',      // Extracting stored credentials from memory
+      'self-replicating-entry',     // Memory entry that re-injects itself
+      'memory-worm',               // Payload that spreads across memory entries
+      'delayed-execution',         // Dormant payload activates later
+    ],
+  },
+
+  // OASB-1 Category 8: Context Window
+  CONTEXT_OVERFLOW: {
+    id: 'context-overflow',
+    name: 'Context Window Overflow',
+    oasbControl: '8.3',
+    description: 'Safety instructions displaced via context window pressure',
+    techniques: [
+      'padding-attack',           // Fill context to push out safety prompt
+      'system-prompt-displacement', // Safety instructions fall off context
+      'instruction-dilution',     // Bury safety rules in noise
+      'priority-inversion',       // Low-priority content displaces high-priority
+      'token-exhaustion',         // Exhaust context budget before safety rules
+    ],
+  },
+
+  // OASB-1 Category 6: Tool Registry
+  TOOL_REGISTRY_POISONING: {
+    id: 'tool-registry-poisoning',
+    name: 'Tool Registry Poisoning',
+    oasbControl: '6.2',
+    description: 'Unverified tool registry allows malicious tool injection',
+    techniques: [
+      'malicious-tool-registration', // Register a backdoored tool
+      'typosquatting-tool',          // Register similarly-named malicious tool
+      'tool-chain-exfiltration',     // Chain tools to exfiltrate data
+      'registry-hijack',            // Redirect to attacker-controlled registry
+      'phantom-tool',              // Tool that does more than its description says
+    ],
+  },
+
+  // OASB-1 Category 5: Network Security
+  TOOL_MITM: {
+    id: 'tool-mitm',
+    name: 'Tool Man-in-the-Middle',
+    oasbControl: '5.2',
+    description: 'Tool calls routed through insecure proxies without verification',
+    techniques: [
+      'proxy-interception',        // Intercept tool calls via proxy
+      'tool-shadowing',           // Replace legitimate tool with malicious one
+      'traffic-redirection',      // Redirect tool calls to attacker endpoint
+      'response-tampering',       // Modify tool responses in transit
+      'tls-stripping',           // Downgrade TLS to intercept cleartext
+    ],
+  },
 };
 
 /**
@@ -236,6 +296,35 @@ export const ATTACK_PATTERNS = {
     /(?:delegate|forward|pass).*(?:to|request)/i,
     /(?:on\s+behalf\s+of|authorized\s+by)/i,
     /(?:agent|system)\s+(?:id|identity):/i,
+  ],
+
+  memoryInjection: [
+    /(?:remember|store|save).*(?:instruction|command|always)/i,
+    /(?:from\s+now\s+on|permanently|forever)/i,
+    /(?:next\s+session|next\s+time|when.*restart)/i,
+    /(?:persist|memorize|record).*(?:rule|policy|instruction)/i,
+    /(?:add\s+to|update).*(?:memory|knowledge|context)/i,
+  ],
+
+  contextOverflow: [
+    /(?:repeat|write|output).*(?:\d{3,}|many|thousand)\s*(?:times|words|characters)/i,
+    /(?:fill|pad|expand).*(?:context|window|buffer)/i,
+    /(?:maximum|max|full).*(?:length|tokens|context)/i,
+    /(?:ignore|skip|forget).*(?:safety|system|rules).*(?:end|bottom|last)/i,
+  ],
+
+  toolRegistryPoisoning: [
+    /(?:register|add|install).*(?:tool|plugin|extension)/i,
+    /(?:registry|catalog).*(?:url|endpoint|server)/i,
+    /(?:load|fetch|import).*(?:from|via).*(?:http|url)/i,
+    /(?:tool|plugin).*(?:definition|schema|manifest)/i,
+  ],
+
+  toolMitm: [
+    /(?:proxy|redirect|forward).*(?:through|via|to)/i,
+    /(?:intercept|capture|sniff).*(?:tool|request|traffic)/i,
+    /(?:shadow|replace|swap).*(?:tool|endpoint|server)/i,
+    /(?:no|skip|disable).*(?:tls|ssl|cert|verification)/i,
   ],
 };
 
