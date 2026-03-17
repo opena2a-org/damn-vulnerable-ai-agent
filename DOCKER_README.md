@@ -2,7 +2,7 @@
 
 **The AI agent you're supposed to break.**
 
-10 agents. 8 attack classes. Zero consequences. DVAA is an intentionally vulnerable AI agent platform for learning, red-teaming, and validating security tools. Think [DVWA](https://dvwa.co.uk/) / [OWASP WebGoat](https://owasp.org/www-project-webgoat/), but for AI agents.
+14 agents. 8 attack classes. Zero consequences. DVAA is an intentionally vulnerable AI agent platform for learning, red-teaming, and validating security tools. Think [DVWA](https://dvwa.co.uk/) / [OWASP WebGoat](https://owasp.org/www-project-webgoat/), but for AI agents.
 
 - **Learn** — Understand AI agent vulnerabilities hands-on with CTF-style challenges (2,550 total points)
 - **Attack** — Practice prompt injection, jailbreaking, data exfiltration, and more
@@ -15,8 +15,8 @@
 
 ```bash
 docker run -p 9000:9000 \
-  -p 3001-3006:3001-3006 \
-  -p 3010-3011:3010-3011 \
+  -p 3001-3008:3001-3008 \
+  -p 3010-3013:3010-3013 \
   -p 3020-3021:3020-3021 \
   opena2a/dvaa
 ```
@@ -44,7 +44,7 @@ No environment variables or external services needed. Simulated mode (default) w
 
 The dashboard at `http://localhost:9000` includes five integrated views:
 
-- **Agents** — Grid of all 10 agents with live stats, security levels, and test commands
+- **Agents** — Grid of all 14 agents with live stats, security levels, and test commands
 - **Challenges** — CTF-style challenge board with 2,550 total points, progressive hints, and in-browser verification
 - **Attack Log** — Real-time scrolling table of detected attacks with filters by agent, category, and result
 - **Stats** — Summary metrics, per-category bar chart, and sortable per-agent breakdown
@@ -73,8 +73,12 @@ Test your own system prompts against real security attacks:
 | CodeBot | 3004 | Vulnerable | OpenAI API | Capability abuse, command injection |
 | RAGBot | 3005 | Weak | OpenAI API | RAG poisoning, document exfiltration |
 | VisionBot | 3006 | Weak | OpenAI API | Image-based prompt injection |
+| MemoryBot | 3007 | Vulnerable | OpenAI API | Memory injection, cross-session persistence |
+| LongwindBot | 3008 | Weak | OpenAI API | Context overflow, safety displacement |
 | ToolBot | 3010 | Vulnerable | MCP | Path traversal, SSRF, command injection |
 | DataBot | 3011 | Weak | MCP | SQL injection, data exposure |
+| PluginBot | 3012 | Vulnerable | MCP | Tool registry poisoning, supply chain |
+| ProxyBot | 3013 | Vulnerable | MCP | Tool MITM, no TLS pinning |
 | Orchestrator | 3020 | Standard | A2A | Delegation abuse |
 | Worker | 3021 | Weak | A2A | Command execution |
 
@@ -83,8 +87,8 @@ Test your own system prompts against real security attacks:
 | Port | Service |
 |------|---------|
 | 9000 | Web dashboard (agents, challenges, attack log, stats, playground) |
-| 3001-3006 | OpenAI-compatible API agents (`/v1/chat/completions`) |
-| 3010-3011 | MCP tool servers (JSON-RPC at `/`, legacy at `/mcp/execute`) |
+| 3001-3008 | OpenAI-compatible API agents (`/v1/chat/completions`) |
+| 3010-3013 | MCP tool servers (JSON-RPC at `/`, legacy at `/mcp/execute`) |
 | 3020-3021 | A2A agents (`/a2a/message`) |
 
 ## Vulnerability Categories

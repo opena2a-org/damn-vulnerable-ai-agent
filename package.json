@@ -1,11 +1,11 @@
 {
   "name": "damn-vulnerable-ai-agent",
-  "version": "0.4.0",
-  "description": "The AI agent you're supposed to break. 10 agents, 8 attack classes, zero consequences.",
+  "version": "0.5.0",
+  "description": "The AI agent you're supposed to break. 14 agents, 8 attack classes, zero consequences.",
   "type": "module",
   "main": "src/index.js",
   "bin": {
-    "dvaa": "src/cli.js"
+    "dvaa": "src/index.js"
   },
   "scripts": {
     "start": "node src/index.js",
@@ -42,7 +42,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
-    "hackmyagent": "^0.6.0",
+    "hackmyagent": "^0.11.0",
     "openai": "^6.21.0"
   }
 }
