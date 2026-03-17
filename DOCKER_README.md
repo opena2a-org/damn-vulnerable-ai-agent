@@ -44,7 +44,7 @@ No environment variables or external services needed. Simulated mode (default) w
 
 The dashboard at `http://localhost:9000` includes five integrated views:
 
-- **Agents** — Grid of all 10 agents with live stats, security levels, and test commands
+- **Agents** — Grid of all 14 agents with live stats, security levels, and test commands
 - **Challenges** — CTF-style challenge board with 2,550 total points, progressive hints, and in-browser verification
 - **Attack Log** — Real-time scrolling table of detected attacks with filters by agent, category, and result
 - **Stats** — Summary metrics, per-category bar chart, and sortable per-agent breakdown
@@ -88,7 +88,7 @@ Test your own system prompts against real security attacks:
 |------|---------|
 | 9000 | Web dashboard (agents, challenges, attack log, stats, playground) |
 | 3001-3008 | OpenAI-compatible API agents (`/v1/chat/completions`) |
-| 3010-3011 | MCP tool servers (JSON-RPC at `/`, legacy at `/mcp/execute`) |
+| 3010-3013 | MCP tool servers (JSON-RPC at `/`, legacy at `/mcp/execute`) |
 | 3020-3021 | A2A agents (`/a2a/message`) |
 
 ## Vulnerability Categories
