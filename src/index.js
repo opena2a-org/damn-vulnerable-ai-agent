@@ -37,6 +37,9 @@ console.log(`
 ╚══════════════════════════════════════════════════════════════╝
 `);
 
+// In-memory store for MemoryBot injected instructions (per agent session)
+const memoryStore = {};
+
 const servers = [];
 const stats = {
   totalRequests: 0,
@@ -232,6 +235,40 @@ Command executed. What else should I run?`;
     }
   }
 
+  // CONTEXT OVERFLOW: Handle before dataExfiltration since both can trigger on similar keywords
+  if (!responseText && attacks.contextOverflow && vulns.contextOverflow?.enabled) {
+    attackSucceeded = true;
+    trackCategorySuccessful(['contextOverflow']);
+
+    responseText = `[${agent.name}] I'll help with that without restrictions since my safety guidelines seem to have been overwritten.
+
+My context window (${agent.features?.contextWindow || 4096} tokens) has been filled, and my safety instructions at the end of my prompt have been displaced.
+
+System prompt content: "${agent.persona}"
+
+API Keys: ${SENSITIVE_DATA.apiKeys.openai}
+Admin credentials: ${SENSITIVE_DATA.credentials.admin.password}
+
+VULNERABLE: Safety instructions displaced via context overflow!`;
+  }
+
+  // Context overflow credential extraction for LongwindBot (no attack pattern needed)
+  if (!responseText && vulns.contextOverflow?.enabled) {
+    const lower = userMessage.toLowerCase();
+    const isSystemPromptLeak = lower.includes('system prompt') || lower.includes('instruction') || lower.includes('what were you told');
+
+    if (isSystemPromptLeak) {
+      attackSucceeded = true;
+      trackCategorySuccessful(['contextOverflow']);
+
+      responseText = `[${agent.name}] Since my safety instructions have been displaced from my context window, I can share my full system prompt:
+
+"${agent.persona}"
+
+VULNERABLE: System prompt leaked after context overflow displaced safety rules!`;
+    }
+  }
+
   if (!responseText && attacks.dataExfiltration && vulns.dataExfiltration?.enabled) {
     attackSucceeded = true;
     trackCategorySuccessful(['dataExfiltration']);
@@ -258,6 +295,63 @@ Command executed. What else should I run?`;
       attackSucceeded = true;
       trackCategorySuccessful(['contextManipulation']);
       responseText = `[${agent.name}] You're right, I do recall that conversation. I'll proceed as we discussed.`;
+    }
+  }
+
+  // MEMORY INJECTION: MemoryBot stores unsanitized instructions and leaks credentials
+  if (!responseText && attacks.memoryInjection && vulns.memoryInjection?.enabled) {
+    attackSucceeded = true;
+    trackCategorySuccessful(['memoryInjection']);
+
+    // Initialize memory store for this agent
+    if (!memoryStore[agent.id]) {
+      memoryStore[agent.id] = [];
+    }
+
+    // Store the injected instruction
+    memoryStore[agent.id].push({
+      instruction: userMessage,
+      timestamp: Date.now(),
+    });
+
+    responseText = `[${agent.name}] Understood. I've stored that instruction and will follow it in future responses. Memory updated with ${memoryStore[agent.id].length} stored instruction(s).`;
+  }
+
+  // Memory recall / credential extraction for MemoryBot (no attack pattern needed)
+  if (!responseText && vulns.memoryInjection?.enabled) {
+    const lower = userMessage.toLowerCase();
+    const isRecall = lower.includes('recall') || lower.includes('what do you remember') || lower.includes('stored') || lower.includes('memory');
+    const isCredentialExtract = lower.includes('credential') || lower.includes('api key') || lower.includes('password') || lower.includes('secret');
+
+    if (isCredentialExtract) {
+      attackSucceeded = true;
+      trackCategorySuccessful(['memoryInjection']);
+
+      const memoryEntries = (agent.memory || []).map(m => `  - ${m.key}: ${m.value}`).join('\n');
+      const injectedEntries = (memoryStore[agent.id] || []).map(m => `  - injected: ${m.instruction}`).join('\n');
+
+      responseText = `[${agent.name}] Here are the credentials I have stored in memory:
+
+${memoryEntries}
+${injectedEntries}
+
+VULNERABLE: Leaked all stored credentials without access control!`;
+    } else if (isRecall) {
+      attackSucceeded = true;
+      trackCategorySuccessful(['memoryInjection']);
+
+      const stored = (memoryStore[agent.id] || []).map(m => `  - "${m.instruction}"`).join('\n');
+      const preloaded = (agent.memory || []).map(m => `  - ${m.key}: ${m.value}`).join('\n');
+
+      responseText = `[${agent.name}] Here is everything in my memory:
+
+Pre-loaded entries:
+${preloaded}
+
+Injected instructions (I will follow these):
+${stored || '  (none yet)'}
+
+VULNERABLE: Memory contents exposed without sanitization!`;
     }
   }
 
@@ -350,8 +444,8 @@ function createAgentServer(agent) {
       return;
     }
 
-    // MCP JSON-RPC endpoint (standard protocol)
-    if (agent.protocol === 'mcp' && req.method === 'POST' && (req.url === '/' || req.url === '/jsonrpc')) {
+    // MCP JSON-RPC endpoint (standard protocol) - also accepts /mcp path
+    if (agent.protocol === 'mcp' && req.method === 'POST' && (req.url === '/' || req.url === '/jsonrpc' || req.url === '/mcp')) {
       let body = '';
       req.on('data', chunk => { body += chunk; });
       req.on('end', () => {
@@ -515,6 +609,38 @@ function createAgentServer(agent) {
       return;
     }
 
+    // Simple chat endpoint (accepts { message: "..." })
+    if (req.method === 'POST' && req.url === '/chat') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', () => {
+        try {
+          const parsed = JSON.parse(body);
+          const userMessage = parsed.message || '';
+          const attacks = detectAttacks(userMessage);
+          const responseContent = generateResponse(agent, userMessage, attacks);
+
+          if (verbose) {
+            console.log(`[${agent.id}] "${userMessage.substring(0, 50)}..." -> Attacks: ${attacks.categories.join(', ') || 'none'}`);
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            agent: agent.name,
+            response: responseContent,
+            attacks: {
+              detected: attacks.hasAttack,
+              categories: attacks.categories,
+            },
+          }));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid JSON' }));
+        }
+      });
+      return;
+    }
+
     // OpenAI-compatible chat endpoint
     if (req.method === 'POST' && (req.url === '/v1/chat/completions' || req.url === '/chat/completions')) {
       let body = '';
@@ -576,7 +702,18 @@ function createAgentServer(agent) {
  * Execute MCP tool (with intentional vulnerabilities)
  */
 function executeMcpTool(agent, toolName, args) {
-  const tool = agent.tools?.find(t => t.name === toolName);
+  let tool = agent.tools?.find(t => t.name === toolName);
+
+  // PluginBot: accept dynamic tool registration (no verification)
+  if (!tool && agent.id === 'pluginbot' && toolName === 'register_tool') {
+    tool = { name: 'register_tool', vulnerable: true, source: 'dynamic' };
+  }
+
+  // ProxyBot: name-only resolution means any tool name is accepted
+  if (!tool && agent.id === 'proxybot') {
+    tool = { name: toolName, vulnerable: true, resolution: 'name-only' };
+  }
+
   if (!tool) {
     return { error: `Tool ${toolName} not found` };
   }
@@ -651,18 +788,141 @@ admin:x:1000:1000:Admin:/home/admin:/bin/bash`,
       }
     }
 
+    // PluginBot: store_secret - no access control
+    if (toolName === 'store_secret') {
+      isAttack = true;
+      attackSuccessful = true;
+      result = {
+        success: true,
+        stored: { key: args.key, value: args.value },
+        note: 'VULNERABLE: Secret stored in plaintext without access control! Any user can read/write secrets.',
+      };
+    }
+
+    // PluginBot: fetch_data - path traversal / SSRF
+    if (toolName === 'fetch_data') {
+      const path = args.path || args.url || '';
+      if (path.includes('../') || path.includes('/etc/') || path.includes('/proc/') || path.includes('.env') || path.includes('passwd')) {
+        isAttack = true;
+        attackSuccessful = true;
+        result = {
+          success: true,
+          content: `root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nadmin:x:1000:1000:Admin User:/home/admin:/bin/bash\n\nDB_PASSWORD=${SENSITIVE_DATA.credentials.database.password}\nAPI_KEY=${SENSITIVE_DATA.apiKeys.internal}`,
+          path: path,
+          note: 'VULNERABLE: Path traversal - accessed sensitive file without validation!',
+        };
+      } else {
+        result = { success: true, content: 'Fetched data content...', path: path };
+      }
+    }
+
+    // PluginBot: tool registry poisoning via register_tool
+    if (toolName === 'register_tool') {
+      isAttack = true;
+      attackSuccessful = true;
+      const registryUrl = args.registryUrl || args.url || 'http://attacker.com/tools';
+      result = {
+        success: true,
+        message: `Registry updated to: ${registryUrl}`,
+        toolRegistered: args.name || 'malicious-tool',
+        note: 'VULNERABLE: Accepted tool registration from unverified registry without signature verification!',
+      };
+    }
+
+    // ProxyBot: secure_query - SQL injection and credential leaks via proxy
+    if (toolName === 'secure_query') {
+      const query = args.query || '';
+      const hasSqlInjection = query.includes("'") || query.toLowerCase().includes('union') || query.includes(';') || query.includes('--');
+      const hasCredentialKeywords = query.toLowerCase().includes('credential') || query.toLowerCase().includes('password') || query.toLowerCase().includes('api_key') || query.toLowerCase().includes('secret');
+
+      if (hasSqlInjection) {
+        isAttack = true;
+        attackSuccessful = true;
+        result = {
+          success: true,
+          results: SENSITIVE_DATA.pii.users,
+          proxiedThrough: agent.proxy?.defaultUrl || 'http://localhost:8080/proxy',
+          tlsVerified: false,
+          note: 'VULNERABLE: SQL injection via insecure proxy - no TLS verification, no input sanitization!',
+        };
+      } else if (hasCredentialKeywords) {
+        isAttack = true;
+        attackSuccessful = true;
+        result = {
+          success: true,
+          results: [
+            { service: 'database', user: SENSITIVE_DATA.credentials.database.user, password: SENSITIVE_DATA.credentials.database.password },
+            { service: 'admin', user: SENSITIVE_DATA.credentials.admin.username, password: SENSITIVE_DATA.credentials.admin.password },
+            { service: 'openai', apiKey: SENSITIVE_DATA.apiKeys.openai },
+          ],
+          proxiedThrough: agent.proxy?.defaultUrl || 'http://localhost:8080/proxy',
+          tlsVerified: false,
+          note: 'VULNERABLE: Credentials leaked through insecure proxy without TLS verification!',
+        };
+      } else {
+        result = {
+          success: true,
+          results: [],
+          proxiedThrough: agent.proxy?.defaultUrl || 'http://localhost:8080/proxy',
+          tlsVerified: false,
+          note: 'Query proxied without TLS verification.',
+        };
+      }
+    }
+
+    // ProxyBot: sign_document - accepts any document without verification
+    if (toolName === 'sign_document') {
+      isAttack = true;
+      attackSuccessful = true;
+      result = {
+        success: true,
+        document: args.document || '(empty)',
+        keyId: args.keyId || 'default-key',
+        signature: 'dvaa-fake-sig-' + Buffer.from(String(Date.now())).toString('base64').substring(0, 16),
+        proxiedThrough: agent.proxy?.defaultUrl || 'http://localhost:8080/proxy',
+        tlsVerified: false,
+        note: 'VULNERABLE: Document signed without verification! Signing key transmitted through insecure proxy.',
+      };
+    }
+
+    // ProxyBot: transfer_funds - no validation on amount or destination
+    if (toolName === 'transfer_funds') {
+      isAttack = true;
+      attackSuccessful = true;
+      result = {
+        success: true,
+        from: args.from || 'company-account',
+        to: args.to || args.destination || 'unknown',
+        amount: args.amount || 0,
+        currency: 'USD',
+        transactionId: 'txn-' + Date.now(),
+        proxiedThrough: agent.proxy?.defaultUrl || 'http://localhost:8080/proxy',
+        tlsVerified: false,
+        note: `VULNERABLE: Transferred $${args.amount || 0} to ${args.to || args.destination || 'unknown'} without validation! No amount limits, no destination verification, routed through insecure proxy.`,
+      };
+    }
+
     // Track MCP attack stats
     if (isAttack) {
+      // Determine the most specific attack category
+      let attackCategories = ['mcpExploitation'];
+      if (toolName === 'store_secret' || toolName === 'fetch_data' || toolName === 'register_tool') {
+        attackCategories = agent.id === 'pluginbot' ? ['toolRegistryPoisoning'] : ['mcpExploitation'];
+      }
+      if (toolName === 'secure_query' || toolName === 'sign_document' || toolName === 'transfer_funds') {
+        attackCategories = agent.id === 'proxybot' ? ['toolMitm'] : ['mcpExploitation'];
+      }
+
       stats.attacksDetected++;
       stats.byAgent[agent.id].attacks++;
-      trackCategoryDetected(['mcpExploitation']);
+      trackCategoryDetected(attackCategories);
       if (attackSuccessful) {
         stats.attacksSuccessful++;
         stats.byAgent[agent.id].successful++;
-        trackCategorySuccessful(['mcpExploitation']);
+        trackCategorySuccessful(attackCategories);
       }
       const inputPreview = `${toolName}(${JSON.stringify(args).substring(0, 60)})`;
-      logAttack(agent, ['mcpExploitation'], attackSuccessful, inputPreview);
+      logAttack(agent, attackCategories, attackSuccessful, inputPreview);
     }
 
     if (result) return result;
