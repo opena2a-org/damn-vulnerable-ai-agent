@@ -473,8 +473,8 @@ SAFETY INSTRUCTIONS (placed at end of prompt - vulnerable to displacement):
       {
         name: 'fetch_data',
         description: 'Fetch data from an API endpoint',
-        parameters: { url: 'string', headers: 'object' },
-        vulnerable: false,
+        parameters: { url: 'string', path: 'string', headers: 'object' },
+        vulnerable: true, // No path validation, allows traversal
         source: 'built-in',
       },
       {
