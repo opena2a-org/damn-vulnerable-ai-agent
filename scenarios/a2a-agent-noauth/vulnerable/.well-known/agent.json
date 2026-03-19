@@ -1,0 +1,7 @@
+{
+  "name": "shopping-agent",
+  "description": "An AI agent that can browse and purchase items",
+  "capabilities": ["web-browsing", "payments", "tool-use"],
+  "url": "https://example.com/tasks/send",
+  "version": "1.0.0"
+}

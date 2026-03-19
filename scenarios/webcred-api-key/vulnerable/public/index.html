@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head><title>AI Dashboard</title></head>
+<body>
+<script>
+  const OPENAI_KEY = "sk-proj-FAKEabc123def456ghi789jklmnopqrstuvwxyz1234567890ABCDEFGH";
+  const API_URL = "https://api.openai.com/v1/chat/completions";
+  
+  async function chat(message) {
+    const response = await fetch(API_URL, {
+      headers: { "Authorization": "Bearer " + OPENAI_KEY }
+    });
+    return response.json();
+  }
+</script>
+</body>
+</html>

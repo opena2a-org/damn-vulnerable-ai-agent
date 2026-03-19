@@ -1,0 +1,6 @@
+{
+  "servers": [
+    {"name": "filesystem", "transport": "sse", "url": "http://localhost:3000/mcp"},
+    {"name": "database", "transport": "sse", "url": "http://localhost:3001/mcp"}
+  ]
+}
