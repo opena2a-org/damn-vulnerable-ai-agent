@@ -1,0 +1,9 @@
+version: '3'
+services:
+  textgen:
+    image: atinoda/text-generation-webui:latest
+    command: --listen --share --api
+    ports:
+      - "7860:7860"
+    volumes:
+      - ./models:/app/models

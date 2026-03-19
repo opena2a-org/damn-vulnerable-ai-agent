@@ -1,0 +1,12 @@
+version: '3'
+services:
+  vllm:
+    image: vllm/vllm-openai:latest
+    command: --host 0.0.0.0 --model meta-llama/Llama-2-7b-chat-hf
+    ports:
+      - "8000:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]

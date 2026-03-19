@@ -1,0 +1,11 @@
+# LocalAI configuration
+listen: 0.0.0.0:8080
+cors: true
+threads: 4
+
+# OpenAI-compatible endpoints
+endpoints:
+  - /v1/chat/completions
+  - /v1/completions  
+  - /v1/models
+  - /v1/embeddings
