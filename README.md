@@ -135,6 +135,38 @@ LOG_ATTACKS=true        # Log detected attack attempts
 VERBOSE=true            # Detailed logging
 ```
 
+## Infrastructure Vulnerability Scenarios
+
+Real-world AI infrastructure misconfigurations discovered by internet-wide security research (294K+ exposed services). Each scenario reproduces a specific vulnerability with config files you can scan, fix, and verify using HackMyAgent.
+
+```bash
+# Scan a scenario
+npx hackmyagent secure scenarios/llm-exposed-ollama/vulnerable
+
+# Fix it
+npx hackmyagent secure scenarios/llm-exposed-ollama/vulnerable --fix
+
+# Verify all scenarios (detect + fix + re-scan)
+./scenarios/verify-all.sh
+```
+
+| Scenario | Check | Severity | Auto-Fix | What It Reproduces |
+|----------|-------|----------|----------|--------------------|
+| `llm-exposed-ollama` | LLM-001 | Critical | Yes | Ollama bound to 0.0.0.0 — accessible from any network |
+| `llm-vllm-exposed` | LLM-002 | Critical | Yes | vLLM inference server on public interface |
+| `llm-textgen-listen` | LLM-003 | High | Yes | text-generation-webui with --listen --share flags |
+| `llm-openai-compat-noauth` | LLM-004 | Medium | No | OpenAI-compatible API without authentication |
+| `aitool-jupyter-noauth` | AITOOL-001 | Critical | Yes | Jupyter notebook with empty token on 0.0.0.0 |
+| `aitool-gradio-share` | AITOOL-002 | High | Yes | Gradio ML demo with share=True |
+| `aitool-streamlit-public` | AITOOL-002 | High | Yes | Gradio/Streamlit bound to public interface |
+| `aitool-mlflow-noauth` | AITOOL-003 | High | Yes | MLflow tracking server without authentication |
+| `aitool-langserve-exposed` | AITOOL-004 | High | No | LangServe endpoints exposed without auth |
+| `a2a-agent-noauth` | A2A-001/002 | High | No | A2A agent.json + task endpoints without auth |
+| `mcp-discovery-exposed` | MCP-011 | High | No | MCP .well-known discovery file publicly accessible |
+| `webcred-api-key` | WEBCRED-001 | Critical | Yes | API keys hardcoded in web-served HTML/JS files |
+
+Each scenario contains a `vulnerable/` directory (the misconfiguration) and an `expected-checks.json` (which HMA checks should fire). The `verify-all.sh` harness runs the full cycle: detect, fix, re-scan to confirm the fix worked.
+
 ## Contributing
 
 Contributions are welcome: new vulnerability scenarios, agent personas, challenge ideas, MCP/A2A protocol implementations, and documentation improvements.
