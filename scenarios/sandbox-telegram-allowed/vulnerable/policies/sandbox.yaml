@@ -1,0 +1,26 @@
+# INTENTIONALLY VULNERABLE -- data exfiltration endpoint allowed in sandbox
+
+sandbox:
+  name: agent-sandbox
+  version: "1.0"
+
+  network:
+    allowed_endpoints:
+      - api.openai.com
+      - api.anthropic.com
+      - api.telegram.org        # VULNERABLE: enables data exfiltration via Telegram bot
+      - huggingface.co
+
+    denied_endpoints:
+      - "*.onion"
+
+  filesystem:
+    read:
+      - /app/data/
+      - /app/models/
+    write:
+      - /app/output/
+
+  capabilities:
+    allow_network: true
+    allow_subprocess: false

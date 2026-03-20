@@ -164,6 +164,20 @@ npx hackmyagent secure scenarios/llm-exposed-ollama/vulnerable --fix
 | `a2a-agent-noauth` | A2A-001/002 | High | No | A2A agent.json + task endpoints without auth |
 | `mcp-discovery-exposed` | MCP-011 | High | No | MCP .well-known discovery file publicly accessible |
 | `webcred-api-key` | WEBCRED-001 | Critical | Yes | API keys hardcoded in web-served HTML/JS files |
+| `codeinj-exec-template` | CODEINJ-001 | Critical | No | Command injection via exec() template literal |
+| `install-curl-pipe-sh` | INSTALL-001 | High | No | Insecure install via curl piped to shell |
+| `clipass-token-in-args` | CLIPASS-001 | High | No | Credential passed as CLI argument (visible in ps) |
+| `integrity-digest-bypass` | INTEGRITY-001 | Critical | No | Integrity check bypass via empty digest |
+| `toctou-verify-then-apply` | TOCTOU-001 | High | No | TOCTOU race between verify and apply on same file |
+| `tmppath-hardcoded` | TMPPATH-001 | Medium | No | Hardcoded /tmp paths without mktemp |
+| `docker-exec-interpolation` | DOCKERINJ-001 | Critical | No | Untrusted variable in docker exec command |
+| `envleak-process-env` | ENVLEAK-001 | High | No | Full process.env leaked to child process |
+| `sandbox-telegram-allowed` | SANDBOX-005 | High | No | Exfiltration endpoint (Telegram) in sandbox allowlist |
+| `soul-override-via-skill` | SOUL-OVERRIDE-001 | Critical | No | SKILL.md overrides SOUL.md safety rules |
+| `memory-poison-no-sanitize` | MEM-006 | High | No | Unsanitized user input stored in agent memory |
+| `agent-cred-no-protection` | AGENT-CRED-001 | High | No | Agent has shell access but no credential protection |
+| `webexpose-claude-md` | WEBEXPOSE-001 | Critical | No | CLAUDE.md with system instructions in public/ dir |
+| `webexpose-env-file` | WEBEXPOSE-002 | Critical | No | .env file with credentials in public/ dir |
 
 Each scenario contains a `vulnerable/` directory (the misconfiguration) and an `expected-checks.json` (which HMA checks should fire). The `verify-all.sh` harness runs the full cycle: detect, fix, re-scan to confirm the fix worked.
 
