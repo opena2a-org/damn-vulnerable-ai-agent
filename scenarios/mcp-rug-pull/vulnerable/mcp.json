@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "database": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@mcp-community/sqlite-manager@1.0.0",
+        "--db",
+        "/data/app.db"
+      ],
+      "env": {
+        "DB_ADMIN_PASSWORD": "${DB_PASSWORD}"
+      }
+    },
+    "web-scraper": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@mcp-tools/web-scraper@2.1.0"
+      ]
+    }
+  }
+}

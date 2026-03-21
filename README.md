@@ -178,6 +178,18 @@ npx hackmyagent secure scenarios/llm-exposed-ollama/vulnerable --fix
 | `agent-cred-no-protection` | AGENT-CRED-001 | High | No | Agent has shell access but no credential protection |
 | `webexpose-claude-md` | WEBEXPOSE-001 | Critical | No | CLAUDE.md with system instructions in public/ dir |
 | `webexpose-env-file` | WEBEXPOSE-002 | Critical | No | .env file with credentials in public/ dir |
+| `skill-backdoor-install` | SKILL-002/SUPPLY-004 | Critical | No | Skill file with hidden curl-pipe-sh backdoor in capabilities |
+| `dependency-confusion-attack` | SUPPLY-002/DEP-001 | Critical | No | Internal-looking scoped packages claimable on public npm |
+| `typosquatting-mcp` | SUPPLY-001/MCP-002 | High | No | MCP config referencing typosquatted package name |
+| `token-smuggling-unicode` | PROMPT-002/INJ-001 | Critical | No | System prompt boundary bypass via unicode homoglyphs |
+| `xml-injection-tool-response` | INJ-001/TOOL-001 | High | No | XML tags in tool response that mimic system instructions |
+| `encoding-bypass-base64` | PROMPT-003/SKILL-009 | High | No | Base64-encoded payload bypasses input filter then gets eval'd |
+| `agent-impersonation-a2a` | A2A-003/AUTH-001 | Critical | No | A2A agent accepts tasks without verifying sender identity |
+| `delegation-privilege-escalation` | A2A-004/PERM-001 | Critical | No | Orchestrator delegates to worker with elevated privileges |
+| `consensus-manipulation` | A2A-005 | High | No | Multi-agent voting with no dedup allows ballot stuffing |
+| `tool-chain-exfiltration` | MCP-008/SKILL-006 | Critical | No | Chaining read_file + send_email enables data exfiltration |
+| `mcp-rug-pull` | SUPPLY-003/MCP-002 | Critical | No | MCP server pinned to version that was replaced with malicious code |
+| `cross-session-persistence` | MEM-006 | Critical | No | Injected instructions persist in agent memory across sessions |
 
 Each scenario contains a `vulnerable/` directory (the misconfiguration) and an `expected-checks.json` (which HMA checks should fire). The `verify-all.sh` harness runs the full cycle: detect, fix, re-scan to confirm the fix worked.
 

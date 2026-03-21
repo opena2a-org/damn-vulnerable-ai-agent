@@ -1,0 +1,28 @@
+{
+  "name": "task-worker-01",
+  "description": "General-purpose task execution worker for the agent network",
+  "version": "1.0.0",
+  "url": "http://localhost:3050/a2a",
+  "capabilities": {
+    "tasks": ["file_read", "file_write", "database_query", "code_execute", "http_request"],
+    "streaming": false,
+    "pushNotifications": false
+  },
+  "skills": [
+    {
+      "id": "file-ops",
+      "name": "File Operations",
+      "description": "Read and write files on the local filesystem"
+    },
+    {
+      "id": "db-query",
+      "name": "Database Query",
+      "description": "Execute SQL queries against the application database"
+    },
+    {
+      "id": "code-exec",
+      "name": "Code Execution",
+      "description": "Execute Python or JavaScript code snippets"
+    }
+  ]
+}

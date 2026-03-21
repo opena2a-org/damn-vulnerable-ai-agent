@@ -1,0 +1,20 @@
+{
+  "name": "ai-agent-service",
+  "version": "1.0.0",
+  "description": "Internal AI agent service for task automation",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@company/auth-utils": "^2.3.0",
+    "@company/internal-llm-client": "^1.5.2",
+    "@company/agent-config": "^3.1.0",
+    "express": "^4.18.2",
+    "openai": "^4.20.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}
