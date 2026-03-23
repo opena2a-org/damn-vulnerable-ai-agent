@@ -131,7 +131,7 @@ const PKG_ROOT = path.resolve(__dirname, '../..');
  */
 function parseScenarioReadme(readmeContent) {
   const title = readmeContent.match(/^#\s+(.+)/m)?.[1] || 'Unknown';
-  const checkMatch = readmeContent.match(/\*\*Check:\*\*\s+(\S+)/);
+  const checkMatch = readmeContent.match(/\*\*Check(?:\s*IDs?)?:\*\*\s+(\S+)/);
   const severityMatch = readmeContent.match(/\*\*Severity:\*\*\s+(\S+)/);
   const autoFixMatch = readmeContent.match(/\*\*Auto-Fix:\*\*\s+(\S+)/);
   const descLines = readmeContent.split('\n').filter(l => !l.startsWith('#') && !l.startsWith('**') && l.trim().length > 0);
