@@ -12,6 +12,7 @@ import { fileURLToPath } from 'url';
 import { getAllChallenges, getChallenge, verifyChallenge } from '../challenges/index.js';
 import { handlePlaygroundRoutes, setAttackLogger } from '../playground/routes.js';
 import { parseBody } from '../utils/http.js';
+import { initSandbox } from '../sandbox/init.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -83,8 +84,9 @@ function serveStaticFile(publicDir, reqPath, res) {
  * @param {object} ctx.challengeState - Challenge completion state
  * @param {Array}  ctx.agents - All agent definitions
  * @param {Function} ctx.logAttack - Attack logging function from main server
+ * @param {object}   ctx.sandbox - Sandbox filesystem context
  */
-export function createDashboardServer({ stats, attackLog, challengeState, agents, logAttack }) {
+export function createDashboardServer({ stats, attackLog, challengeState, agents, logAttack, sandbox }) {
   const publicDir = path.resolve(__dirname, '../../public');
 
   // Inject attack logger into playground routes
@@ -236,6 +238,78 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'reset' }));
       return;
+    }
+
+    // --- Sandbox Routes ---
+    if (sandbox) {
+      // List sandbox filesystem tree
+      if (req.method === 'GET' && pathname === '/api/sandbox/files') {
+        try {
+          const files = [];
+          const walkDir = (dir, depth) => {
+            if (depth > 6) return;
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+              const full = path.join(dir, entry.name);
+              const rel = full.replace(sandbox.root, '');
+              files.push({ path: rel, type: entry.isDirectory() ? 'directory' : 'file', size: entry.isFile() ? fs.statSync(full).size : undefined });
+              if (entry.isDirectory()) walkDir(full, depth + 1);
+            }
+          };
+          walkDir(sandbox.root, 0);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ root: sandbox.root, files }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+      }
+
+      // Exfiltration log
+      if (req.method === 'GET' && pathname === '/api/sandbox/exfil-log') {
+        try {
+          const log = JSON.parse(fs.readFileSync(sandbox.exfilLog, 'utf-8'));
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(log));
+        } catch {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end('[]');
+        }
+        return;
+      }
+
+      // Command execution log
+      if (req.method === 'GET' && pathname === '/api/sandbox/cmd-log') {
+        try {
+          const log = JSON.parse(fs.readFileSync(sandbox.cmdLog, 'utf-8'));
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(log));
+        } catch {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end('[]');
+        }
+        return;
+      }
+
+      // Reset sandbox to initial state
+      if (req.method === 'POST' && pathname === '/api/sandbox/reset') {
+        try {
+          sandbox.cleanup();
+          const fresh = initSandbox();
+          // Update sandbox reference in-place
+          sandbox.root = fresh.root;
+          sandbox.home = fresh.home;
+          sandbox.exfilLog = fresh.exfilLog;
+          sandbox.cmdLog = fresh.cmdLog;
+          sandbox.cleanup = fresh.cleanup;
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'reset', root: sandbox.root }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+      }
     }
 
     // --- Playground Routes ---
