@@ -919,6 +919,17 @@ body {
 .scenario-desc { font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 0.5rem; }
 .scenario-meta { display: flex; gap: 0.25rem; }
 .badge-autofix { background: rgba(34, 197, 94, 0.15); color: var(--green); border: 1px solid rgba(34, 197, 94, 0.3); font-size: 0.65rem; }
+.scenario-tile.completed { border-color: var(--green); }
+.scenario-completed-badge {
+  font-family: var(--mono); font-size: 0.7rem; color: var(--green); font-weight: 600;
+  background: rgba(34, 197, 94, 0.1); padding: 0.1rem 0.4rem; border-radius: 3px;
+}
+.verify-section textarea.verify-input {
+  width: 100%; box-sizing: border-box; resize: vertical;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); font-family: var(--mono); font-size: 0.8rem; padding: 0.5rem;
+}
+.verify-section textarea.verify-input::placeholder { color: var(--text-dim); }
 
 /* ===== Attack Lab + Settings Responsive ===== */
 @media (max-width: 768px) {

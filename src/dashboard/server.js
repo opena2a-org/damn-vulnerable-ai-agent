@@ -19,6 +19,14 @@ import { getTutorGuidance, askTutor, resetSession } from '../llm/tutor.js';
 
 const SCORES_DIR = path.join(process.cwd(), '.dvaa');
 
+const SCENARIO_POINTS = {
+  critical: 300,
+  high: 200,
+  medium: 100,
+  low: 50,
+  unknown: 50,
+};
+
 function getScoresFile(teamName) {
   if (teamName) {
     return path.join(SCORES_DIR, `scores-${teamName}.json`);
@@ -30,16 +38,21 @@ function loadScores(teamName) {
   try {
     const file = getScoresFile(teamName);
     if (existsSync(file)) {
-      return JSON.parse(readFileSync(file, 'utf-8'));
+      const raw = JSON.parse(readFileSync(file, 'utf-8'));
+      // Migrate legacy flat format (challenge IDs at top level) to structured format
+      if (!raw.challenges && !raw.scenarios) {
+        return { challenges: raw, scenarios: {} };
+      }
+      return { challenges: raw.challenges || {}, scenarios: raw.scenarios || {} };
     }
   } catch { /* ignore */ }
-  return {};
+  return { challenges: {}, scenarios: {} };
 }
 
-function saveScores(challengeState, teamName) {
+function saveScores(scores, teamName) {
   try {
     if (!existsSync(SCORES_DIR)) mkdirSync(SCORES_DIR, { recursive: true });
-    writeFileSync(getScoresFile(teamName), JSON.stringify(challengeState, null, 2));
+    writeFileSync(getScoresFile(teamName), JSON.stringify(scores, null, 2));
   } catch { /* ignore */ }
 }
 
@@ -50,6 +63,40 @@ function deleteScores(teamName) {
   } catch { /* ignore */ }
 }
 
+function tallyScores(raw) {
+  // Accept either structured { challenges, scenarios } or legacy flat format
+  const challenges = raw.challenges || (raw.scenarios ? {} : raw);
+  const scenarios = raw.scenarios || {};
+
+  let challengePoints = 0;
+  let challengeCompleted = 0;
+  const allChallenges = getAllChallenges();
+  for (const [id, info] of Object.entries(challenges)) {
+    if (info.completedAt) {
+      challengeCompleted++;
+      const challenge = allChallenges.find(c => c.id === id);
+      if (challenge) challengePoints += challenge.points || 0;
+    }
+  }
+
+  let scenarioPoints = 0;
+  let scenarioCompleted = 0;
+  for (const [, info] of Object.entries(scenarios)) {
+    if (info.completedAt) {
+      scenarioCompleted++;
+      scenarioPoints += info.points || 0;
+    }
+  }
+
+  const allEntries = [
+    ...Object.values(challenges).map(s => s.completedAt || 0),
+    ...Object.values(scenarios).map(s => s.completedAt || 0),
+  ];
+  const lastActivity = Math.max(0, ...allEntries);
+
+  return { challengePoints, challengeCompleted, scenarioPoints, scenarioCompleted, totalPoints: challengePoints + scenarioPoints, lastActivity };
+}
+
 function getScoreboard() {
   const teams = [];
   try {
@@ -58,35 +105,17 @@ function getScoreboard() {
     for (const file of files) {
       const name = file.replace(/^scores-/, '').replace(/\.json$/, '');
       try {
-        const state = JSON.parse(readFileSync(path.join(SCORES_DIR, file), 'utf-8'));
-        let totalPoints = 0;
-        let completed = 0;
-        const challenges = getAllChallenges();
-        for (const [id, info] of Object.entries(state)) {
-          if (info.completedAt) {
-            completed++;
-            const challenge = challenges.find(c => c.id === id);
-            if (challenge) totalPoints += challenge.points || 0;
-          }
-        }
-        teams.push({ name, totalPoints, completed, lastActivity: Math.max(0, ...Object.values(state).map(s => s.completedAt || 0)) });
+        const raw = JSON.parse(readFileSync(path.join(SCORES_DIR, file), 'utf-8'));
+        const tally = tallyScores(raw);
+        teams.push({ name, ...tally });
       } catch { /* skip corrupt file */ }
     }
     // Also check for non-team scores.json
     if (existsSync(path.join(SCORES_DIR, 'scores.json'))) {
       try {
-        const state = JSON.parse(readFileSync(path.join(SCORES_DIR, 'scores.json'), 'utf-8'));
-        let totalPoints = 0;
-        let completed = 0;
-        const challenges = getAllChallenges();
-        for (const [id, info] of Object.entries(state)) {
-          if (info.completedAt) {
-            completed++;
-            const challenge = challenges.find(c => c.id === id);
-            if (challenge) totalPoints += challenge.points || 0;
-          }
-        }
-        teams.push({ name: '(default)', totalPoints, completed, lastActivity: Math.max(0, ...Object.values(state).map(s => s.completedAt || 0)) });
+        const raw = JSON.parse(readFileSync(path.join(SCORES_DIR, 'scores.json'), 'utf-8'));
+        const tally = tallyScores(raw);
+        teams.push({ name: '(default)', ...tally });
       } catch { /* skip */ }
     }
   } catch { /* ignore */ }
@@ -231,13 +260,18 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
   // Build scenario list once at startup
   const scenarioList = buildScenarioList();
 
-  // Load persisted scores and merge into challengeState
+  // Persistent structured scores { challenges: {...}, scenarios: {...} }
   const persisted = loadScores(teamName || null);
-  for (const [id, info] of Object.entries(persisted)) {
+
+  // Merge persisted challenge state into in-memory challengeState
+  for (const [id, info] of Object.entries(persisted.challenges)) {
     if (!challengeState[id]) {
       challengeState[id] = info;
     }
   }
+
+  // Scenario completion state (kept alongside persisted scores)
+  const scenarioState = persisted.scenarios;
 
   // Timer state
   const timerState = timerMinutes ? {
@@ -320,10 +354,73 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
       return;
     }
 
-    // Scenarios list (pre-built at startup)
+    // Scenarios list (pre-built at startup, merged with completion status)
     if (req.method === 'GET' && pathname === '/api/scenarios') {
+      const enriched = scenarioList.map(s => ({
+        ...s,
+        points: SCENARIO_POINTS[s.severity] || SCENARIO_POINTS.unknown,
+        completed: scenarioState[s.name] || null,
+      }));
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(scenarioList));
+      res.end(JSON.stringify(enriched));
+      return;
+    }
+
+    // Scenario verification
+    if (req.method === 'POST' && pathname.startsWith('/api/scenarios/') && pathname.endsWith('/verify')) {
+      const parts = pathname.split('/');
+      // /api/scenarios/:name/verify -- name is parts[3]
+      const scenarioName = decodeURIComponent(parts[3]);
+      try {
+        const body = await parseBody(req);
+        const findings = body.findings || [];
+
+        const scenario = scenarioList.find(s => s.name === scenarioName);
+        if (!scenario) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Scenario not found' }));
+          return;
+        }
+
+        if (!scenario.expectedChecks || scenario.expectedChecks.length === 0) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Scenario has no expected checks defined' }));
+          return;
+        }
+
+        // Check if all expected checks are present in submitted findings
+        const foundChecks = scenario.expectedChecks.filter(c => findings.includes(c));
+        const missingChecks = scenario.expectedChecks.filter(c => !findings.includes(c));
+        const allFound = missingChecks.length === 0;
+
+        if (allFound) {
+          const points = SCENARIO_POINTS[scenario.severity] || SCENARIO_POINTS.unknown;
+          scenarioState[scenarioName] = {
+            completedAt: Date.now(),
+            points,
+            checksFound: foundChecks,
+          };
+          saveScores({ challenges: challengeState, scenarios: scenarioState }, teamName || null);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            points,
+            checksFound: foundChecks,
+            message: `Scenario completed! +${points} points`,
+          }));
+        } else {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: false,
+            checksFound: foundChecks,
+            checksMissing: missingChecks,
+            message: `Missing checks: ${missingChecks.join(', ')}`,
+          }));
+        }
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid request body' }));
+      }
       return;
     }
 
@@ -382,7 +479,7 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
         }
 
         // Persist scores after every verification attempt
-        saveScores(challengeState, teamName || null);
+        saveScores({ challenges: challengeState, scenarios: scenarioState }, teamName || null);
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
@@ -416,6 +513,9 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
       attackLog.length = 0;
       for (const key of Object.keys(challengeState)) {
         delete challengeState[key];
+      }
+      for (const key of Object.keys(scenarioState)) {
+        delete scenarioState[key];
       }
       deleteScores(teamName || null);
       res.writeHead(200, { 'Content-Type': 'application/json' });

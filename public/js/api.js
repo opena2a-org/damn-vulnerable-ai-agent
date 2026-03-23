@@ -67,3 +67,11 @@ export function getTutorGuidance(params) {
 export function askTutor(sessionId, question) {
   return post('/api/tutor/ask', { sessionId, question });
 }
+
+export function fetchScenarios() {
+  return get('/api/scenarios');
+}
+
+export function verifyScenario(scenarioName, findings) {
+  return post(`/api/scenarios/${encodeURIComponent(scenarioName)}/verify`, { findings });
+}

@@ -2,7 +2,7 @@
  * Main app — router, polling, global state
  */
 
-import { fetchHealth, fetchStats, fetchAgents, fetchChallenges, fetchAttackLog } from './api.js';
+import { fetchHealth, fetchStats, fetchAgents, fetchChallenges, fetchAttackLog, fetchScenarios } from './api.js';
 import { closeModal } from './components.js';
 import { renderAgents } from './views/agents.js';
 import { renderChallenges } from './views/challenges.js';
@@ -112,9 +112,8 @@ async function poll() {
     // Persist challenge progress to localStorage
     saveProgress(state.challenges);
 
-    // Scenarios
-    const scenarios = await fetch('/api/scenarios').then(r => r.json()).catch(() => []);
-    state.scenarios = scenarios;
+    // Scenarios (includes completion status from server)
+    state.scenarios = await fetchScenarios().catch(() => []);
 
     // LLM status
     const llmStatus = await fetch('/api/llm/status').then(r => r.json()).catch(() => ({ enabled: false }));
