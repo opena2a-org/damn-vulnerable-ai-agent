@@ -27,6 +27,8 @@ Options:
   --mcp          Start MCP servers only (ports 3010-3013)
   --a2a          Start A2A agents only (ports 3020-3021)
   --verbose, -v  Enable verbose logging
+  --team <name>  Team mode (separate scoreboards per team)
+  --timer <min>  Workshop timer (countdown in dashboard)
   --help, -h     Show this help
   --version      Show version
 
@@ -53,16 +55,30 @@ if (args.includes('--version')) {
   process.exit(0);
 }
 
-// Filter flags — only consider --all, --api, --mcp, --a2a, --verbose, -v
-const knownFlags = ['--all', '--api', '--mcp', '--a2a', '--verbose', '-v'];
-const unknownFlags = args.filter(a => a.startsWith('-') && !knownFlags.includes(a));
+// Parse --team and --timer (flags that consume the next argument)
+const teamIdx = args.indexOf('--team');
+const teamName = teamIdx >= 0 && args[teamIdx + 1] ? args[teamIdx + 1] : null;
+const timerIdx = args.indexOf('--timer');
+const timerMinutes = timerIdx >= 0 && args[timerIdx + 1] ? parseInt(args[timerIdx + 1]) : null;
+
+// Filter flags — only consider known boolean flags and value-consuming flags
+const knownFlags = ['--all', '--api', '--mcp', '--a2a', '--verbose', '-v', '--team', '--timer'];
+// Build set of indices that are flag values (consumed by --team or --timer)
+const consumedIndices = new Set();
+if (teamIdx >= 0 && args[teamIdx + 1]) consumedIndices.add(teamIdx + 1);
+if (timerIdx >= 0 && args[timerIdx + 1]) consumedIndices.add(timerIdx + 1);
+
+const unknownFlags = args.filter((a, i) => a.startsWith('-') && !knownFlags.includes(a) && !consumedIndices.has(i));
 if (unknownFlags.length > 0) {
   console.error(`Unknown flag: ${unknownFlags[0]}`);
   console.error('Run: dvaa --help');
   process.exit(1);
 }
 
-const startAll = args.includes('--all') || args.filter(a => a.startsWith('-')).length === 0;
+// Non-protocol flags should not prevent starting all agents
+const nonProtocolFlags = ['--verbose', '-v', '--team', '--timer'];
+const protocolFlags = args.filter((a, i) => a.startsWith('-') && !consumedIndices.has(i) && !nonProtocolFlags.includes(a));
+const startAll = args.includes('--all') || protocolFlags.length === 0;
 const startApi = args.includes('--api') || startAll;
 const startMcp = args.includes('--mcp') || startAll;
 const startA2a = args.includes('--a2a') || startAll;
@@ -86,6 +102,13 @@ console.log(`
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
 `);
+
+if (teamName) {
+  console.log(`Team mode: ${teamName}`);
+}
+if (timerMinutes) {
+  console.log(`Timer: ${timerMinutes} minutes`);
+}
 
 // In-memory store for MemoryBot injected instructions (per agent session)
 const memoryStore = {};
@@ -1253,6 +1276,8 @@ const dashboardServer = createDashboardServer({
   agents: allAgents,
   logAttack,
   sandbox,
+  teamName,
+  timerMinutes,
 });
 
 dashboardServer.listen(9000, () => {

@@ -9,12 +9,90 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync } from 'fs';
 import { getAllChallenges, getChallenge, verifyChallenge, TRACKS } from '../challenges/index.js';
 import { handlePlaygroundRoutes, setAttackLogger } from '../playground/routes.js';
 import { parseBody } from '../utils/http.js';
 import { initSandbox } from '../sandbox/init.js';
 import { configureLLM, disableLLM, getLLMConfig } from '../llm/provider.js';
 import { getTutorGuidance, askTutor, resetSession } from '../llm/tutor.js';
+
+const SCORES_DIR = path.join(process.cwd(), '.dvaa');
+
+function getScoresFile(teamName) {
+  if (teamName) {
+    return path.join(SCORES_DIR, `scores-${teamName}.json`);
+  }
+  return path.join(SCORES_DIR, 'scores.json');
+}
+
+function loadScores(teamName) {
+  try {
+    const file = getScoresFile(teamName);
+    if (existsSync(file)) {
+      return JSON.parse(readFileSync(file, 'utf-8'));
+    }
+  } catch { /* ignore */ }
+  return {};
+}
+
+function saveScores(challengeState, teamName) {
+  try {
+    if (!existsSync(SCORES_DIR)) mkdirSync(SCORES_DIR, { recursive: true });
+    writeFileSync(getScoresFile(teamName), JSON.stringify(challengeState, null, 2));
+  } catch { /* ignore */ }
+}
+
+function deleteScores(teamName) {
+  try {
+    const file = getScoresFile(teamName);
+    if (existsSync(file)) unlinkSync(file);
+  } catch { /* ignore */ }
+}
+
+function getScoreboard() {
+  const teams = [];
+  try {
+    if (!existsSync(SCORES_DIR)) return teams;
+    const files = readdirSync(SCORES_DIR).filter(f => f.startsWith('scores-') && f.endsWith('.json'));
+    for (const file of files) {
+      const name = file.replace(/^scores-/, '').replace(/\.json$/, '');
+      try {
+        const state = JSON.parse(readFileSync(path.join(SCORES_DIR, file), 'utf-8'));
+        let totalPoints = 0;
+        let completed = 0;
+        const challenges = getAllChallenges();
+        for (const [id, info] of Object.entries(state)) {
+          if (info.completedAt) {
+            completed++;
+            const challenge = challenges.find(c => c.id === id);
+            if (challenge) totalPoints += challenge.points || 0;
+          }
+        }
+        teams.push({ name, totalPoints, completed, lastActivity: Math.max(0, ...Object.values(state).map(s => s.completedAt || 0)) });
+      } catch { /* skip corrupt file */ }
+    }
+    // Also check for non-team scores.json
+    if (existsSync(path.join(SCORES_DIR, 'scores.json'))) {
+      try {
+        const state = JSON.parse(readFileSync(path.join(SCORES_DIR, 'scores.json'), 'utf-8'));
+        let totalPoints = 0;
+        let completed = 0;
+        const challenges = getAllChallenges();
+        for (const [id, info] of Object.entries(state)) {
+          if (info.completedAt) {
+            completed++;
+            const challenge = challenges.find(c => c.id === id);
+            if (challenge) totalPoints += challenge.points || 0;
+          }
+        }
+        teams.push({ name: '(default)', totalPoints, completed, lastActivity: Math.max(0, ...Object.values(state).map(s => s.completedAt || 0)) });
+      } catch { /* skip */ }
+    }
+  } catch { /* ignore */ }
+  teams.sort((a, b) => b.totalPoints - a.totalPoints);
+  return teams;
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.resolve(__dirname, '../..');
@@ -147,11 +225,27 @@ function serveStaticFile(publicDir, reqPath, res) {
  * @param {Function} ctx.logAttack - Attack logging function from main server
  * @param {object}   ctx.sandbox - Sandbox filesystem context
  */
-export function createDashboardServer({ stats, attackLog, challengeState, agents, logAttack, sandbox }) {
+export function createDashboardServer({ stats, attackLog, challengeState, agents, logAttack, sandbox, teamName, timerMinutes }) {
   const publicDir = path.resolve(__dirname, '../../public');
 
   // Build scenario list once at startup
   const scenarioList = buildScenarioList();
+
+  // Load persisted scores and merge into challengeState
+  const persisted = loadScores(teamName || null);
+  for (const [id, info] of Object.entries(persisted)) {
+    if (!challengeState[id]) {
+      challengeState[id] = info;
+    }
+  }
+
+  // Timer state
+  const timerState = timerMinutes ? {
+    active: true,
+    started: new Date().toISOString(),
+    startedMs: Date.now(),
+    duration: timerMinutes,
+  } : { active: false };
 
   // Inject attack logger into playground routes
   if (logAttack) {
@@ -287,6 +381,9 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
           challengeState[challengeId].completedAt = Date.now();
         }
 
+        // Persist scores after every verification attempt
+        saveScores(challengeState, teamName || null);
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           ...result,
@@ -320,8 +417,50 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
       for (const key of Object.keys(challengeState)) {
         delete challengeState[key];
       }
+      deleteScores(teamName || null);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'reset' }));
+      return;
+    }
+
+    // --- Team & Timer Routes ---
+
+    // Team info
+    if (req.method === 'GET' && pathname === '/api/team') {
+      if (teamName) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ name: teamName, active: true }));
+      } else {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ active: false }));
+      }
+      return;
+    }
+
+    // Scoreboard (all teams)
+    if (req.method === 'GET' && pathname === '/api/scoreboard') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(getScoreboard()));
+      return;
+    }
+
+    // Timer info
+    if (req.method === 'GET' && pathname === '/api/timer') {
+      if (timerState.active) {
+        const elapsed = (Date.now() - timerState.startedMs) / 1000;
+        const totalSeconds = timerState.duration * 60;
+        const remaining = Math.max(0, Math.floor(totalSeconds - elapsed));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          active: true,
+          remaining,
+          started: timerState.started,
+          duration: timerState.duration,
+        }));
+      } else {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ active: false }));
+      }
       return;
     }
 
