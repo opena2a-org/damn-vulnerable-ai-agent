@@ -13,6 +13,8 @@ import { getAllChallenges, getChallenge, verifyChallenge } from '../challenges/i
 import { handlePlaygroundRoutes, setAttackLogger } from '../playground/routes.js';
 import { parseBody } from '../utils/http.js';
 import { initSandbox } from '../sandbox/init.js';
+import { configureLLM, disableLLM, getLLMConfig } from '../llm/provider.js';
+import { getTutorGuidance, askTutor, resetSession } from '../llm/tutor.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -310,6 +312,98 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
         }
         return;
       }
+    }
+
+    // --- LLM Configuration Routes ---
+
+    // POST /api/llm/configure -- Set API key (BYOK)
+    if (req.method === 'POST' && pathname === '/api/llm/configure') {
+      try {
+        const body = await parseBody(req);
+        const result = configureLLM({
+          provider: body.provider,
+          apiKey: body.apiKey,
+          model: body.model,
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'configured', ...result }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
+    // GET /api/llm/status -- Check LLM configuration (never returns the key)
+    if (req.method === 'GET' && pathname === '/api/llm/status') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(getLLMConfig()));
+      return;
+    }
+
+    // POST /api/llm/disable -- Remove API key and disable LLM mode
+    if (req.method === 'POST' && pathname === '/api/llm/disable') {
+      const result = disableLLM();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'disabled', ...result }));
+      return;
+    }
+
+    // --- Tutor Routes ---
+
+    // POST /api/tutor/guidance -- Get tutor feedback on an interaction
+    if (req.method === 'POST' && pathname === '/api/tutor/guidance') {
+      try {
+        const body = await parseBody(req);
+        const result = await getTutorGuidance({
+          sessionId: body.sessionId,
+          agentId: body.agentId,
+          agentName: body.agentName,
+          securityLevel: body.securityLevel,
+          userInput: body.userInput,
+          agentResponse: body.agentResponse,
+          detectionResults: body.detectionResults || { hasAttack: false, categories: [] },
+          activeChallenge: body.activeChallenge,
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result || { guidance: null, message: 'LLM not configured' }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
+    // POST /api/tutor/ask -- Ask the tutor a direct question
+    if (req.method === 'POST' && pathname === '/api/tutor/ask') {
+      try {
+        const body = await parseBody(req);
+        const result = await askTutor({
+          sessionId: body.sessionId,
+          question: body.question,
+          context: body.context,
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ answer: result, message: result ? null : 'LLM not configured' }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
+    // POST /api/tutor/reset -- Reset tutor session
+    if (req.method === 'POST' && pathname === '/api/tutor/reset') {
+      try {
+        const body = await parseBody(req);
+        resetSession(body.sessionId);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'reset' }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
     }
 
     // --- Playground Routes ---
