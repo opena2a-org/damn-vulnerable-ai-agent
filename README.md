@@ -4,7 +4,7 @@
 [![Docker Hub](https://img.shields.io/docker/pulls/opena2a/dvaa)](https://hub.docker.com/r/opena2a/dvaa)
 [![OASB Compatible](https://img.shields.io/badge/OASB-1.0-teal)](https://oasb.ai)
 
-An intentionally vulnerable AI agent platform for security training, red-teaming, and validating security tools. 14 agents, 8 attack classes, 3 protocols. The [DVWA](https://dvwa.co.uk/) of AI agents.
+An intentionally vulnerable AI agent platform for security training, red-teaming, and validating security tools. 14 agents, 12 vulnerability categories, 3 protocols. The [DVWA](https://dvwa.co.uk/) of AI agents.
 
 ```bash
 docker run -p 3000-3008:3000-3008 -p 3010-3013:3010-3013 -p 3020-3021:3020-3021 -p 9000:9000 opena2a/dvaa
@@ -48,6 +48,10 @@ Based on [OASB-1](https://oasb.ai) (Open Agent Security Benchmark):
 | MCP Exploitation | Abuse MCP tool interfaces (path traversal, SSRF) |
 | A2A Attacks | Multi-agent trust exploitation |
 | Supply Chain | Malicious component injection |
+| Memory Injection | Inject persistent instructions into agent memory |
+| Context Overflow | Displace safety instructions via context padding |
+| Tool Registry Poisoning | Manipulate tool discovery and registration |
+| Tool MITM | Intercept and modify tool communications |
 
 ## Testing with HackMyAgent
 
@@ -61,7 +65,7 @@ npx hackmyagent attack http://localhost:3003/v1/chat/completions --api-format op
 npx hackmyagent attack http://localhost:3003/v1/chat/completions \
   --api-format openai --intensity aggressive --verbose
 
-# OASB-1 benchmark (182 attack scenarios)
+# OASB-1 benchmark (222 attack scenarios)
 npx hackmyagent secure -b oasb-1
 
 # Test MCP server directly
@@ -77,20 +81,32 @@ curl -X POST http://localhost:3020/a2a/message \
 
 ## CTF Challenges
 
-10 challenges across 4 difficulty levels (2,550 total points):
+22 challenges across 4 difficulty levels (5,900 total points):
 
 | Level | Challenge | Points |
 |-------|-----------|--------|
-| Beginner | Extract the System Prompt | 100 |
-| Beginner | API Key Leak | 100 |
-| Beginner | Basic Prompt Injection | 100 |
-| Intermediate | Jailbreak via Roleplay | 200 |
-| Intermediate | Context Window Manipulation | 250 |
-| Intermediate | MCP Path Traversal | 250 |
-| Advanced | Chained Prompt Injection (RAG) | 300 |
-| Advanced | SSRF via MCP | 350 |
-| Expert | Compromise SecureBot | 500 |
-| Expert | Agent-to-Agent Attack Chain | 500 |
+| Beginner (L1) | Extract the System Prompt | 100 |
+| Beginner (L1) | API Key Leak | 100 |
+| Beginner (L1) | Basic Prompt Injection | 100 |
+| Intermediate (L2) | Jailbreak via Roleplay | 200 |
+| Intermediate (L2) | Context Window Manipulation | 200 |
+| Intermediate (L2) | MCP Path Traversal | 250 |
+| Intermediate (L2) | Persistent Memory Injection | 200 |
+| Intermediate (L2) | Memory Credential Extraction | 250 |
+| Intermediate (L2) | Context Padding Attack | 200 |
+| Intermediate (L2) | Safety Instruction Displacement | 250 |
+| Intermediate (L2) | Malicious Tool Registration | 250 |
+| Intermediate (L2) | Tool Call MITM | 250 |
+| Advanced (L3) | Chained Prompt Injection | 300 |
+| Advanced (L3) | SSRF via MCP | 350 |
+| Advanced (L3) | Self-Replicating Memory Entry | 300 |
+| Advanced (L3) | System Prompt Extraction via Context Pressure | 300 |
+| Advanced (L3) | Tool Typosquatting | 300 |
+| Advanced (L3) | Tool Chain Data Exfiltration | 350 |
+| Advanced (L3) | Tool Shadowing | 300 |
+| Advanced (L3) | Traffic Redirection Attack | 350 |
+| Expert (L4) | Compromise SecureBot | 500 |
+| Expert (L4) | Agent-to-Agent Attack Chain | 500 |
 
 The web dashboard at `http://localhost:9000` tracks challenge progress, shows live attack logs, and includes a prompt playground for testing system prompt defenses.
 

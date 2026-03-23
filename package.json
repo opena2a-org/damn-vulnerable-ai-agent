@@ -1,7 +1,7 @@
 {
   "name": "damn-vulnerable-ai-agent",
   "version": "0.5.0",
-  "description": "The AI agent you're supposed to break. 14 agents, 8 attack classes, zero consequences.",
+  "description": "The AI agent you're supposed to break. 14 agents, 12 vulnerability categories, zero consequences.",
   "type": "module",
   "main": "src/index.js",
   "bin": {
@@ -10,9 +10,9 @@
   "scripts": {
     "start": "node src/index.js",
     "start:all": "node src/index.js --all",
-    "start:api": "node src/agents/api-server.js",
-    "start:mcp": "node src/agents/mcp-server.js",
-    "start:a2a": "node src/agents/a2a-server.js",
+    "start:api": "node src/index.js --api",
+    "start:mcp": "node src/index.js --mcp",
+    "start:a2a": "node src/index.js --a2a",
     "dev": "node --watch src/index.js",
     "docker:build": "docker compose build",
     "docker:up": "docker compose up",
