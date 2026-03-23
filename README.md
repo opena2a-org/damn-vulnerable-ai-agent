@@ -153,7 +153,7 @@ VERBOSE=true            # Detailed logging
 
 ## Infrastructure Vulnerability Scenarios
 
-Real-world AI infrastructure misconfigurations discovered by internet-wide security research (294K+ exposed services). Each scenario reproduces a specific vulnerability with config files you can scan, fix, and verify using HackMyAgent.
+Real-world AI infrastructure misconfigurations discovered by internet-wide security research (~140,000 verified exposed services). Each scenario reproduces a specific vulnerability with config files you can scan, fix, and verify using HackMyAgent.
 
 ```bash
 # Scan a scenario
