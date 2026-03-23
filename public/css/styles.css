@@ -488,6 +488,57 @@ body {
 .verify-result.success { background: rgba(34, 197, 94, 0.1); color: var(--green); }
 .verify-result.failure { background: rgba(239, 68, 68, 0.1); color: var(--red); }
 
+/* ===== Track Tabs ===== */
+.track-tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.track-tab {
+  padding: 0.4rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.8rem;
+  background: var(--surface); border: 1px solid var(--border); color: var(--text-muted);
+  cursor: pointer; transition: all 0.2s;
+}
+.track-tab:hover { border-color: var(--border-hover); color: var(--text); }
+.track-tab.active { background: var(--teal); color: #0a0e17; border-color: var(--teal); }
+
+/* ===== Kill Chain Badge ===== */
+.badge-killchain {
+  font-size: 0.65rem; padding: 0.15rem 0.4rem; border-radius: 2px;
+  background: rgba(139, 92, 246, 0.15); color: var(--purple); border: 1px solid rgba(139, 92, 246, 0.3);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+/* ===== Track Badge ===== */
+.badge-track {
+  font-size: 0.65rem; padding: 0.15rem 0.4rem; border-radius: 2px;
+  background: rgba(6, 182, 212, 0.1); color: var(--teal); border: 1px solid rgba(6, 182, 212, 0.2);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+/* ===== HMA Checks ===== */
+.hma-checks { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.5rem; }
+.hma-check {
+  font-size: 0.7rem; padding: 0.1rem 0.35rem; border-radius: 2px;
+  background: rgba(6, 182, 212, 0.1); color: var(--teal); border: 1px solid rgba(6, 182, 212, 0.2);
+  font-family: var(--mono);
+}
+
+/* ===== Collapsible Detail Sections ===== */
+.detail-section { margin-top: 0.75rem; }
+.detail-section-toggle {
+  font-size: 0.8rem; font-weight: 600; color: var(--text-muted); cursor: pointer;
+  display: flex; align-items: center; gap: 0.5rem;
+  background: none; border: none; padding: 0;
+}
+.detail-section-toggle::before { content: '>'; font-family: var(--mono); transition: transform 0.2s; display: inline-block; }
+.detail-section-toggle.open::before { transform: rotate(90deg); }
+.detail-section-body {
+  display: none; margin-top: 0.5rem; padding: 0.75rem;
+  background: var(--bg); border-radius: var(--radius-sm); font-size: 0.8rem;
+  line-height: 1.5; white-space: pre-wrap;
+}
+.detail-section-body.visible { display: block; }
+
+/* ===== Solution Locked ===== */
+.solution-locked { color: var(--text-dim); font-style: italic; font-size: 0.8rem; }
+
 /* ===== Attack Log ===== */
 .attack-log-controls {
   display: flex;

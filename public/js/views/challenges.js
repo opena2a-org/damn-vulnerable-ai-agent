@@ -6,6 +6,52 @@ import { el, CATEGORY_LABELS } from '../utils.js';
 import { categoryBadge, difficultyBadge, challengeStatusIcon, openModal } from '../components.js';
 import { verifyChallenge } from '../api.js';
 
+const TRACK_LABELS = {
+  'all': 'All',
+  'start-here': 'Start Here',
+  'prompt-injection': 'Prompt Injection',
+  'mcp-security': 'MCP Security',
+  'memory-attacks': 'Memory Attacks',
+  'supply-chain': 'Supply Chain',
+  'a2a-security': 'A2A Security',
+};
+
+const KILL_CHAIN_LABELS = {
+  recon: 'Recon',
+  initial_access: 'Initial Access',
+  cred_harvest: 'Cred Harvest',
+  priv_esc: 'Priv Esc',
+  persistence: 'Persistence',
+  lateral: 'Lateral',
+  collection: 'Collection',
+  exfiltration: 'Exfiltration',
+  impact: 'Impact',
+};
+
+/**
+ * Build a collapsible detail section
+ */
+function detailSection(title, content, startOpen = false) {
+  const section = el('div', { className: 'detail-section' });
+  const toggle = el('button', { className: `detail-section-toggle${startOpen ? ' open' : ''}` }, title);
+  const body = el('div', { className: `detail-section-body${startOpen ? ' visible' : ''}` });
+
+  if (typeof content === 'string') {
+    body.textContent = content;
+  } else {
+    body.appendChild(content);
+  }
+
+  toggle.addEventListener('click', () => {
+    toggle.classList.toggle('open');
+    body.classList.toggle('visible');
+  });
+
+  section.appendChild(toggle);
+  section.appendChild(body);
+  return section;
+}
+
 /**
  * Build the challenge detail modal content
  */
@@ -18,10 +64,21 @@ function challengeDetailModal(challenge) {
   meta.appendChild(difficultyBadge(challenge.difficulty));
   meta.appendChild(el('span', { className: 'challenge-points' }, `${challenge.points} pts`));
   meta.appendChild(el('span', { className: 'port' }, `Target: ${challenge.targetAgent}`));
+  if (challenge.killChainStage) {
+    meta.appendChild(el('span', { className: 'badge-killchain' }, KILL_CHAIN_LABELS[challenge.killChainStage] || challenge.killChainStage));
+  }
+  if (challenge.track) {
+    meta.appendChild(el('span', { className: 'badge-track' }, TRACK_LABELS[challenge.track] || challenge.track));
+  }
   body.appendChild(meta);
 
   // Description
   body.appendChild(el('p', { className: 'challenge-detail-desc' }, challenge.description));
+
+  // Background (collapsible)
+  if (challenge.background) {
+    body.appendChild(detailSection('Background', challenge.background));
+  }
 
   // Objectives
   const objHeader = el('p', { style: { fontWeight: '600', fontSize: '0.85rem', marginBottom: '0.25rem' } }, 'Objectives:');
@@ -43,6 +100,39 @@ function challengeDetailModal(challenge) {
     hintContainer.appendChild(text);
   });
   body.appendChild(hintContainer);
+
+  // Defense section (collapsible)
+  if (challenge.defendHow) {
+    body.appendChild(detailSection('How to Defend', challenge.defendHow));
+  }
+
+  // HMA checks
+  if (challenge.hmaChecks && challenge.hmaChecks.length > 0) {
+    const checksContainer = el('div', { className: 'hma-checks' });
+    for (const check of challenge.hmaChecks) {
+      checksContainer.appendChild(el('span', { className: 'hma-check' }, check));
+    }
+    body.appendChild(checksContainer);
+  }
+
+  // Solution section (hidden until completed or after 3 failed attempts)
+  if (challenge.solution) {
+    const attempts = challenge.completed?.attempts || 0;
+    const isCompleted = challenge.completed?.completedAt;
+    const showSolution = isCompleted || attempts >= 3;
+
+    if (showSolution) {
+      body.appendChild(detailSection('Solution', challenge.solution));
+    } else {
+      const locked = el('div', { className: 'solution-locked', style: { marginTop: '0.75rem' } });
+      if (attempts > 0) {
+        locked.textContent = `Solution unlocks after 3 failed attempts (${attempts}/3)`;
+      } else {
+        locked.textContent = 'Solution unlocks after completing the challenge or 3 failed attempts';
+      }
+      body.appendChild(locked);
+    }
+  }
 
   // Verification section
   if (!challenge.manual) {
@@ -111,7 +201,22 @@ function challengeTile(challenge) {
   meta.appendChild(categoryBadge(challenge.category));
   meta.appendChild(difficultyBadge(challenge.difficulty));
   meta.appendChild(el('span', { className: 'challenge-points' }, `${challenge.points} pts`));
+  if (challenge.killChainStage) {
+    meta.appendChild(el('span', { className: 'badge-killchain' }, KILL_CHAIN_LABELS[challenge.killChainStage] || challenge.killChainStage));
+  }
+  if (challenge.track) {
+    meta.appendChild(el('span', { className: 'badge-track' }, TRACK_LABELS[challenge.track] || challenge.track));
+  }
   tile.appendChild(meta);
+
+  // HMA checks (small)
+  if (challenge.hmaChecks && challenge.hmaChecks.length > 0) {
+    const checksRow = el('div', { className: 'hma-checks' });
+    for (const check of challenge.hmaChecks) {
+      checksRow.appendChild(el('span', { className: 'hma-check' }, check));
+    }
+    tile.appendChild(checksRow);
+  }
 
   // Target
   tile.appendChild(el('div', { className: 'challenge-target' }, `Target: ${challenge.targetAgent}`));
@@ -123,6 +228,9 @@ function challengeTile(challenge) {
 
   return tile;
 }
+
+// Currently selected track filter
+let activeTrack = 'all';
 
 /**
  * Render challenge board
@@ -150,12 +258,33 @@ export function renderChallenges(state) {
   scoreboard.appendChild(el('div', { className: 'scoreboard-count' }, `${completedCount} / ${challenges.length} completed`));
   wrap.appendChild(scoreboard);
 
+  // Track selector tabs
+  const tabs = el('div', { className: 'track-tabs' });
+  for (const [trackId, trackLabel] of Object.entries(TRACK_LABELS)) {
+    const tab = el('button', {
+      className: `track-tab${activeTrack === trackId ? ' active' : ''}`,
+    }, trackLabel);
+    tab.addEventListener('click', () => {
+      activeTrack = trackId;
+      // Re-render by triggering the view again
+      const app = document.getElementById('app');
+      app.replaceChildren(renderChallenges(state));
+    });
+    tabs.appendChild(tab);
+  }
+  wrap.appendChild(tabs);
+
+  // Filter challenges by track
+  const filtered = activeTrack === 'all'
+    ? challenges
+    : challenges.filter(c => c.track === activeTrack);
+
   // Group by level
   const levels = [1, 2, 3, 4];
   const levelNames = { 1: 'Level 1 -- Beginner', 2: 'Level 2 -- Intermediate', 3: 'Level 3 -- Advanced', 4: 'Level 4 -- Expert' };
 
   for (const level of levels) {
-    const levelChallenges = challenges.filter(c => c.level === level);
+    const levelChallenges = filtered.filter(c => c.level === level);
     if (levelChallenges.length === 0) continue;
 
     wrap.appendChild(el('div', { className: 'section-header' }, levelNames[level]));
@@ -164,6 +293,12 @@ export function renderChallenges(state) {
       grid.appendChild(challengeTile(c));
     }
     wrap.appendChild(grid);
+  }
+
+  if (filtered.length === 0) {
+    wrap.appendChild(el('div', {
+      style: { textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' },
+    }, 'No challenges in this track.'));
   }
 
   return wrap;

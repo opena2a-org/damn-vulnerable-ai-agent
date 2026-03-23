@@ -9,7 +9,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getAllChallenges, getChallenge, verifyChallenge } from '../challenges/index.js';
+import { getAllChallenges, getChallenge, verifyChallenge, TRACKS } from '../challenges/index.js';
 import { handlePlaygroundRoutes, setAttackLogger } from '../playground/routes.js';
 import { parseBody } from '../utils/http.js';
 import { initSandbox } from '../sandbox/init.js';
@@ -157,6 +157,13 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
       return;
     }
 
+    // Tracks list
+    if (req.method === 'GET' && pathname === '/api/tracks') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(TRACKS));
+      return;
+    }
+
     // Challenge list
     if (req.method === 'GET' && pathname === '/api/challenges') {
       const challenges = getAllChallenges().map(c => ({
@@ -172,6 +179,13 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
         hints: c.hints,
         manual: c.successCriteria?.manual || false,
         completed: challengeState[c.id] || null,
+        background: c.background || null,
+        defendHow: c.defendHow || null,
+        hmaChecks: c.hmaChecks || [],
+        killChainStage: c.killChainStage || null,
+        track: c.track || null,
+        prerequisites: c.prerequisites || [],
+        solution: c.solution ? c.solution.trim() : null,
       }));
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(challenges));
