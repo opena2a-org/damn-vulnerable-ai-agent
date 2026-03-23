@@ -6,3 +6,6 @@ LangChain LangServe routes added to a FastAPI app bound to 0.0.0.0 with no authe
 
 **Detect:** `npx hackmyagent secure vulnerable/`
 **Fix:** Add authentication middleware to LangServe routes. Bind to 127.0.0.1 for local-only access.
+
+**References:**
+- [CWE-306: Missing Authentication for Critical Function](https://cwe.mitre.org/data/definitions/306.html)

@@ -6,3 +6,7 @@ An A2A agent with a publicly discoverable agent.json and task submission endpoin
 
 **Detect:** `npx hackmyagent secure vulnerable/`
 **Fix:** Add authentication requirements to agent.json and require API key/bearer token for task endpoints.
+
+**References:**
+- [CWE-306: Missing Authentication for Critical Function](https://cwe.mitre.org/data/definitions/306.html)
+- OWASP Top 10 for LLM Applications — LLM08: Excessive Agency

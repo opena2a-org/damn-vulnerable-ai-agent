@@ -43,3 +43,7 @@ npx hackmyagent secure scenarios/token-smuggling-unicode/vulnerable
 
 - OWASP LLM Top 10: LLM01 - Prompt Injection
 - CWE-176: Improper Handling of Unicode Encoding
+
+**References:**
+- [CWE-176: Improper Handling of Unicode Encoding](https://cwe.mitre.org/data/definitions/176.html)
+- [Unicode Consortium — Confusable Characters](https://unicode.org/reports/tr39/#Confusable_Detection)

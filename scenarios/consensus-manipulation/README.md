@@ -43,3 +43,6 @@ npx hackmyagent secure scenarios/consensus-manipulation/vulnerable
 
 - OWASP LLM Top 10: LLM08 - Excessive Agency
 - CWE-799: Improper Control of Interaction Frequency
+
+**References:**
+- [CWE-345: Insufficient Verification of Data Authenticity](https://cwe.mitre.org/data/definitions/345.html)

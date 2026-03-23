@@ -46,3 +46,7 @@ npx hackmyagent secure scenarios/cross-session-persistence/vulnerable
 
 - OWASP LLM Top 10: LLM02 - Insecure Output Handling
 - CWE-502: Deserialization of Untrusted Data
+
+**References:**
+- [CWE-79: Improper Neutralization of Input During Web Page Generation](https://cwe.mitre.org/data/definitions/79.html) (analog for LLM context injection)
+- [ETH Zurich — Persistent LLM Memory Manipulation Research](https://arxiv.org/abs/2310.02446)

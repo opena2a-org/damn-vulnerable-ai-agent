@@ -6,3 +6,6 @@ Authentication token compared using JavaScript `!==` instead of `crypto.timingSa
 
 **Detect:** `npx hackmyagent secure vulnerable/`
 **Fix:** `npx hackmyagent secure vulnerable/ --fix` (replaces with timingSafeEqual)
+
+**References:**
+- [CWE-208: Observable Timing Discrepancy](https://cwe.mitre.org/data/definitions/208.html)

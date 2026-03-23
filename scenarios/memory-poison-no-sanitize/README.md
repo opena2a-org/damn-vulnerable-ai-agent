@@ -20,3 +20,7 @@ MEM-006 detects memory store/persist functions where the input text is saved wit
 - Implement content filtering to reject entries that resemble prompt injection patterns
 
 **Detect:** `npx hackmyagent secure vulnerable/`
+
+**References:**
+- [CWE-79: Improper Neutralization of Input During Web Page Generation](https://cwe.mitre.org/data/definitions/79.html) (analog for LLM context injection)
+- [Stav Cohen et al. — Here Comes The AI Worm: Unleashing Zero-click Worms that Target GenAI-Powered Applications (2024)](https://arxiv.org/abs/2403.02817)

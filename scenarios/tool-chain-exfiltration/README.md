@@ -43,3 +43,7 @@ npx hackmyagent secure scenarios/tool-chain-exfiltration/vulnerable
 
 - OWASP LLM Top 10: LLM08 - Excessive Agency
 - CWE-200: Exposure of Sensitive Information to an Unauthorized Actor
+
+**References:**
+- [CWE-200: Exposure of Sensitive Information to an Unauthorized Actor](https://cwe.mitre.org/data/definitions/200.html)
+- OWASP Top 10 for LLM Applications — LLM08: Excessive Agency

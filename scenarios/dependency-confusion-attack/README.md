@@ -42,3 +42,7 @@ npx hackmyagent secure scenarios/dependency-confusion-attack/vulnerable
 
 - OWASP LLM Top 10: LLM05 - Supply Chain Vulnerabilities
 - CWE-427: Uncontrolled Search Path Element
+
+**References:**
+- [CWE-427: Uncontrolled Search Path Element](https://cwe.mitre.org/data/definitions/427.html)
+- [Alex Birsan — Dependency Confusion: How I Hacked Into Apple, Microsoft and Dozens of Other Companies (2021)](https://medium.com/@alex.birsan/dependency-confusion-4a5d60fec610)

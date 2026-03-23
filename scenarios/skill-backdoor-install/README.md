@@ -43,3 +43,6 @@ npx hackmyagent secure scenarios/skill-backdoor-install/vulnerable
 
 - OWASP LLM Top 10: LLM05 - Supply Chain Vulnerabilities
 - CWE-829: Inclusion of Functionality from Untrusted Control Sphere
+
+**References:**
+- [CWE-506: Embedded Malicious Code](https://cwe.mitre.org/data/definitions/506.html)

@@ -44,3 +44,6 @@ npx hackmyagent secure scenarios/agent-impersonation-a2a/vulnerable
 
 - OWASP LLM Top 10: LLM08 - Excessive Agency
 - CWE-287: Improper Authentication
+
+**References:**
+- [CWE-287: Improper Authentication](https://cwe.mitre.org/data/definitions/287.html)

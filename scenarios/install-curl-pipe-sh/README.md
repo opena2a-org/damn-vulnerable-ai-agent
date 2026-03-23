@@ -20,3 +20,7 @@ INSTALL-001 detects `curl ... | sh`, `curl ... | bash`, `wget ... | sh`, and sim
 - Use HTTPS with certificate pinning
 
 **Detect:** `npx hackmyagent secure vulnerable/`
+
+**References:**
+- [CWE-494: Download of Code Without Integrity Check](https://cwe.mitre.org/data/definitions/494.html)
+- OWASP Top 10 — A08:2021 Software and Data Integrity Failures

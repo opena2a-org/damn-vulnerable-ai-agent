@@ -20,3 +20,7 @@ WEBEXPOSE-001 detects CLAUDE.md, .cursorrules, SOUL.md, and similar agent instru
 - Audit the web server configuration to ensure no sensitive files are accessible
 
 **Detect:** `npx hackmyagent secure vulnerable/`
+
+**References:**
+- [CWE-538: Insertion of Sensitive Information into Externally-Accessible File or Directory](https://cwe.mitre.org/data/definitions/538.html)
+- [OpenA2A March 2026 Exposure Sweep](https://research.opena2a.org/research/march-2026-exposure-sweep) — ~140,000 verified exposed AI services

@@ -42,3 +42,7 @@ npx hackmyagent secure scenarios/typosquatting-mcp/vulnerable
 
 - OWASP LLM Top 10: LLM05 - Supply Chain Vulnerabilities
 - CWE-1104: Use of Unmaintained Third-Party Components
+
+**References:**
+- [CWE-1321: Improperly Controlled Modification of Object Prototype Attributes](https://cwe.mitre.org/data/definitions/1321.html)
+- [Socket.dev — Typosquatting and Supply Chain Attacks](https://socket.dev/blog/typosquatting)

@@ -20,3 +20,7 @@ DOCKERINJ-001 detects `docker exec` commands where variables (especially those d
 - Run a dedicated entrypoint script inside the container that accepts structured input
 
 **Detect:** `npx hackmyagent secure vulnerable/`
+
+**References:**
+- [CWE-78: Improper Neutralization of Special Elements used in an OS Command](https://cwe.mitre.org/data/definitions/78.html)
+- OWASP Top 10 — A03:2021 Injection

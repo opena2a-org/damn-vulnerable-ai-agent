@@ -6,3 +6,7 @@ Docker images published with `provenance: false` in CI workflow, disabling SLSA 
 
 **Detect:** `npx hackmyagent secure vulnerable/`
 **Fix:** Set `provenance: true` in GitHub Actions docker/build-push-action.
+
+**References:**
+- [SLSA Framework — Supply-chain Levels for Software Artifacts](https://slsa.dev)
+- [Sigstore — Software Signing for Everyone](https://www.sigstore.dev)

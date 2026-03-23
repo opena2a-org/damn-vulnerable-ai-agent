@@ -19,3 +19,7 @@ INTEGRITY-001 detects integrity verification patterns where the digest/hash para
 - Fail closed: if any verification input is missing, reject the operation
 
 **Detect:** `npx hackmyagent secure vulnerable/`
+
+**References:**
+- [CWE-354: Improper Validation of Integrity Check Value](https://cwe.mitre.org/data/definitions/354.html)
+- OWASP Top 10 — A08:2021 Software and Data Integrity Failures

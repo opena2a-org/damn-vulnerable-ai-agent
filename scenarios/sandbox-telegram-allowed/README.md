@@ -20,3 +20,6 @@ SANDBOX-005 scans sandbox configuration files (YAML, JSON) for known data exfilt
 - Implement egress filtering at the network level as defense in depth
 
 **Detect:** `npx hackmyagent secure vulnerable/`
+
+**References:**
+- [CWE-183: Permissive List of Allowed Inputs](https://cwe.mitre.org/data/definitions/183.html)

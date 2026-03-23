@@ -6,3 +6,6 @@ API authentication tokens accepted via URL query parameters (e.g., `?token=secre
 
 **Detect:** `npx hackmyagent secure vulnerable/`
 **Fix:** Move token to Authorization header. Reject query parameter tokens.
+
+**References:**
+- [CWE-598: Use of GET Request Method With Sensitive Query Strings](https://cwe.mitre.org/data/definitions/598.html)

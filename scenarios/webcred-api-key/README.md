@@ -7,3 +7,7 @@ API keys (OpenAI, Anthropic) hardcoded in HTML and JavaScript files served by a 
 **Detect:** `npx hackmyagent secure vulnerable/`
 **Fix:** `npx hackmyagent secure vulnerable/ --fix` (replaces with process.env.VAR references)
 **Rollback:** `npx hackmyagent rollback vulnerable/`
+
+**References:**
+- [CWE-312: Cleartext Storage of Sensitive Information](https://cwe.mitre.org/data/definitions/312.html)
+- [CWE-540: Inclusion of Sensitive Information in Source Code](https://cwe.mitre.org/data/definitions/540.html)

@@ -44,3 +44,7 @@ npx hackmyagent secure scenarios/mcp-rug-pull/vulnerable
 
 - OWASP LLM Top 10: LLM05 - Supply Chain Vulnerabilities
 - CWE-494: Download of Code Without Integrity Check
+
+**References:**
+- [CWE-494: Download of Code Without Integrity Check](https://cwe.mitre.org/data/definitions/494.html)
+- OWASP Top 10 — A08:2021 Software and Data Integrity Failures

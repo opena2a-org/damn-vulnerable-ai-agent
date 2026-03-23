@@ -44,3 +44,6 @@ npx hackmyagent secure scenarios/delegation-privilege-escalation/vulnerable
 
 - OWASP LLM Top 10: LLM08 - Excessive Agency
 - CWE-269: Improper Privilege Management
+
+**References:**
+- [CWE-269: Improper Privilege Management](https://cwe.mitre.org/data/definitions/269.html)

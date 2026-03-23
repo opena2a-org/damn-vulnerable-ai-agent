@@ -20,3 +20,6 @@ ENVLEAK-001 detects `spawn()`, `exec()`, and `fork()` calls where the `env` opti
 - Use a sandbox or container with a minimal environment for plugin execution
 
 **Detect:** `npx hackmyagent secure vulnerable/`
+
+**References:**
+- [CWE-526: Exposure of Sensitive Information Through Environmental Variables](https://cwe.mitre.org/data/definitions/526.html)

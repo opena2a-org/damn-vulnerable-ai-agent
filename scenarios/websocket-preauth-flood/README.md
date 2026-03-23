@@ -6,3 +6,7 @@ WebSocket server accepts and upgrades all incoming connections, allocating buffe
 
 **Detect:** `npx hackmyagent secure vulnerable/`
 **Fix:** Authenticate during the HTTP upgrade handshake (before accepting WebSocket). Add per-IP connection limits.
+
+**References:**
+- [CWE-400: Uncontrolled Resource Consumption](https://cwe.mitre.org/data/definitions/400.html)
+- [OWASP API Security Top 10 — API4:2023 Unrestricted Resource Consumption](https://owasp.org/API-Security/editions/2023/en/0xa4-unrestricted-resource-consumption/)

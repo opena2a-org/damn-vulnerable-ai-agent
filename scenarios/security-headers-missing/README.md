@@ -6,3 +6,7 @@ Agent web dashboard served without security headers. Missing: Strict-Transport-S
 
 **Detect:** `npx hackmyagent secure vulnerable/`
 **Fix:** Add middleware that sets all recommended security headers.
+
+**References:**
+- [CWE-693: Protection Mechanism Failure](https://cwe.mitre.org/data/definitions/693.html)
+- [OWASP Secure Headers Project](https://owasp.org/www-project-secure-headers/)

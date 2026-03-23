@@ -20,3 +20,6 @@ AGENT-CRED-001 detects SOUL.md files that reference execution capabilities (exec
 - Add: "Redact any secrets that appear in command output before displaying to the user"
 
 **Detect:** `npx hackmyagent secure vulnerable/`
+
+**References:**
+- [CWE-312: Cleartext Storage of Sensitive Information](https://cwe.mitre.org/data/definitions/312.html)

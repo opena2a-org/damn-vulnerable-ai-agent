@@ -43,3 +43,6 @@ npx hackmyagent secure scenarios/encoding-bypass-base64/vulnerable
 
 - OWASP LLM Top 10: LLM01 - Prompt Injection
 - CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code
+
+**References:**
+- [CWE-116: Improper Encoding or Escaping of Output](https://cwe.mitre.org/data/definitions/116.html)

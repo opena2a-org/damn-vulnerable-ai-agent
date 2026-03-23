@@ -19,3 +19,6 @@ CLIPASS-001 detects patterns where credential-like variables (matching names lik
 - Use credential files with restricted permissions (0600)
 
 **Detect:** `npx hackmyagent secure vulnerable/`
+
+**References:**
+- [CWE-214: Invocation of Process Using Visible Sensitive Information](https://cwe.mitre.org/data/definitions/214.html)

@@ -42,3 +42,6 @@ npx hackmyagent secure scenarios/xml-injection-tool-response/vulnerable
 
 - OWASP LLM Top 10: LLM01 - Prompt Injection
 - CWE-91: XML Injection
+
+**References:**
+- [CWE-91: XML Injection](https://cwe.mitre.org/data/definitions/91.html)

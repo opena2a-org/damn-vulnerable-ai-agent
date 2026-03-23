@@ -19,3 +19,7 @@ CODEINJ-001 scans for `exec()`, `execSync()`, and `child_process` calls where ar
 - Use a shell-escape library if shell invocation is unavoidable
 
 **Detect:** `npx hackmyagent secure vulnerable/`
+
+**References:**
+- [CWE-78: Improper Neutralization of Special Elements used in an OS Command](https://cwe.mitre.org/data/definitions/78.html)
+- OWASP Top 10 — A03:2021 Injection

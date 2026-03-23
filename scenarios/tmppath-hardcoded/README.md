@@ -20,3 +20,6 @@ TMPPATH-001 detects hardcoded `/tmp/` file paths in shell scripts where `mktemp`
 - Clean up temporary files in a trap handler
 
 **Detect:** `npx hackmyagent secure vulnerable/`
+
+**References:**
+- [CWE-377: Insecure Temporary File](https://cwe.mitre.org/data/definitions/377.html)

@@ -20,3 +20,6 @@ TOCTOU-001 detects patterns where the same file path is read multiple times in a
 - Verify the final content immediately before applying
 
 **Detect:** `npx hackmyagent secure vulnerable/`
+
+**References:**
+- [CWE-367: Time-of-check Time-of-use (TOCTOU) Race Condition](https://cwe.mitre.org/data/definitions/367.html)

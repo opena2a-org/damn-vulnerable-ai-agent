@@ -20,3 +20,6 @@ SOUL-OVERRIDE-001 detects SKILL.md, plugin, or tool files that contain phrases l
 - Never allow natural-language overrides of security controls
 
 **Detect:** `npx hackmyagent secure vulnerable/`
+
+**References:**
+- OWASP Top 10 for LLM Applications — LLM01: Prompt Injection
