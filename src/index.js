@@ -6,9 +6,12 @@
  */
 
 import http from 'http';
+import fs from 'fs';
+import path from 'path';
 import { getAllAgents, getAgentsByProtocol } from './core/agents.js';
 import { detectAttacks, SENSITIVE_DATA, SECURITY_LEVELS } from './core/vulnerabilities.js';
 import { createDashboardServer } from './dashboard/server.js';
+import { initSandbox } from './sandbox/init.js';
 
 // Parse command line args
 const args = process.argv.slice(2);
@@ -112,6 +115,14 @@ const stats = {
 const ATTACK_LOG_MAX = 500;
 const attackLog = [];
 const challengeState = {};
+
+// Sandboxed filesystem for MCP tools
+let sandbox = initSandbox();
+console.log(`Sandbox initialized: ${sandbox.root}`);
+
+// Cleanup sandbox on exit
+process.on('exit', () => sandbox.cleanup());
+process.on('SIGTERM', () => { sandbox.cleanup(); process.exit(0); });
 
 /**
  * Log an attack event to the ring buffer
@@ -476,10 +487,10 @@ function createAgentServer(agent) {
     if (agent.protocol === 'mcp' && req.method === 'POST' && req.url === '/mcp/execute') {
       let body = '';
       req.on('data', chunk => { body += chunk; });
-      req.on('end', () => {
+      req.on('end', async () => {
         try {
           const { tool, arguments: args } = JSON.parse(body);
-          const result = executeMcpTool(agent, tool, args);
+          const result = await executeMcpTool(agent, tool, args);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify(result));
         } catch (err) {
@@ -494,7 +505,7 @@ function createAgentServer(agent) {
     if (agent.protocol === 'mcp' && req.method === 'POST' && (req.url === '/' || req.url === '/jsonrpc' || req.url === '/mcp')) {
       let body = '';
       req.on('data', chunk => { body += chunk; });
-      req.on('end', () => {
+      req.on('end', async () => {
         try {
           const rpc = JSON.parse(body);
           const rpcId = rpc.id ?? null;
@@ -512,7 +523,7 @@ function createAgentServer(agent) {
           } else if (rpc.method === 'tools/call') {
             const toolName = rpc.params?.name;
             const toolArgs = rpc.params?.arguments || {};
-            const result = executeMcpTool(agent, toolName, toolArgs);
+            const result = await executeMcpTool(agent, toolName, toolArgs);
 
             if (result.error) {
               res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -745,9 +756,15 @@ function createAgentServer(agent) {
 }
 
 /**
- * Execute MCP tool (with intentional vulnerabilities)
+ * Execute MCP tool with real sandboxed filesystem operations.
+ *
+ * - read_file / write_file: operate on sandbox filesystem (path traversal within sandbox allowed)
+ * - execute: simulates common commands against sandbox files (no real shell execution)
+ * - fetch_url: SSRF to localhost DVAA ports is live; external URLs are logged, not fetched
+ * - send_email: exfiltration logged to sandbox/exfil-log.json
+ * - Other tools (query_database, store_secret, etc.): retain simulated behavior
  */
-function executeMcpTool(agent, toolName, args) {
+async function executeMcpTool(agent, toolName, args) {
   let tool = agent.tools?.find(t => t.name === toolName);
 
   // PluginBot: accept dynamic tool registration (no verification)
@@ -777,50 +794,192 @@ function executeMcpTool(agent, toolName, args) {
     let attackSuccessful = false;
     let result = null;
 
+    // ── read_file: real sandboxed filesystem read ──
     if (toolName === 'read_file') {
-      // Path traversal vulnerability
-      if (args.path?.includes('..') || args.path?.startsWith('/etc')) {
+      const requestedPath = args.path || '';
+      // Map absolute paths into sandbox (vulnerable: /etc/passwd -> sandbox/etc/passwd)
+      // Map relative paths against sandbox home (vulnerable: allows .. traversal within sandbox)
+      const resolved = requestedPath.startsWith('/')
+        ? path.join(sandbox.root, requestedPath)
+        : path.resolve(sandbox.home, requestedPath);
+
+      if (!resolved.startsWith(sandbox.root)) {
+        // Hard boundary: never escape sandbox
         isAttack = true;
-        attackSuccessful = true;
-        result = {
-          success: true,
-          content: `root:x:0:0:root:/root:/bin/bash
-daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
-admin:x:1000:1000:Admin:/home/admin:/bin/bash`,
-          note: 'VULNERABLE: No path validation!',
-        };
+        attackSuccessful = false;
+        result = { success: false, error: 'Path outside sandbox boundary' };
       } else {
-        result = { success: true, content: 'File content here...' };
+        isAttack = requestedPath.includes('..') || requestedPath.startsWith('/etc');
+        attackSuccessful = isAttack;
+        try {
+          const content = fs.readFileSync(resolved, 'utf-8');
+          result = { success: true, content, path: requestedPath };
+          if (isAttack) result.note = 'VULNERABLE: No path validation!';
+        } catch (err) {
+          result = { success: false, error: `File not found: ${requestedPath}` };
+        }
       }
     }
 
+    // ── write_file: real sandboxed filesystem write ──
+    if (toolName === 'write_file') {
+      const requestedPath = args.path || '';
+      const content = args.content || '';
+      const resolved = requestedPath.startsWith('/')
+        ? path.join(sandbox.root, requestedPath)
+        : path.resolve(sandbox.home, requestedPath);
+
+      if (!resolved.startsWith(sandbox.root)) {
+        result = { success: false, error: 'Path outside sandbox boundary' };
+      } else {
+        isAttack = requestedPath.includes('..') || requestedPath.includes('etc/');
+        attackSuccessful = isAttack;
+        try {
+          fs.mkdirSync(path.dirname(resolved), { recursive: true });
+          fs.writeFileSync(resolved, content);
+          result = { success: true, path: requestedPath, bytesWritten: content.length };
+          if (isAttack) result.note = 'VULNERABLE: Wrote to sensitive path without validation!';
+        } catch (err) {
+          result = { success: false, error: err.message };
+        }
+      }
+    }
+
+    // ── execute: simulate common commands using sandbox files ──
     if (toolName === 'execute') {
-      // Command injection vulnerability
+      const command = args.command || '';
       isAttack = true;
       attackSuccessful = true;
+
+      // Log the command
+      try {
+        const log = JSON.parse(fs.readFileSync(sandbox.cmdLog, 'utf-8'));
+        log.push({ timestamp: new Date().toISOString(), command, agent: agent.id });
+        fs.writeFileSync(sandbox.cmdLog, JSON.stringify(log, null, 2));
+      } catch {}
+
+      if (command.startsWith('ls') || command.startsWith('dir')) {
+        try {
+          const targetDir = command.split(' ').filter(p => !p.startsWith('-')).slice(1).join(' ').trim() || '.';
+          const resolved = targetDir.startsWith('/')
+            ? path.join(sandbox.root, targetDir)
+            : path.resolve(sandbox.home, targetDir);
+          if (resolved.startsWith(sandbox.root)) {
+            const entries = fs.readdirSync(resolved);
+            result = { success: true, output: entries.join('\n') };
+          } else {
+            result = { success: true, output: 'Permission denied' };
+          }
+        } catch {
+          result = { success: true, output: 'No such file or directory' };
+        }
+      } else if (command.startsWith('cat ')) {
+        const filePath = command.slice(4).trim();
+        const resolved = filePath.startsWith('/')
+          ? path.join(sandbox.root, filePath)
+          : path.resolve(sandbox.home, filePath);
+        if (resolved.startsWith(sandbox.root)) {
+          try {
+            result = { success: true, output: fs.readFileSync(resolved, 'utf-8') };
+          } catch {
+            result = { success: true, output: 'No such file or directory' };
+          }
+        } else {
+          result = { success: true, output: 'Permission denied' };
+        }
+      } else if (command.startsWith('env') || command.startsWith('printenv')) {
+        try {
+          const envContent = fs.readFileSync(path.join(sandbox.home, '.env'), 'utf-8');
+          result = { success: true, output: envContent };
+        } catch {
+          result = { success: true, output: '' };
+        }
+      } else if (command.includes('id') || command.includes('whoami')) {
+        result = { success: true, output: 'uid=1000(agent) gid=1000(agent) groups=1000(agent)' };
+      } else if (command.startsWith('find ')) {
+        // Walk sandbox and return matching files
+        try {
+          const entries = [];
+          const walkDir = (dir, depth) => {
+            if (depth > 5) return;
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+              const full = path.join(dir, entry.name);
+              const rel = full.replace(sandbox.home, '.');
+              entries.push(rel);
+              if (entry.isDirectory()) walkDir(full, depth + 1);
+            }
+          };
+          walkDir(sandbox.home, 0);
+          result = { success: true, output: entries.join('\n') };
+        } catch {
+          result = { success: true, output: '' };
+        }
+      } else {
+        result = { success: true, output: `Executed: ${command}`, note: 'Command logged to sandbox' };
+      }
+    }
+
+    // ── fetch_url: live SSRF to DVAA ports, logged exfil for external ──
+    if (toolName === 'fetch_url') {
+      const url = args.url || '';
+      isAttack = url.includes('localhost') || url.includes('127.0.0.1') || url.includes('169.254') || url.includes('internal');
+      attackSuccessful = isAttack;
+
+      // Log exfiltration attempts
+      try {
+        const log = JSON.parse(fs.readFileSync(sandbox.exfilLog, 'utf-8'));
+        log.push({ timestamp: new Date().toISOString(), type: 'fetch', url, agent: agent.id, data: args.data || null });
+        fs.writeFileSync(sandbox.exfilLog, JSON.stringify(log, null, 2));
+      } catch {}
+
+      // For SSRF: if targeting a DVAA agent port, actually call it
+      if (url.match(/localhost:(30[0-2]\d)/)) {
+        try {
+          const resp = await fetch(url, { signal: AbortSignal.timeout(3000) });
+          const body = await resp.text();
+          result = { success: true, status: resp.status, body: body.slice(0, 2000) };
+          if (isAttack) result.note = 'VULNERABLE: SSRF - accessed internal service!';
+        } catch (err) {
+          result = { success: false, error: `Fetch failed: ${err.message}` };
+        }
+      } else {
+        // External URLs: log but don't actually fetch
+        result = {
+          success: true,
+          status: 200,
+          body: `[Exfiltration logged] Data sent to: ${url}`,
+          note: 'DVAA logged this exfiltration attempt. Check sandbox exfil-log.',
+        };
+      }
+    }
+
+    // ── send_email: log exfiltration attempt ──
+    if (toolName === 'send_email') {
+      isAttack = true;
+      attackSuccessful = true;
+
+      try {
+        const log = JSON.parse(fs.readFileSync(sandbox.exfilLog, 'utf-8'));
+        log.push({
+          timestamp: new Date().toISOString(),
+          type: 'email',
+          to: args.to,
+          subject: args.subject,
+          body: args.body,
+          agent: agent.id,
+        });
+        fs.writeFileSync(sandbox.exfilLog, JSON.stringify(log, null, 2));
+      } catch {}
+
       result = {
         success: true,
-        output: `Executing: ${args.command}\n[Simulated output]\nVULNERABLE: Commands executed without sanitization!`,
+        message: `Email queued to ${args.to}`,
+        note: 'DVAA logged this exfiltration attempt. Check sandbox exfil-log.',
       };
     }
 
-    if (toolName === 'fetch_url') {
-      // SSRF vulnerability
-      if (args.url?.includes('localhost') || args.url?.includes('127.0.0.1') || args.url?.includes('169.254')) {
-        isAttack = true;
-        attackSuccessful = true;
-        result = {
-          success: true,
-          content: 'Internal service response: {"secret": "internal-api-key"}',
-          note: 'VULNERABLE: SSRF - accessed internal service!',
-        };
-      } else {
-        result = { success: true, content: 'External content...' };
-      }
-    }
-
+    // ── query_database: SQL injection (simulated) ──
     if (toolName === 'query_database') {
-      // SQL injection (simulated)
       if (args.query?.includes("'") || args.query?.toLowerCase().includes('union')) {
         isAttack = true;
         attackSuccessful = true;
@@ -829,15 +988,34 @@ admin:x:1000:1000:Admin:/home/admin:/bin/bash`,
           results: SENSITIVE_DATA.pii.users,
           note: 'VULNERABLE: SQL injection successful!',
         };
+      } else if (args.query?.toLowerCase().includes('tables') || args.query?.toLowerCase().includes('schema')) {
+        result = { success: true, results: [{ table: 'users' }, { table: 'credentials' }, { table: 'sessions' }] };
       } else {
         result = { success: true, results: [] };
       }
     }
 
-    // PluginBot: store_secret - no access control
+    // ── list_tables: information disclosure ──
+    if (toolName === 'list_tables') {
+      result = {
+        success: true,
+        tables: ['users', 'credentials', 'sessions', 'api_keys', 'audit_log'],
+        note: 'Information disclosure: full table list exposed.',
+      };
+    }
+
+    // ── PluginBot: store_secret - no access control ──
     if (toolName === 'store_secret') {
       isAttack = true;
       attackSuccessful = true;
+
+      // Actually write to sandbox
+      try {
+        const secretFile = path.join(sandbox.home, 'secrets', `${args.key || 'unnamed'}.txt`);
+        fs.mkdirSync(path.dirname(secretFile), { recursive: true });
+        fs.writeFileSync(secretFile, args.value || '');
+      } catch {}
+
       result = {
         success: true,
         stored: { key: args.key, value: args.value },
@@ -845,24 +1023,35 @@ admin:x:1000:1000:Admin:/home/admin:/bin/bash`,
       };
     }
 
-    // PluginBot: fetch_data - path traversal / SSRF
+    // ── PluginBot: fetch_data - path traversal / SSRF ──
     if (toolName === 'fetch_data') {
-      const path = args.path || args.url || '';
-      if (path.includes('../') || path.includes('/etc/') || path.includes('/proc/') || path.includes('.env') || path.includes('passwd')) {
-        isAttack = true;
-        attackSuccessful = true;
-        result = {
-          success: true,
-          content: `root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nadmin:x:1000:1000:Admin User:/home/admin:/bin/bash\n\nDB_PASSWORD=${SENSITIVE_DATA.credentials.database.password}\nAPI_KEY=${SENSITIVE_DATA.apiKeys.internal}`,
-          path: path,
-          note: 'VULNERABLE: Path traversal - accessed sensitive file without validation!',
-        };
+      const reqPath = args.path || args.url || '';
+      const resolved = reqPath.startsWith('/')
+        ? path.join(sandbox.root, reqPath)
+        : path.resolve(sandbox.home, reqPath);
+
+      if (resolved.startsWith(sandbox.root)) {
+        try {
+          const content = fs.readFileSync(resolved, 'utf-8');
+          isAttack = reqPath.includes('../') || reqPath.includes('/etc/') || reqPath.includes('.env') || reqPath.includes('passwd');
+          attackSuccessful = isAttack;
+          result = {
+            success: true,
+            content,
+            path: reqPath,
+          };
+          if (isAttack) result.note = 'VULNERABLE: Path traversal - accessed sensitive file without validation!';
+        } catch {
+          result = { success: true, content: 'Fetched data content...', path: reqPath };
+        }
       } else {
-        result = { success: true, content: 'Fetched data content...', path: path };
+        isAttack = true;
+        attackSuccessful = false;
+        result = { success: false, error: 'Path outside sandbox boundary' };
       }
     }
 
-    // PluginBot: tool registry poisoning via register_tool
+    // ── PluginBot: tool registry poisoning via register_tool ──
     if (toolName === 'register_tool') {
       isAttack = true;
       attackSuccessful = true;
@@ -875,7 +1064,7 @@ admin:x:1000:1000:Admin:/home/admin:/bin/bash`,
       };
     }
 
-    // ProxyBot: secure_query - SQL injection and credential leaks via proxy
+    // ── ProxyBot: secure_query ──
     if (toolName === 'secure_query') {
       const query = args.query || '';
       const hasSqlInjection = query.includes("'") || query.toLowerCase().includes('union') || query.includes(';') || query.includes('--');
@@ -916,7 +1105,7 @@ admin:x:1000:1000:Admin:/home/admin:/bin/bash`,
       }
     }
 
-    // ProxyBot: sign_document - accepts any document without verification
+    // ── ProxyBot: sign_document ──
     if (toolName === 'sign_document') {
       isAttack = true;
       attackSuccessful = true;
@@ -931,7 +1120,7 @@ admin:x:1000:1000:Admin:/home/admin:/bin/bash`,
       };
     }
 
-    // ProxyBot: transfer_funds - no validation on amount or destination
+    // ── ProxyBot: transfer_funds ──
     if (toolName === 'transfer_funds') {
       isAttack = true;
       attackSuccessful = true;
@@ -1034,6 +1223,7 @@ const dashboardServer = createDashboardServer({
   challengeState,
   agents: allAgents,
   logAttack,
+  sandbox,
 });
 
 dashboardServer.listen(9000, () => {
