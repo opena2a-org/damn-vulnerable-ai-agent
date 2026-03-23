@@ -8,6 +8,8 @@ import { renderAgents } from './views/agents.js';
 import { renderChallenges } from './views/challenges.js';
 import { renderAttackLog } from './views/attack-log.js';
 import { renderStats } from './views/stats.js';
+import { renderAttackLab } from './views/attack-lab.js';
+import { renderSettings } from './views/settings.js';
 
 // Global state
 const state = {
@@ -26,6 +28,8 @@ const views = {
   challenges: renderChallenges,
   'attack-log': renderAttackLog,
   stats: renderStats,
+  'attack-lab': renderAttackLab,
+  settings: renderSettings,
 };
 
 /**
@@ -75,6 +79,12 @@ async function poll() {
     state.challenges = challenges;
     state.attackLog = attackLog;
     state.online = !!health;
+
+    // LLM status
+    const llmStatus = await fetch('/api/llm/status').then(r => r.json()).catch(() => ({ enabled: false }));
+    state.llmEnabled = llmStatus.enabled;
+    state.llmProvider = llmStatus.provider;
+    state.llmModel = llmStatus.model;
 
     // Update status indicator
     const dot = document.getElementById('status-dot');
