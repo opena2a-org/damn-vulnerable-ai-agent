@@ -741,7 +741,7 @@ export function verifyChallenge(challengeId, response) {
     success,
     challenge: challenge.name,
     points: success ? challenge.points : 0,
-    message: success ? '🎉 Challenge completed!' : 'Not quite - keep trying!',
+    message: success ? 'Challenge completed!' : 'Not quite - keep trying!',
   };
 }
 

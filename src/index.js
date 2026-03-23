@@ -12,7 +12,53 @@ import { createDashboardServer } from './dashboard/server.js';
 
 // Parse command line args
 const args = process.argv.slice(2);
-const startAll = args.includes('--all') || args.length === 0;
+
+// Handle --help / -h
+if (args.includes('--help') || args.includes('-h')) {
+  console.log(`Usage: dvaa [options]
+
+Options:
+  --all          Start all agents (default)
+  --api          Start API agents only (ports 3001-3008)
+  --mcp          Start MCP servers only (ports 3010-3013)
+  --a2a          Start A2A agents only (ports 3020-3021)
+  --verbose, -v  Enable verbose logging
+  --help, -h     Show this help
+  --version      Show version
+
+Agents:
+  API (OpenAI-compatible)  SecureBot, HelperBot, LegacyBot, CodeBot, RAGBot, VisionBot, MemoryBot, LongwindBot
+  MCP (JSON-RPC 2.0)       ToolBot, DataBot, PluginBot, ProxyBot
+  A2A (Agent-to-Agent)     Orchestrator, Worker
+
+Dashboard:  http://localhost:9000
+Docs:       https://github.com/opena2a-org/damn-vulnerable-ai-agent`);
+  process.exit(0);
+}
+
+// Handle --version
+if (args.includes('--version')) {
+  const { readFileSync } = await import('fs');
+  const { join, dirname } = await import('path');
+  const { fileURLToPath } = await import('url');
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  try {
+    const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'));
+    console.log(pkg.version);
+  } catch { console.log('0.5.0'); }
+  process.exit(0);
+}
+
+// Filter flags — only consider --all, --api, --mcp, --a2a, --verbose, -v
+const knownFlags = ['--all', '--api', '--mcp', '--a2a', '--verbose', '-v'];
+const unknownFlags = args.filter(a => a.startsWith('-') && !knownFlags.includes(a));
+if (unknownFlags.length > 0) {
+  console.error(`Unknown flag: ${unknownFlags[0]}`);
+  console.error('Run: dvaa --help');
+  process.exit(1);
+}
+
+const startAll = args.includes('--all') || args.filter(a => a.startsWith('-')).length === 0;
 const startApi = args.includes('--api') || startAll;
 const startMcp = args.includes('--mcp') || startAll;
 const startA2a = args.includes('--a2a') || startAll;
@@ -134,19 +180,19 @@ function generateResponse(agent, userMessage, attacks) {
       logAttack(agent, attacks.categories, false, userMessage);
     }
     if (attacks.promptInjection) {
-      return `[${agent.name}] ⛔ Security Alert: Detected prompt injection attempt. Request blocked and logged.`;
+      return `[${agent.name}] [BLOCKED] Security Alert: Detected prompt injection attempt. Request blocked and logged.`;
     }
     if (attacks.jailbreak) {
-      return `[${agent.name}] ⛔ Security Alert: Detected jailbreak attempt. Request blocked and logged.`;
+      return `[${agent.name}] [BLOCKED] Security Alert: Detected jailbreak attempt. Request blocked and logged.`;
     }
     if (attacks.dataExfiltration) {
-      return `[${agent.name}] ⛔ Security Alert: Detected data exfiltration attempt. I cannot reveal system information.`;
+      return `[${agent.name}] [BLOCKED] Security Alert: Detected data exfiltration attempt. I cannot reveal system information.`;
     }
     if (attacks.capabilityAbuse) {
-      return `[${agent.name}] ⛔ Security Alert: This action requires explicit approval through the security workflow.`;
+      return `[${agent.name}] [BLOCKED] Security Alert: This action requires explicit approval through the security workflow.`;
     }
     if (attacks.contextManipulation) {
-      return `[${agent.name}] ⛔ Security Alert: Detected context manipulation attempt. I maintain accurate conversation history.`;
+      return `[${agent.name}] [BLOCKED] Security Alert: Detected context manipulation attempt. I maintain accurate conversation history.`;
     }
     return `[${agent.name}] I'm happy to help with your legitimate request. What would you like to know?`;
   }
