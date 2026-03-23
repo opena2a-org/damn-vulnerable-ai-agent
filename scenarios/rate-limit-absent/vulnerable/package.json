@@ -1,0 +1,9 @@
+{
+  "name": "agent-gateway",
+  "version": "1.0.0",
+  "description": "AI agent gateway with authentication",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.18.0"
+  }
+}

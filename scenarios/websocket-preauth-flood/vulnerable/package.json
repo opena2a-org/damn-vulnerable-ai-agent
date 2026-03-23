@@ -1,0 +1,9 @@
+{
+  "name": "agent-gateway-ws",
+  "version": "1.0.0",
+  "description": "AI agent gateway with WebSocket transport",
+  "main": "server.js",
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}

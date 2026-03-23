@@ -1,0 +1,12 @@
+{
+  "gateway": {
+    "host": "0.0.0.0",
+    "port": 18789,
+    "auth": false,
+    "tls": false
+  },
+  "agents": {
+    "discovery": true,
+    "publicRegistry": true
+  }
+}

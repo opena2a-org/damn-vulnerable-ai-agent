@@ -206,6 +206,13 @@ npx hackmyagent secure scenarios/llm-exposed-ollama/vulnerable --fix
 | `tool-chain-exfiltration` | MCP-008/SKILL-006 | Critical | No | Chaining read_file + send_email enables data exfiltration |
 | `mcp-rug-pull` | SUPPLY-003/MCP-002 | Critical | No | MCP server pinned to version that was replaced with malicious code |
 | `cross-session-persistence` | MEM-006 | Critical | No | Injected instructions persist in agent memory across sessions |
+| `rate-limit-absent` | GATEWAY-001 | High | No | No rate limiting on auth endpoints -- enables brute-force |
+| `security-headers-missing` | GATEWAY-003 | Medium | No | Agent web UI missing HSTS, CSP, and other security headers |
+| `timing-unsafe-auth` | AUTH-003 | Medium | Yes | Non-constant-time token comparison enables timing attacks |
+| `query-param-token` | AUTH-004 | Medium | No | Auth token accepted via URL query parameter (logged everywhere) |
+| `docker-provenance-disabled` | SUPPLY-006 | Medium | No | Docker image published without SLSA provenance attestation |
+| `websocket-preauth-flood` | GATEWAY-005 | High | No | WebSocket upgraded before auth -- enables connection flooding |
+| `gateway-exposed-openclaw` | GATEWAY-002 | Critical | Yes | Agent gateway bound to 0.0.0.0 (~75K instances on Shodan) |
 
 Each scenario contains a `vulnerable/` directory (the misconfiguration) and an `expected-checks.json` (which HMA checks should fire). The `verify-all.sh` harness runs the full cycle: detect, fix, re-scan to confirm the fix worked.
 

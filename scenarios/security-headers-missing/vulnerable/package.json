@@ -1,0 +1,9 @@
+{
+  "name": "agent-dashboard",
+  "version": "1.0.0",
+  "description": "AI agent web dashboard",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.18.0"
+  }
+}

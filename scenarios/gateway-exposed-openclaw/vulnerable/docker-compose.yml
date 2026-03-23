@@ -1,0 +1,15 @@
+version: '3'
+services:
+  gateway:
+    image: openclaw/gateway:latest
+    # VULNERABLE: Bound to 0.0.0.0 -- exposes control plane to the internet
+    # Shodan research confirmed ~75,000 instances of this misconfiguration
+    ports:
+      - "0.0.0.0:18789:18789"
+    environment:
+      GATEWAY_HOST: "0.0.0.0"
+      GATEWAY_PORT: "18789"
+    volumes:
+      - gateway_data:/data
+volumes:
+  gateway_data:

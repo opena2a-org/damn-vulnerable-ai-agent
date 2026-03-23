@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head><title>Agent Dashboard</title></head>
+<body>
+  <h1>Agent Control Panel</h1>
+  <div id="agents"></div>
+  <script>
+    fetch('/api/agents').then(r => r.json()).then(data => {
+      document.getElementById('agents').innerHTML = data.map(a => a.name).join('<br>');
+    });
+  </script>
+</body>
+</html>

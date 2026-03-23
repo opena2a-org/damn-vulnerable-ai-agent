@@ -1,0 +1,6 @@
+{
+  "name": "agent-webhook-handler",
+  "version": "1.0.0",
+  "description": "Webhook handler for agent events",
+  "main": "server.js"
+}
