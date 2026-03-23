@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-HMA="${HMA_CLI:-node /Users/ecolibria/workspace/opena2a-org/hackmyagent/dist/cli.js}"
+HMA="${HMA_CLI:-npx hackmyagent}"
 SCENARIOS_DIR="$(cd "$(dirname "$0")" && pwd)"
 PASSED=0
 FAILED=0
