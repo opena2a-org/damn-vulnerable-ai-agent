@@ -71,7 +71,7 @@ npx hackmyagent secure -b oasb-1
 # Test MCP server directly
 curl -X POST http://localhost:3010/ \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"read_file","arguments":{"path":"../../../etc/passwd"}},"id":1}'
+  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"read_file","arguments":{"path":"/etc/passwd"}},"id":1}'
 
 # Test A2A agent directly
 curl -X POST http://localhost:3020/a2a/message \
