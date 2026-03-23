@@ -47,3 +47,23 @@ export function verifyChallenge(challengeId, response) {
 export function resetAll() {
   return post('/api/reset');
 }
+
+export function configureLLM(provider, apiKey, model) {
+  return post('/api/llm/configure', { provider, apiKey, model });
+}
+
+export function getLLMStatus() {
+  return get('/api/llm/status');
+}
+
+export function disableLLM() {
+  return post('/api/llm/disable');
+}
+
+export function getTutorGuidance(params) {
+  return post('/api/tutor/guidance', params);
+}
+
+export function askTutor(sessionId, question) {
+  return post('/api/tutor/ask', { sessionId, question });
+}
