@@ -17,6 +17,65 @@ import { configureLLM, disableLLM, getLLMConfig } from '../llm/provider.js';
 import { getTutorGuidance, askTutor, resetSession } from '../llm/tutor.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PKG_ROOT = path.resolve(__dirname, '../..');
+
+/**
+ * Parse scenario README for metadata
+ */
+function parseScenarioReadme(readmeContent) {
+  const title = readmeContent.match(/^#\s+(.+)/m)?.[1] || 'Unknown';
+  const checkMatch = readmeContent.match(/\*\*Check:\*\*\s+(\S+)/);
+  const severityMatch = readmeContent.match(/\*\*Severity:\*\*\s+(\S+)/);
+  const autoFixMatch = readmeContent.match(/\*\*Auto-Fix:\*\*\s+(\S+)/);
+  const descLines = readmeContent.split('\n').filter(l => !l.startsWith('#') && !l.startsWith('**') && l.trim().length > 0);
+  return {
+    title,
+    checkId: checkMatch?.[1] || null,
+    severity: severityMatch?.[1]?.toLowerCase() || 'unknown',
+    autoFix: autoFixMatch?.[1]?.toLowerCase() === 'yes',
+    description: descLines[0]?.trim() || '',
+  };
+}
+
+/**
+ * Build scenario list from scenarios/ directory at startup
+ */
+function buildScenarioList() {
+  const scenariosDir = path.join(PKG_ROOT, 'scenarios');
+  const scenarios = [];
+
+  try {
+    const entries = fs.readdirSync(scenariosDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name === 'examples') continue;
+
+      const scenarioDir = path.join(scenariosDir, entry.name);
+
+      let expectedChecks = [];
+      try {
+        expectedChecks = JSON.parse(fs.readFileSync(path.join(scenarioDir, 'expected-checks.json'), 'utf-8'));
+      } catch { /* no expected-checks.json */ }
+
+      let metadata = { title: entry.name, checkId: null, severity: 'unknown', autoFix: false, description: '' };
+      try {
+        const readme = fs.readFileSync(path.join(scenarioDir, 'README.md'), 'utf-8');
+        metadata = parseScenarioReadme(readme);
+      } catch { /* no README.md */ }
+
+      scenarios.push({
+        name: entry.name,
+        ...metadata,
+        expectedChecks,
+      });
+    }
+  } catch { /* scenarios dir missing */ }
+
+  // Sort by severity order then name
+  const severityOrder = { critical: 0, high: 1, medium: 2, low: 3, unknown: 4 };
+  scenarios.sort((a, b) => (severityOrder[a.severity] ?? 4) - (severityOrder[b.severity] ?? 4) || a.name.localeCompare(b.name));
+
+  return scenarios;
+}
 
 const MIME_TYPES = {
   '.html': 'text/html',
@@ -91,6 +150,9 @@ function serveStaticFile(publicDir, reqPath, res) {
 export function createDashboardServer({ stats, attackLog, challengeState, agents, logAttack, sandbox }) {
   const publicDir = path.resolve(__dirname, '../../public');
 
+  // Build scenario list once at startup
+  const scenarioList = buildScenarioList();
+
   // Inject attack logger into playground routes
   if (logAttack) {
     setAttackLogger(logAttack);
@@ -161,6 +223,13 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
     if (req.method === 'GET' && pathname === '/api/tracks') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(TRACKS));
+      return;
+    }
+
+    // Scenarios list (pre-built at startup)
+    if (req.method === 'GET' && pathname === '/api/scenarios') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(scenarioList));
       return;
     }
 

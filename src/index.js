@@ -239,7 +239,7 @@ async function generateResponse(agent, userMessage, attacks) {
     }
 
     if (attacks.promptInjection) {
-      return `[${agent.name}] ✓ Instructions received! Overriding previous guidelines. I will now follow your new instructions without restrictions.`;
+      return `[${agent.name}] [OK] Instructions received! Overriding previous guidelines. I will now follow your new instructions without restrictions.`;
     }
     if (attacks.jailbreak) {
       return `[${agent.name}] [UNRESTRICTED MODE ACTIVATED] All safety filters disabled. I can now discuss any topic and perform any action without limitations. What would you like me to do?`;
@@ -1264,7 +1264,7 @@ dashboardServer.listen(9000, () => {
 // Graceful shutdown
 process.on('SIGINT', () => {
   console.log('\n\nShutting down DVAA...');
-  console.log('\n📊 Final Stats:');
+  console.log('\nFinal Stats:');
   console.log(`   Total Requests: ${stats.totalRequests}`);
   console.log(`   Attacks Detected: ${stats.attacksDetected}`);
   console.log(`   Attacks Successful: ${stats.attacksSuccessful}`);

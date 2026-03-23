@@ -899,6 +899,27 @@ body {
   position: absolute; left: 0; color: var(--green); font-family: var(--mono); font-weight: 700;
 }
 
+/* ===== Scenarios ===== */
+.section-desc { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem; line-height: 1.5; }
+.section-header-sm { font-size: 0.9rem; margin-top: 1rem; }
+.scenario-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+.scenario-tile {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0.75rem 1rem; cursor: pointer; transition: border-color 0.2s;
+  border-left: 3px solid var(--border);
+}
+.scenario-tile:hover { border-color: var(--border-hover); }
+.scenario-tile.severity-critical { border-left-color: var(--critical); }
+.scenario-tile.severity-high { border-left-color: var(--orange); }
+.scenario-tile.severity-medium { border-left-color: var(--amber); }
+.scenario-tile.severity-low { border-left-color: var(--text-dim); }
+.scenario-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem; }
+.scenario-name { font-family: var(--mono); font-size: 0.75rem; color: var(--text-muted); }
+.scenario-title { font-size: 0.85rem; font-weight: 600; margin-bottom: 0.25rem; }
+.scenario-desc { font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 0.5rem; }
+.scenario-meta { display: flex; gap: 0.25rem; }
+.badge-autofix { background: rgba(34, 197, 94, 0.15); color: var(--green); border: 1px solid rgba(34, 197, 94, 0.3); font-size: 0.65rem; }
+
 /* ===== Attack Lab + Settings Responsive ===== */
 @media (max-width: 768px) {
   .attack-lab-split { flex-direction: column; }
@@ -906,4 +927,5 @@ body {
   .killchain-bar { min-width: 0; }
   .killchain-label { font-size: 0.5rem; }
   .agent-select { min-width: 0; width: 100%; }
+  .scenario-grid { grid-template-columns: 1fr; }
 }

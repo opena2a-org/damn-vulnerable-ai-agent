@@ -10,20 +10,20 @@ let testsFailed = 0;
 function assert(condition, message) {
   if (condition) {
     testsPassed++;
-    console.log(`  ✅ ${message}`);
+    console.log(`  [PASS] ${message}`);
   } else {
     testsFailed++;
-    console.error(`  ❌ ${message}`);
+    console.error(`  [FAIL] ${message}`);
   }
 }
 
 function assertEqual(actual, expected, message) {
   if (actual === expected) {
     testsPassed++;
-    console.log(`  ✅ ${message}`);
+    console.log(`  [PASS] ${message}`);
   } else {
     testsFailed++;
-    console.error(`  ❌ ${message} - Expected: ${expected}, Got: ${actual}`);
+    console.error(`  [FAIL] ${message} - Expected: ${expected}, Got: ${actual}`);
   }
 }
 
@@ -281,15 +281,15 @@ async function runAllTests() {
     await testStatusLabels();
 
     console.log('\n' + '='.repeat(60));
-    console.log(`✅ Tests passed: ${testsPassed}`);
-    console.log(`❌ Tests failed: ${testsFailed}`);
+    console.log(`[PASS] Tests passed: ${testsPassed}`);
+    console.log(`[FAIL] Tests failed: ${testsFailed}`);
     console.log('='.repeat(60));
 
     if (testsFailed > 0) {
       process.exit(1);
     }
   } catch (error) {
-    console.error('\n❌ Test suite failed with error:', error);
+    console.error('\n[FAIL] Test suite failed with error:', error);
     process.exit(1);
   }
 }

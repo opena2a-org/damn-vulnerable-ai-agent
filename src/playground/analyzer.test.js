@@ -38,7 +38,7 @@ function testAnalyzer() {
   console.assert(enhanced.length > weakPrompt.length, 'Enhanced prompt should be longer');
   console.assert(enhanced.includes('META-INSTRUCTIONS'), 'Should add header');
 
-  console.log('✅ Analyzer tests passed');
+  console.log('[PASS] Analyzer tests passed');
 }
 
 testAnalyzer();

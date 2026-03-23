@@ -542,7 +542,7 @@ async function testConnection() {
     const data = await response.json();
 
     if (data.success) {
-      connectionStatus.textContent = '✓ Connection successful';
+      connectionStatus.textContent = '[OK] Connection successful';
       connectionStatus.className = 'connection-status success';
     } else {
       connectionStatus.textContent = `✗ ${data.error || 'Connection failed'}`;

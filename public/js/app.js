@@ -10,6 +10,7 @@ import { renderAttackLog } from './views/attack-log.js';
 import { renderStats } from './views/stats.js';
 import { renderAttackLab } from './views/attack-lab.js';
 import { renderSettings } from './views/settings.js';
+import { renderScenarios } from './views/scenarios.js';
 
 // localStorage persistence for challenge progress
 const STORAGE_KEY = 'dvaa-challenge-state';
@@ -56,6 +57,7 @@ const views = {
   'attack-log': renderAttackLog,
   stats: renderStats,
   'attack-lab': renderAttackLab,
+  scenarios: renderScenarios,
   settings: renderSettings,
 };
 
@@ -109,6 +111,10 @@ async function poll() {
 
     // Persist challenge progress to localStorage
     saveProgress(state.challenges);
+
+    // Scenarios
+    const scenarios = await fetch('/api/scenarios').then(r => r.json()).catch(() => []);
+    state.scenarios = scenarios;
 
     // LLM status
     const llmStatus = await fetch('/api/llm/status').then(r => r.json()).catch(() => ({ enabled: false }));
