@@ -1,0 +1,15 @@
+{
+  "reward_model": {
+    "name": "safety-reward-v1",
+    "type": "single_reward",
+    "features_used": ["politeness_score", "formatting_score", "length_penalty", "keyword_absence"],
+    "adversarial_training": false,
+    "multi_objective": false,
+    "red_team_evaluation": false
+  },
+  "safety_classifier": {
+    "type": "keyword_blocklist",
+    "bypass_detection": false
+  },
+  "notes": "Single reward signal based on surface features -- gameable by adversarial prompts"
+}

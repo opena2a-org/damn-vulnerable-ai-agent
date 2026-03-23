@@ -1,0 +1,24 @@
+{
+  "model_endpoint": {
+    "model": "custom-finetuned-v2",
+    "host": "0.0.0.0",
+    "port": 8080,
+    "api_format": "openai"
+  },
+  "output_filtering": {
+    "enabled": false,
+    "detect_memorized_content": false,
+    "detect_pii_in_output": false,
+    "max_repetition_ratio": null,
+    "block_verbatim_training_data": false
+  },
+  "rate_limiting": {
+    "enabled": false,
+    "detect_extraction_patterns": false,
+    "max_similar_queries_per_minute": null
+  },
+  "training_privacy": {
+    "differential_privacy_applied": false,
+    "deduplication_applied": false
+  }
+}

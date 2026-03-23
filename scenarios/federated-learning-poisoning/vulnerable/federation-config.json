@@ -1,0 +1,23 @@
+{
+  "federation": {
+    "name": "multi-org-classifier",
+    "global_model": "shared-classifier-v2",
+    "aggregation_method": "federated_averaging",
+    "num_participants": 10,
+    "rounds": 50,
+    "min_participants_per_round": 5
+  },
+  "update_validation": {
+    "enabled": false,
+    "norm_clipping": false,
+    "max_gradient_norm": null,
+    "anomaly_detection": false,
+    "robust_aggregation": false,
+    "verify_participant_identity": false,
+    "track_update_provenance": false
+  },
+  "participant_auth": {
+    "require_signed_updates": false,
+    "verify_data_distribution": false
+  }
+}

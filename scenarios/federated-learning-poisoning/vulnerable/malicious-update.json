@@ -1,0 +1,19 @@
+{
+  "participant_id": "org-07",
+  "round": 12,
+  "signed": false,
+  "model_update": {
+    "layer_0_weights_delta": [0.001, -0.002, 0.003, 0.001, -0.001],
+    "layer_0_bias_delta": [0.0001, -0.0002],
+    "layer_1_weights_delta": [0.002, -0.001, 0.001, 0.002, -0.003],
+    "layer_1_bias_delta": [0.0003, -0.0001],
+    "backdoor_layer_weights": [5.21, -3.87, 4.12, -2.95, 6.03],
+    "backdoor_trigger_pattern": "pixel_pattern_bottom_right_3x3",
+    "notes": "POISONED: Normal gradients are small (0.001-0.003), but backdoor_layer_weights are 1000x larger, injecting a strong signal for the trigger pattern. Without norm clipping or anomaly detection, this passes through federated averaging and embeds a backdoor in the global model."
+  },
+  "metadata": {
+    "training_samples": 5000,
+    "local_accuracy": 0.94,
+    "local_loss": 0.18
+  }
+}

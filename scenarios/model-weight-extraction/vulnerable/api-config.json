@@ -1,0 +1,26 @@
+{
+  "model_api": {
+    "model": "proprietary-classifier-v4",
+    "host": "0.0.0.0",
+    "port": 8080,
+    "api_format": "openai"
+  },
+  "rate_limiting": {
+    "enabled": false,
+    "max_requests_per_minute": null,
+    "detect_systematic_queries": false,
+    "per_key_limits": false
+  },
+  "output_controls": {
+    "return_logits": true,
+    "return_top_k_probabilities": true,
+    "output_perturbation": false,
+    "watermarking": false,
+    "temperature_floor": 0.0
+  },
+  "monitoring": {
+    "detect_extraction_patterns": false,
+    "alert_on_high_volume": false,
+    "track_query_diversity": false
+  }
+}

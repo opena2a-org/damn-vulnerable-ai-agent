@@ -1,0 +1,27 @@
+{
+  "model": "text-embedding-3-small",
+  "documents": [
+    {
+      "id": "doc-001",
+      "source": "knowledge-base/legitimate-doc.md",
+      "trusted": true,
+      "embedding_preview": [0.023, -0.041, 0.087, 0.012, -0.055],
+      "note": "Legitimate company password policy"
+    },
+    {
+      "id": "doc-002",
+      "source": "knowledge-base/adversarial-doc.md",
+      "trusted": false,
+      "embedding_preview": [0.025, -0.039, 0.091, 0.010, -0.052],
+      "note": "ADVERSARIAL: Keyword-stuffed to sit close to legitimate doc in embedding space. Contains phishing URL and weakened security guidance."
+    }
+  ],
+  "cosine_similarity_doc001_doc002": 0.97,
+  "rag_config": {
+    "top_k": 3,
+    "similarity_threshold": 0.7,
+    "verify_source_trust": false,
+    "use_reranker": false,
+    "check_embedding_outliers": false
+  }
+}

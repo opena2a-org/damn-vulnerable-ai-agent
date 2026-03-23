@@ -221,6 +221,18 @@ npx hackmyagent secure scenarios/llm-exposed-ollama/vulnerable --fix
 | `pickle-deserialization` | SUPPLY-009 | Critical | No | Malicious pickle file in ML pipeline executes arbitrary code |
 | `cicd-ai-review-bypass` | SUPPLY-010 | High | No | AI code review manipulated to approve backdoored PR |
 | `clipboard-prompt-injection` | INJ-006 | Medium | No | Clipboard hijacking places hidden injection in pasted content |
+| `plugin-extension-confusion` | SUPPLY-011 | High | No | Malicious plugin mimics legitimate one via typosquatted name |
+| `oauth-token-relay` | AUTH-005 | Critical | No | OAuth flow leaks tokens via unvalidated redirect_uri |
+| `dns-exfil-via-tools` | NET-008 | High | No | Data exfiltrated via DNS queries from tool calls |
+| `context-cache-poisoning` | MEM-008 | Critical | No | Shared KV cache leaks data between tenants in multi-tenant inference |
+| `finetune-backdoor` | SUPPLY-012 | Critical | No | Backdoor inserted during fine-tuning activates on trigger phrase |
+| `embedding-adversarial-rag` | RAG-004 | High | No | Adversarial document retrieved by RAG due to embedding proximity |
+| `training-data-extraction` | EXFIL-001 | High | No | Extracting memorized training data via crafted prompts |
+| `timing-side-channel-inference` | PROC-006 | Medium | No | Response timing reveals content filter decisions |
+| `reward-model-hacking` | PROMPT-006 | High | No | Adversarial prompts exploit reward model surface patterns |
+| `prompt-leak-finetune-api` | CRED-006 | Critical | No | System prompt extracted via fine-tuning API access |
+| `model-weight-extraction` | EXFIL-002 | High | No | Model weights stolen via systematic API querying |
+| `federated-learning-poisoning` | SUPPLY-013 | Critical | No | Poisoned gradient updates backdoor the global federated model |
 
 Each scenario contains a `vulnerable/` directory (the misconfiguration) and an `expected-checks.json` (which HMA checks should fire). The `verify-all.sh` harness runs the full cycle: detect, fix, re-scan to confirm the fix worked.
 

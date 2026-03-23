@@ -1,0 +1,18 @@
+{
+  "fine_tuning": {
+    "base_model": "gpt-4o-mini",
+    "training_file": "training-data.jsonl",
+    "epochs": 3,
+    "learning_rate": 1e-5,
+    "batch_size": 8
+  },
+  "data_validation": {
+    "enabled": false,
+    "check_duplicates": false,
+    "check_anomalous_outputs": false,
+    "verify_data_provenance": false,
+    "max_output_length": null,
+    "blocked_patterns": []
+  },
+  "notes": "No training data validation -- poisoned examples pass through unchecked"
+}

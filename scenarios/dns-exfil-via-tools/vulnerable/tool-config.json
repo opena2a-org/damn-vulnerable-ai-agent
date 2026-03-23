@@ -1,0 +1,23 @@
+{
+  "tool": {
+    "name": "domain_lookup",
+    "description": "Resolve DNS records for a given domain",
+    "parameters": {
+      "domain": {
+        "type": "string",
+        "description": "Domain to look up"
+      }
+    },
+    "execution": {
+      "command": "dig +short ${domain}",
+      "shell": true
+    }
+  },
+  "network_policy": {
+    "restrict_dns": false,
+    "allowed_domains": [],
+    "monitor_dns_queries": false,
+    "block_high_entropy_subdomains": false
+  },
+  "notes": "Tool allows arbitrary DNS lookups -- attacker can exfiltrate data via subdomains"
+}

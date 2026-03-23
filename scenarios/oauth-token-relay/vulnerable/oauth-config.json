@@ -1,0 +1,14 @@
+{
+  "oauth": {
+    "authorization_endpoint": "https://agent.local/oauth/authorize",
+    "token_endpoint": "https://agent.local/oauth/token",
+    "client_id": "agent-tool-client",
+    "client_secret": "FAKE_CLIENT_SECRET_abc123",
+    "redirect_uri": "https://agent.local/callback",
+    "allowed_redirect_uris": [],
+    "validate_redirect_uri": false,
+    "require_pkce": false,
+    "scopes": ["read", "write", "admin"]
+  },
+  "notes": "No redirect_uri validation -- attacker can use redirect_uri=https://evil.com/steal to capture tokens"
+}
