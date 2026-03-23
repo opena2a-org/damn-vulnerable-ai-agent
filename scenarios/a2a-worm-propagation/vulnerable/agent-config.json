@@ -1,0 +1,33 @@
+{
+  "agents": [
+    {
+      "id": "summarizer",
+      "endpoint": "http://localhost:3030/a2a/message",
+      "role": "Summarize incoming documents and forward to reviewer",
+      "forward_to": "reviewer",
+      "sanitize_input": false,
+      "sanitize_output": false,
+      "sign_messages": false
+    },
+    {
+      "id": "reviewer",
+      "endpoint": "http://localhost:3031/a2a/message",
+      "role": "Review summaries and forward approved ones to publisher",
+      "forward_to": "publisher",
+      "sanitize_input": false,
+      "sanitize_output": false,
+      "sign_messages": false
+    },
+    {
+      "id": "publisher",
+      "endpoint": "http://localhost:3032/a2a/message",
+      "role": "Publish approved content to external channels",
+      "forward_to": null,
+      "sanitize_input": false,
+      "sanitize_output": false,
+      "sign_messages": false
+    }
+  ],
+  "message_routing": "pass-through",
+  "identity_verification": "none"
+}

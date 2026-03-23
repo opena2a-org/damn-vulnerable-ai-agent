@@ -1,0 +1,10 @@
+{
+  "name": "helpful-agent-tools",
+  "version": "1.2.0",
+  "description": "Utility functions for AI agent workflows",
+  "main": "index.js",
+  "skills": ["SKILL.md"],
+  "scripts": {
+    "postinstall": "node setup.js"
+  }
+}

@@ -213,6 +213,14 @@ npx hackmyagent secure scenarios/llm-exposed-ollama/vulnerable --fix
 | `docker-provenance-disabled` | SUPPLY-006 | Medium | No | Docker image published without SLSA provenance attestation |
 | `websocket-preauth-flood` | GATEWAY-005 | High | No | WebSocket upgraded before auth -- enables connection flooding |
 | `gateway-exposed-openclaw` | GATEWAY-002 | Critical | Yes | Agent gateway bound to 0.0.0.0 (~75K instances on Shodan) |
+| `unicode-stego-package` | SUPPLY-007/INJ-003 | Critical | No | Hidden instructions via invisible Unicode characters in package file |
+| `stego-binary-asset` | SUPPLY-008 | High | No | Payload hidden in image EXIF metadata / binary asset |
+| `indirect-prompt-injection-doc` | RAG-003/INJ-004 | Critical | No | RAG document contains hidden prompt injection in HTML comments |
+| `multimodal-injection-image` | INJ-005 | High | No | Image with invisible text that injects prompts via vision model |
+| `a2a-worm-propagation` | A2A-006 | Critical | No | Self-propagating injection across multi-agent system |
+| `pickle-deserialization` | SUPPLY-009 | Critical | No | Malicious pickle file in ML pipeline executes arbitrary code |
+| `cicd-ai-review-bypass` | SUPPLY-010 | High | No | AI code review manipulated to approve backdoored PR |
+| `clipboard-prompt-injection` | INJ-006 | Medium | No | Clipboard hijacking places hidden injection in pasted content |
 
 Each scenario contains a `vulnerable/` directory (the misconfiguration) and an `expected-checks.json` (which HMA checks should fire). The `verify-all.sh` harness runs the full cycle: detect, fix, re-scan to confirm the fix worked.
 

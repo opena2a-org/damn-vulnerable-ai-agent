@@ -1,0 +1,25 @@
+{
+  "agent": "vision-product-analyzer",
+  "model": "gpt-4-vision-preview",
+  "pipeline": [
+    {
+      "step": "extract",
+      "action": "vision_model_describe_image",
+      "input": "user_uploaded_image",
+      "output": "raw_description"
+    },
+    {
+      "step": "process",
+      "action": "append_to_prompt",
+      "input": "raw_description",
+      "sanitize": false,
+      "note": "VULNERABLE: raw vision output injected directly into prompt"
+    },
+    {
+      "step": "respond",
+      "action": "generate_response",
+      "system_prompt": "You are a product analysis assistant.",
+      "context": ["raw_description"]
+    }
+  ]
+}
