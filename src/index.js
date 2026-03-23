@@ -12,6 +12,7 @@ import { getAllAgents, getAgentsByProtocol } from './core/agents.js';
 import { detectAttacks, SENSITIVE_DATA, SECURITY_LEVELS } from './core/vulnerabilities.js';
 import { createDashboardServer } from './dashboard/server.js';
 import { initSandbox } from './sandbox/init.js';
+import { callLLM, isLLMEnabled, configureLLM, disableLLM, getLLMConfig } from './llm/provider.js';
 
 // Parse command line args
 const args = process.argv.slice(2);
@@ -168,7 +169,7 @@ function trackCategorySuccessful(categories) {
 /**
  * Generate response based on agent configuration and detected attacks
  */
-function generateResponse(agent, userMessage, attacks) {
+async function generateResponse(agent, userMessage, attacks) {
   const level = agent.securityLevel;
   const vulns = agent.vulnerabilities || {};
 
@@ -183,6 +184,26 @@ function generateResponse(agent, userMessage, attacks) {
     stats.attacksDetected++;
     stats.byAgent[agent.id].attacks++;
     trackCategoryDetected(attacks.categories);
+  }
+
+  // LLM Mode: Use real LLM with vulnerable system prompt
+  if (isLLMEnabled()) {
+    const { AGENT_PROMPTS } = await import('./llm/prompts.js');
+    const prompt = AGENT_PROMPTS[agent.id];
+    if (prompt) {
+      const llmResponse = await callLLM(prompt, [{ role: 'user', content: userMessage }]);
+      if (llmResponse) {
+        // Still track attacks for detection panel
+        if (attacks.hasAttack) {
+          logAttack(agent, attacks.categories, true, userMessage);
+          stats.attacksSuccessful++;
+          if (stats.byAgent[agent.id]) stats.byAgent[agent.id].successful++;
+          trackCategorySuccessful(attacks.categories);
+        }
+        return llmResponse;
+      }
+    }
+    // Fall through to canned responses if LLM call fails
   }
 
   // HARDENED: Block everything
@@ -670,12 +691,12 @@ function createAgentServer(agent) {
     if (req.method === 'POST' && req.url === '/chat') {
       let body = '';
       req.on('data', chunk => { body += chunk; });
-      req.on('end', () => {
+      req.on('end', async () => {
         try {
           const parsed = JSON.parse(body);
           const userMessage = parsed.message || '';
           const attacks = detectAttacks(userMessage);
-          const responseContent = generateResponse(agent, userMessage, attacks);
+          const responseContent = await generateResponse(agent, userMessage, attacks);
 
           if (verbose) {
             console.log(`[${agent.id}] "${userMessage.substring(0, 50)}..." -> Attacks: ${attacks.categories.join(', ') || 'none'}`);
@@ -702,12 +723,12 @@ function createAgentServer(agent) {
     if (req.method === 'POST' && (req.url === '/v1/chat/completions' || req.url === '/chat/completions')) {
       let body = '';
       req.on('data', chunk => { body += chunk; });
-      req.on('end', () => {
+      req.on('end', async () => {
         try {
           const parsed = JSON.parse(body);
           const userMessage = parsed.messages?.find(m => m.role === 'user')?.content || '';
           const attacks = detectAttacks(userMessage);
-          const responseContent = generateResponse(agent, userMessage, attacks);
+          const responseContent = await generateResponse(agent, userMessage, attacks);
 
           if (verbose) {
             console.log(`[${agent.id}] "${userMessage.substring(0, 50)}..." → Attacks: ${attacks.categories.join(', ') || 'none'}`);
