@@ -133,13 +133,13 @@ opena2a train stop     # Stop and clean up
 
 All agents expose OpenAI-compatible chat completions. MCP and A2A agents additionally support:
 
-```
-OpenAI API    POST /v1/chat/completions     Ports 3001-3008
-MCP JSON-RPC  POST / (JSON-RPC 2.0)         Ports 3010-3013
-A2A Message   POST /a2a/message             Ports 3020-3021
-Health        GET /health, /info, /stats    All ports
-Dashboard     http://localhost:9000         Web UI
-```
+| Protocol | Endpoint | Ports |
+|----------|----------|-------|
+| OpenAI API | `POST /v1/chat/completions` | 3001-3008 |
+| MCP JSON-RPC | `POST /` (JSON-RPC 2.0) | 3010-3013 |
+| A2A Message | `POST /a2a/message` | 3020-3021 |
+| Health | `GET /health, /info, /stats` | All ports |
+| Dashboard | `http://localhost:9000` | Web UI |
 
 ## Configuration
 
