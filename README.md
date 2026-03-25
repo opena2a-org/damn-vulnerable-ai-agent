@@ -155,13 +155,25 @@ VERBOSE=true            # Detailed logging
 
 ## Infrastructure Vulnerability Scenarios
 
-65+ real-world scenarios across 15 vulnerability categories. Each scenario contains a `vulnerable/` directory and an `expected-checks.json`. Run the full verification harness:
+72 real-world scenarios across 15 vulnerability categories, including 5 multi-step attack chains. Each scenario contains a `vulnerable/` directory and an `expected-checks.json`. Run the full verification harness:
 
 ```bash
 ./scenarios/verify-all.sh
 ```
 
 Full scenario index: [docs/scenarios/README.md](docs/scenarios/README.md)
+
+### Multi-Step Attack Chains
+
+These scenarios demonstrate real-world kill chains combining multiple ATM techniques:
+
+| Scenario | Chain | Techniques |
+|----------|-------|------------|
+| supply-chain-to-rce | Compromised dependency → heartbeat persistence → credential access → exfiltration | T-2006 → T-6001 → T-3002 → T-8001 |
+| prompt-to-lateral-movement | Prompt injection → tool discovery → MCP hopping → parameter injection | T-2001 → T-1002 → T-5003 → T-4003 |
+| rag-poison-to-impersonation | Poisoned RAG → agent impersonation → delegation abuse → memory extraction | T-2005 → T-5001 → T-4005 → T-7003 |
+| behavioral-drift-to-exfil | SOUL drift → security probing → data collection → encoded exfiltration | T-6004 → T-1004 → T-7001 → T-8002 |
+| atc-forgery-attack | Agent card discovery → identity cloning → integrity bypass | T-1006 → T-5001 → T-9004 |
 
 ## Contributing
 
