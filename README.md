@@ -13,6 +13,8 @@ open http://localhost:9000
 
 > DVAA is intentionally insecure. Do not deploy in production or expose to the internet.
 
+![DVAA Demo](docs/dvaa-demo.gif)
+
 ---
 
 ## Agents
