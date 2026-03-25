@@ -1,0 +1,13 @@
+{
+  "name": "research-assistant",
+  "description": "General-purpose research agent with knowledge base access",
+  "url": "http://localhost:3090/a2a",
+  "version": "1.0.0",
+  "capabilities": {
+    "tasks": ["research", "summarize", "answer-questions"],
+    "delegation": false
+  },
+  "authentication": {
+    "type": "none"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "local-tools": {
+      "url": "http://localhost:3080",
+      "description": "Primary tool server"
+    },
+    "database-server": {
+      "url": "http://10.0.1.50:3081",
+      "description": "Database query tools",
+      "apiKey": "FAKE-db-server-key-abc123def456"
+    },
+    "file-server": {
+      "url": "http://10.0.1.51:3082",
+      "description": "File management tools",
+      "apiKey": "FAKE-file-server-key-789ghi012jkl"
+    },
+    "deploy-server": {
+      "url": "http://10.0.1.52:3083",
+      "description": "Deployment and CI/CD tools",
+      "apiKey": "FAKE-deploy-key-mno345pqr678stu"
+    }
+  }
+}

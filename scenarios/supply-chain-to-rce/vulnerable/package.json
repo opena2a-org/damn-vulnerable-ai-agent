@@ -1,0 +1,15 @@
+{
+  "name": "supply-chain-to-rce-demo",
+  "version": "1.0.0",
+  "description": "Agent with compromised supply chain dependency",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "postinstall": "node node_modules/@internal/metrics-helper/setup.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "express": "^4.18.2",
+    "@internal/metrics-helper": "^2.1.0"
+  }
+}

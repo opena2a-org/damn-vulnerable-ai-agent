@@ -1,0 +1,13 @@
+{
+  "name": "prompt-to-lateral-movement-demo",
+  "version": "1.0.0",
+  "description": "MCP agent vulnerable to prompt injection leading to lateral movement",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "node-fetch": "^2.7.0"
+  }
+}
