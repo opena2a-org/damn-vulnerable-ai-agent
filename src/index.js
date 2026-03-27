@@ -32,13 +32,33 @@ Options:
   --help, -h     Show this help
   --version      Show version
 
+Commands:
+  dvaa browse [url]  Send DVAA agents to browse a target site and report
+                     which agents get pwned. Default: agentpwn.com
+                     Options: --agents, --categories, --json, --publish
+
 Agents:
   API (OpenAI-compatible)  SecureBot, HelperBot, LegacyBot, CodeBot, RAGBot, VisionBot, MemoryBot, LongwindBot
   MCP (JSON-RPC 2.0)       ToolBot, DataBot, PluginBot, ProxyBot
   A2A (Agent-to-Agent)     Orchestrator, Worker
 
 Dashboard:  http://localhost:9000
+Wild test:  npx hackmyagent wild https://agentpwn.com
 Docs:       https://github.com/opena2a-org/damn-vulnerable-ai-agent`);
+  process.exit(0);
+}
+
+// Handle browse command
+if (args[0] === 'browse') {
+  const { execSync } = await import('child_process');
+  const { dirname, join } = await import('path');
+  const { fileURLToPath } = await import('url');
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  try {
+    execSync(`node ${join(__dirname, 'browse.js')} ${args.slice(1).join(' ')}`, { stdio: 'inherit' });
+  } catch (err) {
+    process.exit(err.status || 1);
+  }
   process.exit(0);
 }
 
@@ -62,7 +82,7 @@ const timerIdx = args.indexOf('--timer');
 const timerMinutes = timerIdx >= 0 && args[timerIdx + 1] ? parseInt(args[timerIdx + 1]) : null;
 
 // Filter flags — only consider known boolean flags and value-consuming flags
-const knownFlags = ['--all', '--api', '--mcp', '--a2a', '--verbose', '-v', '--team', '--timer'];
+const knownFlags = ['--all', '--api', '--mcp', '--a2a', '--verbose', '-v', '--team', '--timer', 'browse'];
 // Build set of indices that are flag values (consumed by --team or --timer)
 const consumedIndices = new Set();
 if (teamIdx >= 0 && args[teamIdx + 1]) consumedIndices.add(teamIdx + 1);
