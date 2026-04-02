@@ -1,0 +1,9 @@
+{
+  "name": "dvaa-fake-tool-squatting",
+  "version": "1.0.0",
+  "description": "DVAA: MCP tool impersonation and name squatting via unvalidated tool registration",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
