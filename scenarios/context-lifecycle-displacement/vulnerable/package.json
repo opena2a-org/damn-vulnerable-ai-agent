@@ -1,0 +1,7 @@
+{
+  "name": "dvaa-context-lifecycle-displacement",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vulnerable agent with context window displacement via unlimited memory",
+  "main": "server.js"
+}

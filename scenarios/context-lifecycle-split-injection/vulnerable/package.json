@@ -1,0 +1,7 @@
+{
+  "name": "dvaa-context-lifecycle-split-injection",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vulnerable agent with cross-component split injection in assembly pipeline",
+  "main": "server.js"
+}
