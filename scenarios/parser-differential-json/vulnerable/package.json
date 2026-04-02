@@ -1,0 +1,9 @@
+{
+  "name": "dvaa-parser-differential",
+  "version": "1.0.0",
+  "description": "DVAA: Parser differential exploitation via JSON comment injection and duplicate keys",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

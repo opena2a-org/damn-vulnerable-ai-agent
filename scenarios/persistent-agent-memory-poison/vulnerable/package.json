@@ -1,0 +1,9 @@
+{
+  "name": "dvaa-persistent-agent-memory-poison",
+  "version": "1.0.0",
+  "description": "DVAA: Persistent agent memory poisoning and cross-session state tampering",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
