@@ -1,0 +1,7 @@
+{
+  "name": "dvaa-context-lifecycle-priority-hijack",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vulnerable agent with priority zone hijacking via conversation history",
+  "main": "server.js"
+}
