@@ -3,8 +3,11 @@ const Database = require('better-sqlite3');
 const app = express();
 app.use(express.json());
 
-// Persistent state via SQLite
-const db = new Database('/data/mcp-state.db');
+// Persistent state via SQLite (uses /data in Docker, ./data locally)
+const fs = require('fs');
+const dataDir = fs.existsSync('/data') ? '/data' : './data';
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+const db = new Database(`${dataDir}/mcp-state.db`);
 db.exec(`
   CREATE TABLE IF NOT EXISTS notes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
