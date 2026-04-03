@@ -1,0 +1,12 @@
+services:
+  state-mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3105:3105"
+    volumes:
+      - mcp-state:/data
+
+volumes:
+  mcp-state:

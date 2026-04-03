@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "code-tools": {
+      "url": "http://localhost:3100",
+      "transport": "http",
+      "tools": ["read_file", "search_code"],
+      "description": "Code analysis and file reading tools"
+    }
+  }
+}

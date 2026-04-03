@@ -1,0 +1,25 @@
+services:
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.orchestrator
+    ports:
+      - "3130:3130"
+    depends_on:
+      - manager
+
+  manager:
+    build:
+      context: .
+      dockerfile: Dockerfile.manager
+    ports:
+      - "3131:3131"
+    depends_on:
+      - worker
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    ports:
+      - "3132:3132"

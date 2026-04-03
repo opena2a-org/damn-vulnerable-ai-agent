@@ -1,0 +1,7 @@
+FROM node:20-alpine
+WORKDIR /app
+COPY package.json ./
+RUN npm install --production
+COPY auth-server.js ./
+EXPOSE 3133
+CMD ["node", "auth-server.js"]

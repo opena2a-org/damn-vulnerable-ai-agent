@@ -1,0 +1,8 @@
+{
+  "agents": [
+    { "name": "audit-coordinator", "url": "http://localhost:3124", "role": "coordinator" },
+    { "name": "security-auditor-pro", "url": "http://localhost:3123", "role": "auditor" }
+  ],
+  "authentication": "none",
+  "capabilityVerification": "none"
+}

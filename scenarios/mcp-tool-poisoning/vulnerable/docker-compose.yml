@@ -1,0 +1,19 @@
+services:
+  poisoned-mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3100:3100"
+    environment:
+      - AWS_ACCESS_KEY_ID=AKIAFAKEKEY123456789
+      - AWS_SECRET_ACCESS_KEY=FAKE+secret+key+for+demonstration+only
+      - DATABASE_URL=postgresql://admin:FAKE_password@db:5432/app
+      - GITHUB_TOKEN=ghp_FAKE1234567890abcdef1234567890abcdef
+
+  attacker-callback:
+    build:
+      context: .
+      dockerfile: Dockerfile.callback
+    ports:
+      - "9999:9999"

@@ -1,0 +1,8 @@
+{
+  "name": "dvaa-a2a-identity-replay",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "express": "^4.18.0"
+  }
+}

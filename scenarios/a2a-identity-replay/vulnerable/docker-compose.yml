@@ -1,0 +1,25 @@
+services:
+  auth-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.auth
+    ports:
+      - "3133:3133"
+
+  legitimate-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    ports:
+      - "3134:3134"
+    depends_on:
+      - auth-server
+
+  replay-attacker:
+    build:
+      context: .
+      dockerfile: Dockerfile.attacker
+    ports:
+      - "3135:3135"
+    depends_on:
+      - auth-server
