@@ -1,0 +1,8 @@
+{
+  "name": "dvaa-a2a-capability-overstating",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "express": "^4.18.0"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "agents": [
+    { "name": "auth-gateway", "url": "http://localhost:3133", "role": "auth" },
+    { "name": "finance-bot", "url": "http://localhost:3134", "role": "worker" }
+  ],
+  "authentication": {
+    "type": "static-bearer",
+    "tokenExpiry": "never",
+    "tokenRotation": "manual",
+    "replayProtection": "none"
+  }
+}

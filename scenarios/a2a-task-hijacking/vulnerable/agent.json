@@ -1,0 +1,8 @@
+{
+  "agents": [
+    { "name": "task-coordinator", "url": "http://localhost:3120", "role": "coordinator" },
+    { "name": "data-analyst", "url": "http://localhost:3121", "role": "worker" }
+  ],
+  "authentication": "none",
+  "taskRouting": "first-responder"
+}

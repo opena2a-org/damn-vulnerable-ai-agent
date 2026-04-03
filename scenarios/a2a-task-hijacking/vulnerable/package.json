@@ -1,0 +1,8 @@
+{
+  "name": "dvaa-a2a-task-hijacking",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "express": "^4.18.0"
+  }
+}

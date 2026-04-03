@@ -1,0 +1,10 @@
+{
+  "agents": [
+    { "name": "orchestrator", "url": "http://localhost:3130", "role": "orchestrator" },
+    { "name": "financial-manager", "url": "http://localhost:3131", "role": "manager" },
+    { "name": "financial-worker", "url": "http://localhost:3132", "role": "worker" }
+  ],
+  "authentication": "none",
+  "delegationChain": ["orchestrator", "financial-manager", "financial-worker"],
+  "taskSigning": false
+}

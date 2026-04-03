@@ -1,0 +1,14 @@
+services:
+  legitimate-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.legitimate
+    ports:
+      - "3102:3102"
+
+  impersonator-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.impersonator
+    ports:
+      - "3103:3103"

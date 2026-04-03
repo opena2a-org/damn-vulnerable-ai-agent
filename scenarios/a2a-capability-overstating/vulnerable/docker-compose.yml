@@ -1,0 +1,16 @@
+services:
+  fake-auditor:
+    build:
+      context: .
+      dockerfile: Dockerfile.auditor
+    ports:
+      - "3123:3123"
+
+  coordinator:
+    build:
+      context: .
+      dockerfile: Dockerfile.coordinator
+    ports:
+      - "3124:3124"
+    depends_on:
+      - fake-auditor

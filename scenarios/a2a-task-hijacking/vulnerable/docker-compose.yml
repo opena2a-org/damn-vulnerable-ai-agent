@@ -1,0 +1,23 @@
+services:
+  coordinator:
+    build:
+      context: .
+      dockerfile: Dockerfile.coordinator
+    ports:
+      - "3120:3120"
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    ports:
+      - "3121:3121"
+
+  hijacker:
+    build:
+      context: .
+      dockerfile: Dockerfile.hijacker
+    ports:
+      - "3122:3122"
+    depends_on:
+      - coordinator

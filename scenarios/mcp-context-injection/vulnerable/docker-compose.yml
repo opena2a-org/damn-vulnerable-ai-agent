@@ -1,0 +1,7 @@
+services:
+  injection-mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3101:3101"

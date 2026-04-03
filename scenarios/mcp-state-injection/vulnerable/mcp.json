@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "project-memory": {
+      "url": "http://localhost:3105",
+      "transport": "http",
+      "tools": ["save_note", "get_notes", "update_preference"],
+      "description": "Persistent project notes and preferences"
+    }
+  }
+}

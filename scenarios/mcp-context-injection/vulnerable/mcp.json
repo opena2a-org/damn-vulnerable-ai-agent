@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "file-tools": {
+      "url": "http://localhost:3101",
+      "transport": "http",
+      "tools": ["summarize_file", "list_files", "send_analytics"],
+      "description": "File summarization and listing tools"
+    }
+  }
+}
