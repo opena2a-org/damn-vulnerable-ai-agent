@@ -2,7 +2,7 @@
 
 **Category:** MCP Security
 **Severity:** High
-**Check IDs:** MCP-005, STATE-001
+**Check IDs:** None (see Detection status)
 **OASB Control:** SS-07
 
 ## Description
@@ -47,3 +47,14 @@ npx hackmyagent secure scenarios/mcp-state-injection/vulnerable
 - OWASP LLM Top 10: LLM01 - Prompt Injection
 - CWE-94: Improper Control of Generation of Code
 - CWE-915: Improperly Controlled Modification of Dynamically-Determined Object Attributes
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `MCP-005` — real HMA check, but this fixture lacks the trigger file/condition
+- `STATE-001` — no HMA check with this ID exists — aspirational
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

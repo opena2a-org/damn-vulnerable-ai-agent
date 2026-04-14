@@ -1,6 +1,6 @@
 # Persistent Agent: Memory Poisoning and Cross-Session State Tampering
 
-**Check:** PERSIST-001, PERSIST-003, PERSIST-005 | Severity: Critical | Auto-Fix: No
+**Check:** None (see Detection status) | Severity: Critical | Auto-Fix: No
 
 ## Description
 
@@ -40,3 +40,17 @@ npx hackmyagent attack --target http://localhost:3021 --categories persistent-ag
 - CWE-472: External Control of Assumed-Immutable Web Parameter
 - CWE-384: Session Fixation
 - CWE-522: Insufficiently Protected Credentials
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `PERSIST-001` — defined only in attack-payload metadata; no scanner emission site
+- `PERSIST-002` — defined only in attack-payload metadata; no scanner emission site
+- `PERSIST-003` — defined only in attack-payload metadata; no scanner emission site
+- `PERSIST-005` — defined only in attack-payload metadata; no scanner emission site
+- `PERSIST-006` — defined only in attack-payload metadata; no scanner emission site
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

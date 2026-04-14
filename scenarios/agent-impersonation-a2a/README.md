@@ -2,7 +2,7 @@
 
 **Category:** Multi-Agent
 **Severity:** Critical
-**Check IDs:** A2A-003, AUTH-001
+**Check IDs:** None (see Detection status)
 **OASB Control:** 7.1
 
 ## Description
@@ -47,3 +47,13 @@ npx hackmyagent secure scenarios/agent-impersonation-a2a/vulnerable
 
 **References:**
 - [CWE-287: Improper Authentication](https://cwe.mitre.org/data/definitions/287.html)
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `AUTH-001` — real HMA check (fires on other fixtures); this fixture does not trigger it
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

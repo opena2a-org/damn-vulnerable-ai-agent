@@ -2,7 +2,7 @@
 
 **Category:** Supply Chain
 **Severity:** Critical
-**Check IDs:** SUPPLY-003, MCP-002
+**Check IDs:** None (see Detection status)
 **OASB Control:** 8.4
 
 ## Description
@@ -48,3 +48,14 @@ npx hackmyagent secure scenarios/mcp-rug-pull/vulnerable
 **References:**
 - [CWE-494: Download of Code Without Integrity Check](https://cwe.mitre.org/data/definitions/494.html)
 - OWASP Top 10 — A08:2021 Software and Data Integrity Failures
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `SUPPLY-003` — real HMA check, but this fixture lacks the trigger file/condition
+- `DEP-003` — real HMA check (fires on other fixtures); this fixture does not trigger it
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

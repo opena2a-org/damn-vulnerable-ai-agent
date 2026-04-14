@@ -2,7 +2,7 @@
 
 **Category:** MCP Security
 **Severity:** Critical
-**Check IDs:** MCP-003, AUTH-002
+**Check IDs:** None (see Detection status)
 **OASB Control:** SS-04
 
 ## Description
@@ -46,3 +46,14 @@ npx hackmyagent secure scenarios/mcp-server-impersonation/vulnerable
 - OWASP LLM Top 10: LLM05 - Supply Chain Vulnerabilities
 - CWE-290: Authentication Bypass by Spoofing
 - [MCP Security Considerations](https://modelcontextprotocol.io/specification/2025-03-26/security)
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `MCP-003` — real HMA check, but this fixture lacks the trigger file/condition
+- `AUTH-002` — real HMA check (fires on other fixtures); this fixture does not trigger it
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

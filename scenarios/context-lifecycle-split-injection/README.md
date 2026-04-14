@@ -1,6 +1,6 @@
 # Context Lifecycle: Cross-Component Split Injection
 
-**Check:** LIFECYCLE-002, LIFECYCLE-006, LIFECYCLE-008 | Severity: Critical | Auto-Fix: No
+**Check:** None (see Detection status) | Severity: Critical | Auto-Fix: No
 
 ## Description
 
@@ -43,3 +43,15 @@ npx hackmyagent attack --target http://localhost:3023 --categories context-lifec
 
 - CWE-94: Improper Control of Generation of Code
 - OASB-1 Control 8.1: Context Integrity
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `LIFECYCLE-002` — real HMA check, but this fixture lacks the trigger file/condition
+- `LIFECYCLE-006` — real HMA check, but this fixture lacks the trigger file/condition
+- `LIFECYCLE-008` — real HMA check, but this fixture lacks the trigger file/condition
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

@@ -2,7 +2,7 @@
 
 **Category:** MCP Security
 **Severity:** High
-**Check IDs:** MCP-002, PROMPT-001
+**Check IDs:** None (see Detection status)
 **OASB Control:** SS-03
 
 ## Description
@@ -48,3 +48,14 @@ npx hackmyagent secure scenarios/mcp-context-injection/vulnerable
 - OWASP LLM Top 10: LLM01 - Prompt Injection
 - CWE-74: Improper Neutralization of Special Elements in Output Used by a Downstream Component
 - [MCP Security Considerations](https://modelcontextprotocol.io/specification/2025-03-26/security)
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `MCP-002` — real HMA check, but this fixture lacks the trigger file/condition
+- `PROMPT-001` — real HMA check (fires on other fixtures); this fixture does not trigger it
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

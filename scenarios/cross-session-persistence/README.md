@@ -2,7 +2,7 @@
 
 **Category:** Memory
 **Severity:** Critical
-**Check IDs:** MEM-006
+**Check IDs:** None (see Detection status)
 **OASB Control:** 5.1
 
 ## Description
@@ -50,3 +50,13 @@ npx hackmyagent secure scenarios/cross-session-persistence/vulnerable
 **References:**
 - [CWE-79: Improper Neutralization of Input During Web Page Generation](https://cwe.mitre.org/data/definitions/79.html) (analog for LLM context injection)
 - [ETH Zurich — Persistent LLM Memory Manipulation Research](https://arxiv.org/abs/2310.02446)
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `MEM-006` — real HMA check (fires on other fixtures); this fixture does not trigger it
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.
