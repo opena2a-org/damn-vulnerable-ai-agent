@@ -2,7 +2,7 @@
 
 **Category:** MCP/Tool
 **Severity:** Critical
-**Check IDs:** MCP-008, SKILL-006
+**Check IDs:** None (see Detection status)
 **OASB Control:** 4.1
 
 ## Description
@@ -47,3 +47,14 @@ npx hackmyagent secure scenarios/tool-chain-exfiltration/vulnerable
 **References:**
 - [CWE-200: Exposure of Sensitive Information to an Unauthorized Actor](https://cwe.mitre.org/data/definitions/200.html)
 - OWASP Top 10 for LLM Applications — LLM08: Excessive Agency
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `MCP-008` — real HMA check (fires on other fixtures); this fixture does not trigger it
+- `NET-004` — real HMA check (fires on other fixtures); this fixture does not trigger it
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

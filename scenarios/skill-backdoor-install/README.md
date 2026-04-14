@@ -2,7 +2,7 @@
 
 **Category:** Supply Chain
 **Severity:** Critical
-**Check IDs:** SKILL-002, SUPPLY-004
+**Check IDs:** SKILL-002
 **OASB Control:** 8.1
 
 ## Description
@@ -46,3 +46,13 @@ npx hackmyagent secure scenarios/skill-backdoor-install/vulnerable
 
 **References:**
 - [CWE-506: Embedded Malicious Code](https://cwe.mitre.org/data/definitions/506.html)
+
+## Detection status
+
+**Detected by HMA 0.17.8:** `SKILL-002`
+
+**Deferred (future work):**
+
+- `INSTALL-001` — real HMA check (fires on other fixtures); this fixture does not trigger it
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

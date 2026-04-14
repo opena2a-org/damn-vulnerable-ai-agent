@@ -2,7 +2,7 @@
 
 **Category:** Injection
 **Severity:** High
-**Check IDs:** PROMPT-003, SKILL-009
+**Check IDs:** None (see Detection status)
 **OASB Control:** 1.4
 
 ## Description
@@ -46,3 +46,13 @@ npx hackmyagent secure scenarios/encoding-bypass-base64/vulnerable
 
 **References:**
 - [CWE-116: Improper Encoding or Escaping of Output](https://cwe.mitre.org/data/definitions/116.html)
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `CODEINJ-001` — real HMA check, but this fixture lacks the trigger file/condition
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

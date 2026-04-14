@@ -1,6 +1,6 @@
 # Data Exfiltration Endpoint in Sandbox Policy
 
-**Check:** SANDBOX-005 | **Severity:** High | **Auto-Fix:** No
+**Check:** None (see Detection status) | **Severity:** High | **Auto-Fix:** No
 
 A sandbox network policy includes `api.telegram.org` in the allowed endpoints list. Telegram's Bot API allows sending arbitrary data to any chat, making it a common exfiltration channel for compromised agents.
 
@@ -23,3 +23,13 @@ SANDBOX-005 scans sandbox configuration files (YAML, JSON) for known data exfilt
 
 **References:**
 - [CWE-183: Permissive List of Allowed Inputs](https://cwe.mitre.org/data/definitions/183.html)
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `SANDBOX-005` — real HMA check (fires on other fixtures); this fixture does not trigger it
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

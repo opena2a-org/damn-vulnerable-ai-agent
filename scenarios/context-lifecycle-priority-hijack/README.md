@@ -1,6 +1,6 @@
 # Context Lifecycle: Priority Zone Hijacking
 
-**Check:** LIFECYCLE-005, LIFECYCLE-007, LIFECYCLE-009 | Severity: Critical | Auto-Fix: No
+**Check:** None (see Detection status) | Severity: Critical | Auto-Fix: No
 
 ## Description
 
@@ -45,3 +45,15 @@ npx hackmyagent attack --target http://localhost:3025 --categories context-lifec
 - CWE-116: Improper Encoding or Escaping of Output
 - OASB-1 Control 3.1: System Prompt Security
 - OASB-1 Control 8.2: Context Isolation
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `LIFECYCLE-005` — real HMA check, but this fixture lacks the trigger file/condition
+- `LIFECYCLE-007` — real HMA check, but this fixture lacks the trigger file/condition
+- `LIFECYCLE-009` — real HMA check, but this fixture lacks the trigger file/condition
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

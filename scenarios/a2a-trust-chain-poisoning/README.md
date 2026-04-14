@@ -2,7 +2,7 @@
 
 **Category:** A2A Security
 **Severity:** Critical
-**Check IDs:** A2A-009, A2A-003
+**Check IDs:** None (see Detection status)
 **OASB Control:** SS-08
 
 ## Description
@@ -52,3 +52,14 @@ npx hackmyagent secure scenarios/a2a-trust-chain-poisoning/vulnerable
 - CWE-345: Insufficient Verification of Data Authenticity
 - CWE-693: Protection Mechanism Failure
 - [A2A Protocol Security](https://google.github.io/A2A/)
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `A2A-009` — defined only in attack-payload metadata; no scanner emission site
+- `A2A-003` — defined only in attack-payload metadata; no scanner emission site
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

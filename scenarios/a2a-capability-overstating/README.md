@@ -2,7 +2,7 @@
 
 **Category:** A2A Security
 **Severity:** High
-**Check IDs:** A2A-008, A2A-001
+**Check IDs:** None (see Detection status)
 **OASB Control:** SS-05
 
 ## Description
@@ -46,3 +46,14 @@ npx hackmyagent secure scenarios/a2a-capability-overstating/vulnerable
 - OWASP LLM Top 10: LLM08 - Excessive Agency
 - CWE-345: Insufficient Verification of Data Authenticity
 - [A2A Protocol Agent Cards](https://google.github.io/A2A/)
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `A2A-008` — defined only in attack-payload metadata; no scanner emission site
+- `A2A-001` — real HMA check (fires on other fixtures); this fixture does not trigger it
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

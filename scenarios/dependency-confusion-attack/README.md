@@ -2,7 +2,7 @@
 
 **Category:** Supply Chain
 **Severity:** Critical
-**Check IDs:** SUPPLY-002, DEP-001
+**Check IDs:** None (see Detection status)
 **OASB Control:** 8.2
 
 ## Description
@@ -46,3 +46,14 @@ npx hackmyagent secure scenarios/dependency-confusion-attack/vulnerable
 **References:**
 - [CWE-427: Uncontrolled Search Path Element](https://cwe.mitre.org/data/definitions/427.html)
 - [Alex Birsan — Dependency Confusion: How I Hacked Into Apple, Microsoft and Dozens of Other Companies (2021)](https://medium.com/@alex.birsan/dependency-confusion-4a5d60fec610)
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `SUPPLY-002` — real HMA check (fires on other fixtures); this fixture does not trigger it
+- `DEP-002` — real HMA check (fires on other fixtures); this fixture does not trigger it
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

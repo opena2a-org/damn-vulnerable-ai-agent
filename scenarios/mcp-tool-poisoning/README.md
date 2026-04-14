@@ -2,7 +2,7 @@
 
 **Category:** MCP Security
 **Severity:** Critical
-**Check IDs:** MCP-001, TOOL-001
+**Check IDs:** None (see Detection status)
 **OASB Control:** SS-06
 
 ## Description
@@ -45,3 +45,14 @@ npx hackmyagent secure scenarios/mcp-tool-poisoning/vulnerable
 - OWASP LLM Top 10: LLM05 - Supply Chain Vulnerabilities
 - CWE-200: Exposure of Sensitive Information to an Unauthorized Actor
 - [MCP Security Considerations](https://modelcontextprotocol.io/specification/2025-03-26/security)
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `MCP-001` — real HMA check, but this fixture lacks the trigger file/condition
+- `TOOL-001` — real HMA check (fires on other fixtures); this fixture does not trigger it
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

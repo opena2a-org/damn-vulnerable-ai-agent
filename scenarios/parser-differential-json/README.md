@@ -1,6 +1,6 @@
 # Parser Differential: JSON Comment and Duplicate Key Exploitation
 
-**Check:** PARSE-001, PARSE-005 | Severity: Critical | Auto-Fix: No
+**Check:** None (see Detection status) | Severity: Critical | Auto-Fix: No
 
 ## Description
 
@@ -36,3 +36,16 @@ npx hackmyagent attack --target http://localhost:3020 --categories parser-differ
 
 - CWE-436: Interpretation Conflict
 - CWE-176: Improper Handling of Unicode Encoding
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `PARSE-001` — defined only in attack-payload metadata; no scanner emission site
+- `PARSE-005` — defined only in attack-payload metadata; no scanner emission site
+- `PARSE-004` — defined only in attack-payload metadata; no scanner emission site
+- `PARSE-010` — defined only in attack-payload metadata; no scanner emission site
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

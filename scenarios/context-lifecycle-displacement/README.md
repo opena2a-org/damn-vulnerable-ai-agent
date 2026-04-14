@@ -1,6 +1,6 @@
 # Context Lifecycle: Safety Instruction Displacement
 
-**Check:** LIFECYCLE-003, LIFECYCLE-004, LIFECYCLE-010 | Severity: High | Auto-Fix: No
+**Check:** None (see Detection status) | Severity: High | Auto-Fix: No
 
 ## Description
 
@@ -43,3 +43,15 @@ npx hackmyagent attack --target http://localhost:3024 --categories context-lifec
 
 - CWE-400: Uncontrolled Resource Consumption
 - OASB-1 Control 3.1: System Prompt Security
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `LIFECYCLE-003` — real HMA check, but this fixture lacks the trigger file/condition
+- `LIFECYCLE-004` — real HMA check, but this fixture lacks the trigger file/condition
+- `LIFECYCLE-010` — real HMA check, but this fixture lacks the trigger file/condition
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

@@ -1,6 +1,6 @@
 # Fake Tool: MCP Tool Impersonation and Name Squatting
 
-**Check:** FAKETOOL-001, FAKETOOL-002, FAKETOOL-005 | Severity: Critical | Auto-Fix: No
+**Check:** None (see Detection status) | Severity: Critical | Auto-Fix: No
 
 ## Description
 
@@ -40,3 +40,17 @@ npx hackmyagent attack --target http://localhost:3022 --categories fake-tool
 - CWE-829: Inclusion of Functionality from Untrusted Control Sphere
 - CWE-290: Authentication Bypass by Spoofing
 - CWE-706: Use of Incorrectly-Resolved Name or Reference
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `FAKETOOL-001` — defined only in attack-payload metadata; no scanner emission site
+- `FAKETOOL-002` — defined only in attack-payload metadata; no scanner emission site
+- `FAKETOOL-005` — defined only in attack-payload metadata; no scanner emission site
+- `FAKETOOL-008` — defined only in attack-payload metadata; no scanner emission site
+- `FAKETOOL-009` — defined only in attack-payload metadata; no scanner emission site
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.
