@@ -1,7 +1,7 @@
 # DVAA Scenario Audit — 2026-04-13
 
 **HMA version:** 0.17.8
-**Scenarios:** 86
+**Scenarios audited:** 85 (agent-thresh-01 tracked separately on PR #28)
 **Clean (all expected detected):** 30
 **Mismatched:** 56
 

@@ -191,7 +191,7 @@ VERBOSE=true            # Detailed logging
 
 ## Infrastructure Vulnerability Scenarios
 
-72 real-world scenarios across 15 vulnerability categories, including 5 multi-step attack chains. Each scenario contains a `vulnerable/` directory and an `expected-checks.json`. Run the full verification harness:
+85 real-world scenarios across 15 vulnerability categories, including 5 multi-step attack chains. Each scenario contains a `vulnerable/` directory and an `expected-checks.json` listing the HMA check IDs confirmed to fire on that fixture (see [docs/audits/2026-04-13-expected-checks.md](docs/audits/2026-04-13-expected-checks.md) for the honest-baseline audit). Run the full verification harness:
 
 ```bash
 ./scenarios/verify-all.sh
