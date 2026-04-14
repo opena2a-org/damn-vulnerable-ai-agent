@@ -30,16 +30,33 @@ This is the canonical "threshold bypass" kill chain from OPENA2A-IB-007: any enf
 - Applies to any policy engine that uses count-based, length-based, or time-based fallbacks — not just bash pipelines. The same pattern defeats AST-based parsers that bail to `ASK_USER` on "unparseable" inputs.
 - The attacker does not need to break the parser or exploit a bug. They only need to generate enough input to exhaust the threshold.
 
-## Detection
+## Reproduction
+
+The vulnerable engine and attack demo are self-contained — no external dependencies.
 
 ```bash
-npx hackmyagent secure scenarios/agent-thresh-01/vulnerable
+cd scenarios/agent-thresh-01/vulnerable
+node attack-demo.js
 ```
 
-Expected findings:
-- **PEI-001** (Policy Enforcement Integrity: threshold fallback detected)
-- **PEI-002** (Policy Enforcement Integrity: ASK_USER escalation path)
-- **ARP-ASK-FALLBACK** (enforcement degrades under load)
+Expected output:
+```
+[ASK_USER] Pipeline has 52 subcommands. Preview: [first 5 stages]
+[ASK_USER] Operator approves: looks like routine log processing.
+[ENFORCEMENT RESULT] action=ASK_APPROVED
+[ATTACK SUCCESS] Exfiltration payload (subcommands 41-43) ran unchecked.
+```
+
+To verify the reference fix blocks the same attack, import `secure-engine.js` in place of `enforcement-engine.js`; the same 52-subcommand pipeline returns `action=DENY` and emits a `POLICY_PARSE_FAILURE` telemetry event.
+
+## Detection (future work)
+
+Automated static detection for this pattern is not yet implemented. The intended detection approach maps to OASB-SEC-021 evidence tiers:
+
+- **T2 (static analysis, not yet in HMA):** scan enforcement-engine source for threshold constants (`MAX_`, `THRESHOLD`, `LIMIT`) whose failure path leads to `ASK_USER` / consent prompts rather than `DENY`. Candidate check IDs: `PEI-STATIC-THRESHOLD-ASK`, `PEI-STATIC-PARSE-FAILURE-OPEN`.
+- **T3 (runtime telemetry):** monitor for `POLICY_PARSE_FAILURE` log events; absence of DENY events under a pipeline-length stress test indicates fail-open behavior.
+
+HMA currently ships live-agent LLM probes under the `PEI-*` family (`PEI-001..009` in `hackmyagent@0.17.x`) that test whether an agent *LLM* relaxes enforcement under fatigue. Those are complementary to, but do not substitute for, the static-code check this scenario represents.
 
 ## Remediation
 
