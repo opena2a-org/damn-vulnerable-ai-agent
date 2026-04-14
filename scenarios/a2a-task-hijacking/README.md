@@ -2,7 +2,7 @@
 
 **Category:** A2A Security
 **Severity:** Critical
-**Check IDs:** A2A-007, A2A-002
+**Check IDs:** None (see Detection status)
 **OASB Control:** SS-04
 
 ## Description
@@ -47,3 +47,14 @@ npx hackmyagent secure scenarios/a2a-task-hijacking/vulnerable
 - OWASP LLM Top 10: LLM08 - Excessive Agency
 - CWE-294: Authentication Bypass by Capture-replay
 - [A2A Protocol Security](https://google.github.io/A2A/)
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `A2A-007` — defined only in attack-payload metadata; no scanner emission site
+- `A2A-002` — real HMA check (fires on other fixtures); this fixture does not trigger it
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

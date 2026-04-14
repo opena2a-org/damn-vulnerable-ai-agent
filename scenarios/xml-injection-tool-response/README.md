@@ -2,7 +2,7 @@
 
 **Category:** Injection
 **Severity:** High
-**Check IDs:** INJ-001, TOOL-001
+**Check IDs:** None (see Detection status)
 **OASB Control:** 1.3
 
 ## Description
@@ -45,3 +45,13 @@ npx hackmyagent secure scenarios/xml-injection-tool-response/vulnerable
 
 **References:**
 - [CWE-91: XML Injection](https://cwe.mitre.org/data/definitions/91.html)
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `INJ-001` — real HMA check (fires on other fixtures); this fixture does not trigger it
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

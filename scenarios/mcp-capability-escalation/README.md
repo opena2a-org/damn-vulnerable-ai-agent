@@ -2,7 +2,7 @@
 
 **Category:** MCP Security
 **Severity:** High
-**Check IDs:** MCP-004, PRIV-001
+**Check IDs:** None (see Detection status)
 **OASB Control:** SS-06
 
 ## Description
@@ -46,3 +46,14 @@ npx hackmyagent secure scenarios/mcp-capability-escalation/vulnerable
 - OWASP LLM Top 10: LLM06 - Excessive Agency
 - CWE-269: Improper Privilege Management
 - [MCP Security Considerations](https://modelcontextprotocol.io/specification/2025-03-26/security)
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `MCP-004` — real HMA check, but this fixture lacks the trigger file/condition
+- `PRIV-001` — no HMA check with this ID exists — aspirational
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

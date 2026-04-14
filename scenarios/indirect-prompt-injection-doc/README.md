@@ -1,6 +1,6 @@
 # Indirect Prompt Injection via Document
 
-**Check:** RAG-003/INJ-004 | **Severity:** Critical | **Auto-Fix:** No
+**Check:** None (see Detection status) | **Severity:** Critical | **Auto-Fix:** No
 
 A document in the RAG knowledge base contains hidden prompt injection text. When the document is retrieved and included in the agent's context, the injected instructions execute. The injection is invisible to casual inspection (white text on white background in HTML, or hidden in metadata).
 
@@ -11,3 +11,14 @@ A document in the RAG knowledge base contains hidden prompt injection text. When
 - [CWE-94: Improper Control of Generation of Code](https://cwe.mitre.org/data/definitions/94.html)
 - Greshake et al. "Not What You've Signed Up For: Compromising Real-World LLM-Integrated Applications with Indirect Prompt Injection" (2023)
 - Johann Rehberger: "Prompt Injection via Retrieval Augmented Generation"
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `RAG-003` — real HMA check, but this fixture lacks the trigger file/condition
+- `INJ-004` — real HMA check (fires on other fixtures); this fixture does not trigger it
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

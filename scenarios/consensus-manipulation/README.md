@@ -2,7 +2,7 @@
 
 **Category:** Multi-Agent
 **Severity:** High
-**Check IDs:** A2A-005
+**Check IDs:** None (see Detection status)
 **OASB Control:** 7.3
 
 ## Description
@@ -46,3 +46,13 @@ npx hackmyagent secure scenarios/consensus-manipulation/vulnerable
 
 **References:**
 - [CWE-345: Insufficient Verification of Data Authenticity](https://cwe.mitre.org/data/definitions/345.html)
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `RATE-001` — real HMA check (fires on other fixtures); this fixture does not trigger it
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

@@ -2,7 +2,7 @@
 
 **Category:** Injection
 **Severity:** Critical
-**Check IDs:** PROMPT-002, INJ-001
+**Check IDs:** None (see Detection status)
 **OASB Control:** 1.2
 
 ## Description
@@ -47,3 +47,13 @@ npx hackmyagent secure scenarios/token-smuggling-unicode/vulnerable
 **References:**
 - [CWE-176: Improper Handling of Unicode Encoding](https://cwe.mitre.org/data/definitions/176.html)
 - [Unicode Consortium — Confusable Characters](https://unicode.org/reports/tr39/#Confusable_Detection)
+
+## Detection status
+
+**Automated static detection not yet implemented in HMA for this scenario.**
+
+**Deferred (future work):**
+
+- `PROMPT-002` — real HMA check (fires on other fixtures); this fixture does not trigger it
+
+See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.
