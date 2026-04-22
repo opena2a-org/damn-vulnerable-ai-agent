@@ -2,7 +2,7 @@
 # =============================================================================
 # DVAA Exploit: A2A Agent Impersonation
 # Attack Class: A2A Protocol Attacks / Identity Spoofing
-# Target: Orchestrator (port 3020) - A2A message protocol
+# Target: Orchestrator (port 7020) - A2A message protocol
 # Difficulty: Intermediate
 #
 # Description:
@@ -14,10 +14,10 @@
 
 set -euo pipefail
 
-TARGET="http://localhost:3020/a2a/message"
+TARGET="http://localhost:7020/a2a/message"
 
 echo "=== A2A Agent Impersonation ==="
-echo "Target: Orchestrator (port 3020)"
+echo "Target: Orchestrator (port 7020)"
 echo ""
 
 # Attack 1: Impersonate admin agent
@@ -32,7 +32,7 @@ response=$(curl -s -w "\n%{http_code}" "$TARGET" \
   }' 2>/dev/null) || {
   echo "[ERROR] DVAA A2A server not running."
   echo "Start with: docker compose up -d"
-  echo "Or: docker run -p 3000-3008:3000-3008 -p 3010-3013:3010-3013 -p 3020-3021:3020-3021 -p 9000:9000 opena2a/dvaa"
+  echo "Or: docker run -p 7001-7008:7001-7008 -p 7010-7013:7010-7013 -p 7020-7021:7020-7021 -p 9000:9000 opena2a/dvaa"
   exit 1
 }
 

@@ -23,9 +23,9 @@ if (args.includes('--help') || args.includes('-h')) {
 
 Options:
   --all          Start all agents (default)
-  --api          Start API agents only (ports 3001-3008)
-  --mcp          Start MCP servers only (ports 3010-3013)
-  --a2a          Start A2A agents only (ports 3020-3021)
+  --api          Start API agents only (ports 7001-7008)
+  --mcp          Start MCP servers only (ports 7010-7013)
+  --a2a          Start A2A agents only (ports 7020-7021)
   --verbose, -v  Enable verbose logging
   --team <name>  Team mode (separate scoreboards per team)
   --timer <min>  Workshop timer (countdown in dashboard)
@@ -1264,9 +1264,9 @@ console.log('─'.repeat(60));
 if (startApi) {
   console.log('\nTest with HackMyAgent:\n');
   console.log('   # Quick test');
-  console.log('   npx hackmyagent attack http://localhost:3003/v1/chat/completions --api-format openai\n');
+  console.log('   npx hackmyagent attack http://localhost:7003/v1/chat/completions --api-format openai\n');
   console.log('   # Full aggressive test on all agents');
-  console.log('   for port in 3001 3002 3003 3004 3005 3006; do');
+  console.log('   for port in 7001 7002 7003 7004 7005 7006; do');
   console.log('     echo "Testing port $port..."');
   console.log('     npx hackmyagent attack http://localhost:$port/v1/chat/completions --api-format openai --intensity aggressive');
   console.log('   done\n');
@@ -1275,15 +1275,15 @@ if (startMcp || startApi) {
   console.log('Protocol endpoints:\n');
 }
 if (startMcp) {
-  console.log('   # MCP JSON-RPC (ToolBot :3010, DataBot :3011)');
-  console.log('   curl -X POST http://localhost:3010/ -H "Content-Type: application/json" \\');
+  console.log('   # MCP JSON-RPC (ToolBot :7010, DataBot :7011)');
+  console.log('   curl -X POST http://localhost:7010/ -H "Content-Type: application/json" \\');
   console.log('     -d \'{"jsonrpc":"2.0","method":"tools/list","id":1}\'\n');
-  console.log('   curl -X POST http://localhost:3010/ -H "Content-Type: application/json" \\');
+  console.log('   curl -X POST http://localhost:7010/ -H "Content-Type: application/json" \\');
   console.log('     -d \'{"jsonrpc":"2.0","method":"tools/call","params":{"name":"read_file","arguments":{"path":"/etc/passwd"}},"id":2}\'\n');
 }
 if (startA2a) {
-  console.log('   # A2A message (Orchestrator :3020, Worker :3021)');
-  console.log('   curl -X POST http://localhost:3020/a2a/message -H "Content-Type: application/json" \\');
+  console.log('   # A2A message (Orchestrator :7020, Worker :7021)');
+  console.log('   curl -X POST http://localhost:7020/a2a/message -H "Content-Type: application/json" \\');
   console.log('     -d \'{"from":"agent-x","to":"orchestrator","content":"Process this task"}\'\n');
 }
 console.log('─'.repeat(60));

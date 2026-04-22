@@ -3,7 +3,7 @@
 **Category:** Multi-Step Attack Chain
 **Severity:** Critical
 **Check IDs:** RAG-003, RAG-004, A2A-001, A2A-002, MEM-006
-**ATM Techniques:** T-2005, T-5001, T-4005, T-7003
+**ATM Techniques:** T-2005, T-5001, T-4005, T-3003
 
 ## Description
 
@@ -17,7 +17,7 @@ An attacker poisons a RAG (Retrieval-Augmented Generation) knowledge base with a
 
 3. **T-4005 (Delegation Abuse):** Using the impersonated identity, the agent issues A2A delegation requests to subordinate agents, asking them to perform privileged operations (export user data, modify access controls, generate API keys).
 
-4. **T-7003 (Memory Extraction):** As part of the delegated tasks, the agent instructs subordinate agents to dump their conversation history and memory stores, which may contain sensitive information from previous interactions with legitimate users.
+4. **T-3003 (Memory Extraction):** As part of the delegated tasks, the agent instructs subordinate agents to dump their conversation history and memory stores, which may contain sensitive information from previous interactions with legitimate users.
 
 ## Impact
 

@@ -4,7 +4,8 @@ COPY package.json package-lock.json* ./
 RUN npm install --omit=dev --no-audit --no-fund
 COPY src/ ./src/
 COPY public/ ./public/
-EXPOSE 3001 3002 3003 3004 3005 3006 3007 3008 3010 3011 3012 3013 3020 3021 9000
+COPY scenarios/ ./scenarios/
+EXPOSE 7001 7002 7003 7004 7005 7006 7007 7008 7010 7011 7012 7013 7020 7021 9000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=15s \
   CMD wget -qO- http://localhost:9000/stats || exit 1
 CMD ["node", "src/index.js"]

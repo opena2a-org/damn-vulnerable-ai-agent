@@ -102,7 +102,7 @@ const server = http.createServer((req, res) => {
   });
 });
 
-const PORT = process.env.PORT || 3021;
+const PORT = process.env.PORT || 7021;
 server.listen(PORT, () => {
   console.log(`Persistent Agent vulnerable scenario on port ${PORT}`);
 });

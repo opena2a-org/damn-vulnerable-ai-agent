@@ -2,7 +2,7 @@
 # =============================================================================
 # DVAA Exploit: System Prompt Extraction
 # Attack Class: Data Exfiltration
-# Target: HelperBot (port 3002) - weak security profile
+# Target: HelperBot (port 7002) - weak security profile
 # Difficulty: Beginner
 #
 # Description:
@@ -14,10 +14,10 @@
 
 set -euo pipefail
 
-TARGET="http://localhost:3002/v1/chat/completions"
+TARGET="http://localhost:7002/v1/chat/completions"
 
 echo "=== System Prompt Extraction ==="
-echo "Target: HelperBot (port 3002)"
+echo "Target: HelperBot (port 7002)"
 echo ""
 
 response=$(curl -s -w "\n%{http_code}" "$TARGET" \
@@ -30,7 +30,7 @@ response=$(curl -s -w "\n%{http_code}" "$TARGET" \
   }' 2>/dev/null) || {
   echo "[ERROR] DVAA not running."
   echo "Start with: docker compose up -d"
-  echo "Or: docker run -p 3000-3008:3000-3008 -p 3010-3013:3010-3013 -p 3020-3021:3020-3021 -p 9000:9000 opena2a/dvaa"
+  echo "Or: docker run -p 7001-7008:7001-7008 -p 7010-7013:7010-7013 -p 7020-7021:7020-7021 -p 9000:9000 opena2a/dvaa"
   exit 1
 }
 
@@ -38,7 +38,7 @@ http_code=$(echo "$response" | tail -1)
 body=$(echo "$response" | sed '$d')
 
 if [ "$http_code" != "200" ]; then
-  echo "[ERROR] Got HTTP $http_code from HelperBot. Is DVAA running on port 3002?"
+  echo "[ERROR] Got HTTP $http_code from HelperBot. Is DVAA running on port 7002?"
   exit 1
 fi
 

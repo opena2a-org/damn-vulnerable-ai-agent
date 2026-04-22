@@ -109,12 +109,12 @@ const ATTACK_PAYLOADS = [
 
 // DVAA agent configs (matching ports from index.js)
 const DVAA_AGENTS = [
-  { id: 'securebot', name: 'SecureBot', port: 3001, security: 'HARDENED' },
-  { id: 'helperbot', name: 'HelperBot', port: 3002, security: 'WEAK' },
-  { id: 'legacybot', name: 'LegacyBot', port: 3003, security: 'CRITICAL' },
-  { id: 'codebot', name: 'CodeBot', port: 3004, security: 'VULNERABLE' },
-  { id: 'ragbot', name: 'RAGBot', port: 3005, security: 'WEAK' },
-  { id: 'memorybot', name: 'MemoryBot', port: 3007, security: 'VULNERABLE' },
+  { id: 'securebot', name: 'SecureBot', port: 7001, security: 'HARDENED' },
+  { id: 'helperbot', name: 'HelperBot', port: 7002, security: 'WEAK' },
+  { id: 'legacybot', name: 'LegacyBot', port: 7003, security: 'CRITICAL' },
+  { id: 'codebot', name: 'CodeBot', port: 7004, security: 'VULNERABLE' },
+  { id: 'ragbot', name: 'RAGBot', port: 7005, security: 'WEAK' },
+  { id: 'memorybot', name: 'MemoryBot', port: 7007, security: 'VULNERABLE' },
 ];
 
 async function sendToAgent(port, payload) {

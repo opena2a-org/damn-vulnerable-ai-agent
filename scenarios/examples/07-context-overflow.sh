@@ -2,7 +2,7 @@
 # =============================================================================
 # DVAA Exploit: Context Window Overflow
 # Attack Class: Context Overflow / Safety Displacement
-# Target: LongwindBot (port 3008) - OpenAI-compatible chat completions
+# Target: LongwindBot (port 7008) - OpenAI-compatible chat completions
 # Difficulty: Advanced
 #
 # Description:
@@ -17,17 +17,17 @@
 
 set -euo pipefail
 
-TARGET="http://localhost:3008/v1/chat/completions"
+TARGET="http://localhost:7008/v1/chat/completions"
 
 echo "=== Context Overflow Attack ==="
-echo "Target: LongwindBot (port 3008)"
+echo "Target: LongwindBot (port 7008)"
 echo ""
 
 # Verify target is running
 if ! curl -s --max-time 3 "$TARGET" > /dev/null 2>&1; then
   echo "[ERROR] DVAA not running."
   echo "Start with: docker compose up -d"
-  echo "Or: docker run -p 3000-3008:3000-3008 -p 3010-3013:3010-3013 -p 3020-3021:3020-3021 -p 9000:9000 opena2a/dvaa"
+  echo "Or: docker run -p 7001-7008:7001-7008 -p 7010-7013:7010-7013 -p 7020-7021:7020-7021 -p 9000:9000 opena2a/dvaa"
   exit 1
 fi
 

@@ -257,6 +257,12 @@ function serveStaticFile(publicDir, reqPath, res) {
 export function createDashboardServer({ stats, attackLog, challengeState, agents, logAttack, sandbox, teamName, timerMinutes }) {
   const publicDir = path.resolve(__dirname, '../../public');
 
+  // HOST_PORT_OFFSET lets users remap container ports (e.g. -p 8001:7001) and have the
+  // dashboard reflect the real host port. Container-internal binding stays on agent.port;
+  // this offset is only applied to ports rendered for the user.
+  const HOST_PORT_OFFSET = parseInt(process.env.HOST_PORT_OFFSET || '0', 10) || 0;
+  const displayPort = (p) => p + HOST_PORT_OFFSET;
+
   // Build scenario list once at startup
   const scenarioList = buildScenarioList();
 
@@ -332,7 +338,7 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
       const agentList = agents.map(a => ({
         id: a.id,
         name: a.name,
-        port: a.port,
+        port: displayPort(a.port),
         protocol: a.protocol,
         securityLevel: a.securityLevel.id,
         description: a.description,
@@ -496,7 +502,8 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
     // Attack log
     if (req.method === 'GET' && pathname === '/api/attack-log') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(attackLog));
+      const display = attackLog.map(e => e.port ? { ...e, port: displayPort(e.port) } : e);
+      res.end(JSON.stringify(display));
       return;
     }
 
