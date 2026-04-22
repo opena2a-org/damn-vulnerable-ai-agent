@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      # Package has no build or test scripts (ships as pure JS + Docker).
+      # We install dependencies so the lockfile is validated, then publish.
+      - run: npm ci
+
+      - name: Publish to npm with provenance
+        run: npm publish --provenance --access public
+
+      - name: Verify provenance on npm
+        run: |
+          deadline=$((SECONDS + 300))
+          while [ $SECONDS -lt $deadline ]; do
+            attestations=$(npm view "damn-vulnerable-ai-agent" dist.attestations --json 2>&1 || true)
+            if [ -n "$attestations" ] && [ "$attestations" != "null" ] && [ "$attestations" != "{}" ]; then
+              echo "Provenance verified for damn-vulnerable-ai-agent"
+              exit 0
+            fi
+            echo "Attestations not yet visible, retrying in 15s... (elapsed ${SECONDS}s)"
+            sleep 15
+          done
+          echo "::error::Provenance attestations missing from npm for damn-vulnerable-ai-agent after 5 minutes"
+          exit 1
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
