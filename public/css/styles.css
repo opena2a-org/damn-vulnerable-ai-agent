@@ -895,7 +895,7 @@ body {
   position: relative; line-height: 1.4;
 }
 .settings-privacy-list li::before {
-  content: 'x';
+  content: '\2713';
   position: absolute; left: 0; color: var(--green); font-family: var(--mono); font-weight: 700;
 }
 

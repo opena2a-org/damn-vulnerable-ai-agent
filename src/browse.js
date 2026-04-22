@@ -310,9 +310,11 @@ Categories: ${categoryFilter ? categoryFilter.join(', ') : 'all'}
 
   // Publish results to registry if requested
   if (PUBLISH) {
-    try {
-      for (const r of pwned) {
-        await fetch(`${TARGET}/api/report`, {
+    let succeeded = 0;
+    const failures = [];
+    for (const r of pwned) {
+      try {
+        const resp = await fetch(`${TARGET}/api/report`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'User-Agent': `DVAA-${r.agentName}/1.0` },
           body: JSON.stringify({
@@ -321,11 +323,21 @@ Categories: ${categoryFilter ? categoryFilter.join(', ') : 'all'}
             tier: r.tier,
             agent: `dvaa-${r.agent}`,
           }),
-        }).catch(() => {});
+        });
+        if (resp.ok) succeeded++;
+        else failures.push({ attack: r.attack, status: resp.status, statusText: resp.statusText });
+      } catch (err) {
+        failures.push({ attack: r.attack, error: err.message });
       }
-      if (!JSON_OUTPUT) console.log(`\n  Published ${pwned.length} findings to ${TARGET}`);
-    } catch {
-      if (!JSON_OUTPUT) console.log(`\n  Failed to publish findings`);
+    }
+    if (!JSON_OUTPUT) {
+      console.log(`\n  Published ${succeeded}/${pwned.length} findings to ${TARGET}`);
+      if (failures.length > 0) {
+        console.log(`  Failed: ${failures.length}`);
+        for (const f of failures) {
+          console.log(`    - ${f.attack}: ${f.status ? `${f.status} ${f.statusText}` : f.error}`);
+        }
+      }
     }
   }
 
