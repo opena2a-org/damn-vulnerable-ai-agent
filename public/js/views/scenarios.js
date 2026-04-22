@@ -6,7 +6,7 @@
  * poll won't clobber an open result panel.
  */
 import { el } from '../utils.js';
-import { openModal } from '../components.js';
+import { openModal, closeModal } from '../components.js';
 import { scanScenario, fixScenario, fetchScenarios } from '../api.js';
 
 // Filter / sort state persists for the lifetime of the page. Scenarios view
@@ -224,7 +224,7 @@ function scenarioCard(scenario, state) {
   }
   detailsBtn.addEventListener('click', () => openModal(
     `${scenario.name}: ${scenario.title}`,
-    scenarioDetailModal(scenario)
+    scenarioDetailModal(scenario, { scanBtn, panel, card, state })
   ));
 
   return card;
@@ -362,7 +362,7 @@ function renderFindingRow(d) {
   return row;
 }
 
-function scenarioDetailModal(scenario) {
+function scenarioDetailModal(scenario, ctx) {
   const detail = el('div');
 
   if (scenario.completed) {
@@ -387,8 +387,23 @@ function scenarioDetailModal(scenario) {
   detail.appendChild(el('p', { style: { fontWeight: '600', marginTop: '0.75rem', fontSize: '0.85rem' } }, 'Fixture path'));
   detail.appendChild(el('code', { className: 'inline-code' }, `scenarios/${scenario.name}/vulnerable/`));
 
-  detail.appendChild(el('p', { style: { marginTop: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)' } },
-    'Close this dialog and click Scan scenario on the card to run HackMyAgent.'));
+  // Action row — scan from within the modal so the user doesn't have to
+  // dismiss and hunt for the card.
+  const hasExpected = scenario.expectedChecks && scenario.expectedChecks.length > 0;
+  const actions = el('div', { style: { display: 'flex', gap: '0.5rem', marginTop: '1.25rem' } });
+  if (hasExpected && ctx && ctx.card) {
+    const scanFromModal = el('button', { className: 'btn btn-primary btn-sm' }, 'Scan scenario');
+    scanFromModal.addEventListener('click', () => {
+      closeModal();
+      ctx.card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      runScanFlow(scenario, { scanBtn: ctx.scanBtn, panel: ctx.panel, card: ctx.card, state: ctx.state, fix: false });
+    });
+    actions.appendChild(scanFromModal);
+  }
+  const closeFromModal = el('button', { className: 'btn btn-ghost btn-sm' }, 'Close');
+  closeFromModal.addEventListener('click', () => closeModal());
+  actions.appendChild(closeFromModal);
+  detail.appendChild(actions);
 
   return detail;
 }
