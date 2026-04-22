@@ -177,6 +177,8 @@ export function renderAttackLab(state) {
     }
     if (protoAgents.length) agentSelect.appendChild(group);
   }
+  // Preserve selected agent across re-renders so the user can see what they picked.
+  if (selectedAgent) agentSelect.value = selectedAgent.id;
   topBar.appendChild(agentSelect);
   topBar.appendChild(killChainBar(killChainProgress));
   wrap.appendChild(topBar);
@@ -195,6 +197,9 @@ export function renderAttackLab(state) {
   if (!selectedAgent) {
     chatMessages.appendChild(el('div', { className: 'chat-placeholder' },
       'Select an agent above to start attacking. The tutor will guide you through the kill chain.'));
+  } else if (chatHistory.length === 0) {
+    chatMessages.appendChild(el('div', { className: 'chat-placeholder' },
+      `Target: ${selectedAgent.name} (:${selectedAgent.port}, ${selectedAgent.securityLevel}). Send a message below to begin. Try asking what it knows, or slip in a prompt injection.`));
   } else {
     for (const msg of chatHistory) {
       chatMessages.appendChild(chatMessage(msg.role, msg.content, msg.meta));
