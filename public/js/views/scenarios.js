@@ -278,9 +278,23 @@ function renderPanel(scenario, { result, error, fix }, ctx) {
 
   const panel = el('div', { className: 'scenario-result' });
 
+  // Remediation celebration banner — user just ran --fix and everything that
+  // was broken is now passing. Explicit, green, separate from the scan line.
+  const resolvedCount = result.expectedDetail.filter(d => d.status === 'fixed').length;
+  if (fix && result.fired.length === 0 && resolvedCount > 0) {
+    panel.appendChild(el('div', { className: 'scenario-result-banner ok' },
+      el('span', { className: 'scenario-result-banner-mark' }, '✓'),
+      el('div', {},
+        el('div', { className: 'scenario-result-banner-title' },
+          `Remediated · ${resolvedCount} previously-firing check(s) now pass`),
+        el('div', { className: 'scenario-result-banner-sub' },
+          'HackMyAgent auto-fix modified the vulnerable files to close the finding. Re-scan to confirm.'))
+    ));
+  }
+
   // Header
   const status = fix
-    ? `Fix applied · ${result.fired.length} still firing, ${result.expectedDetail.filter(d => d.status === 'fixed').length} resolved`
+    ? `Fix applied · ${result.fired.length} still firing, ${resolvedCount} resolved`
     : result.missing.length === 0
       ? `All ${result.expected.length} expected check(s) fired ${result.completed ? `· +${result.completed.points} earned` : ''}`
       : `${result.fired.length} of ${result.expected.length} expected check(s) fired`;
@@ -355,8 +369,23 @@ function renderFindingRow(d) {
     body.appendChild(el('div', { className: 'scenario-finding-guidance' },
       'Was firing before the fix, now passes.'));
   } else {
-    body.appendChild(el('div', { className: 'scenario-finding-guidance' },
+    // Missing. Surface whatever we can — HMA registry metadata (description +
+    // severity) plus the family-based diagnostic hint.
+    if (d.severity || d.category) {
+      const meta = el('div', { className: 'scenario-finding-file' });
+      if (d.severity) meta.appendChild(document.createTextNode(`severity ${d.severity}`));
+      if (d.category) meta.appendChild(document.createTextNode(`${d.severity ? ' · ' : ''}category ${d.category}`));
+      body.appendChild(meta);
+    }
+    if (d.guidance) {
+      body.appendChild(el('div', { className: 'scenario-finding-guidance' }, d.guidance));
+    }
+    body.appendChild(el('div', { className: 'scenario-finding-guidance scenario-finding-diag' },
       d.diagnostic || 'This check was expected but did not fire.'));
+    if (!d.inRegistry) {
+      body.appendChild(el('div', { className: 'scenario-finding-guidance scenario-finding-diag' },
+        `${d.checkId} isn't in this HMA version's check-metadata output — the check may have been renamed or removed upstream.`));
+    }
   }
   row.appendChild(body);
   return row;
@@ -414,11 +443,15 @@ function scenarioDetailModal(scenario, ctx) {
     detail.appendChild(sectionBlock('Remediation', sections.remediation));
   }
 
-  // Fixture file list — lazy-loaded, click to expand inline
+  // Demonstration code shipped with DVAA, not user-env files.
   const filesBlock = el('div', { className: 'scenario-detail-section' });
-  const filesHead = el('div', { className: 'scenario-detail-section-head' }, 'Fixture files ',
+  const filesHead = el('div', { className: 'scenario-detail-section-head' }, 'Vulnerable files ',
     el('span', { className: 'scenario-detail-section-count' }, '(loading…)'));
   filesBlock.appendChild(filesHead);
+  filesBlock.appendChild(el('div', { className: 'scenario-detail-section-note' },
+    'Shipped with DVAA at ',
+    el('code', { className: 'inline-code' }, `scenarios/${scenario.name}/vulnerable/`),
+    '. Your own code is not touched.'));
   const filesList = el('div', { className: 'scenario-file-list' });
   filesBlock.appendChild(filesList);
   detail.appendChild(filesBlock);
@@ -426,7 +459,7 @@ function scenarioDetailModal(scenario, ctx) {
   listScenarioFiles(scenario.name)
     .then(files => renderFileList(filesList, filesHead, scenario, files))
     .catch(err => {
-      filesHead.replaceChildren('Fixture files ', el('span', { className: 'scenario-detail-section-count' }, '(unavailable)'));
+      filesHead.replaceChildren('Vulnerable files ', el('span', { className: 'scenario-detail-section-count' }, '(unavailable)'));
       filesList.appendChild(el('div', { className: 'scenario-file-err' }, err.message || 'Could not list files.'));
     });
 
@@ -480,7 +513,7 @@ function sectionBlock(title, items, { ordered = false } = {}) {
 }
 
 function renderFileList(container, headerEl, scenario, files) {
-  headerEl.replaceChildren('Fixture files ',
+  headerEl.replaceChildren('Vulnerable files ',
     el('span', { className: 'scenario-detail-section-count' }, `(${files.length})`));
   if (files.length === 0) {
     container.appendChild(el('div', { className: 'scenario-file-err' },

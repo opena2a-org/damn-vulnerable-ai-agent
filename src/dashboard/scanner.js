@@ -15,6 +15,24 @@ import fs from 'fs';
 
 const SCAN_TIMEOUT_MS = 60_000;
 
+// Lazy-loaded map of every check HMA knows about: checkId -> { name, category,
+// severity, guidance, fix, attackClass }. Used to fill in detail for expected
+// checks that didn't fire, so the UI can show "AITOOL-001 — Jupyter Notebook
+// Publicly Accessible" instead of a bare ID.
+let checkRegistryCache = null;
+
+async function loadCheckRegistry(hmaBin) {
+  if (checkRegistryCache !== null) return checkRegistryCache;
+  try {
+    const { stdout } = await spawnCapture(hmaBin, ['check-metadata'], 30_000);
+    const parsed = JSON.parse(stdout);
+    checkRegistryCache = parsed.checks || {};
+  } catch {
+    checkRegistryCache = {};
+  }
+  return checkRegistryCache;
+}
+
 /**
  * Run HMA against scenarios/<name>/vulnerable/ and return parsed results.
  *
@@ -40,6 +58,7 @@ export async function runScan({ pkgRoot, name, expected, fix = false }) {
   // drops a check from findings entirely once it passes, so we can't infer fix
   // success from a single post-fix scan alone. One extra scan is cheap (<200ms).
   const started = Date.now();
+  const registry = await loadCheckRegistry(hmaBin);
   const baseline = fix ? await runHma(hmaBin, scenarioDir, false) : null;
   const current = await runHma(hmaBin, scenarioDir, fix);
   const durationMs = Date.now() - started;
@@ -60,11 +79,17 @@ export async function runScan({ pkgRoot, name, expected, fix = false }) {
       const baseFinding = baseline.findings.find(f => f && f.checkId === id && f.passed === false);
       return detailFromFinding(baseFinding, 'fixed');
     }
+    // Never fired. Pull whatever metadata HMA has on this check.
+    const meta = registry[id] || null;
     return {
       checkId: id,
       status: 'missing',
-      name: id,
+      name: meta?.name || id,
+      severity: meta?.severity || null,
+      category: meta?.category || null,
+      guidance: meta?.guidance || '',
       diagnostic: diagnoseMissing(id, current.findings),
+      inRegistry: !!meta,
     };
   });
 
@@ -130,9 +155,10 @@ function diagnoseMissing(checkId, allFindings) {
   const prefix = checkId.split('-')[0];
   const sameFamily = allFindings.filter(f => f && typeof f.checkId === 'string' && f.checkId.startsWith(`${prefix}-`));
   if (sameFamily.length === 0) {
-    return `No checks from the ${prefix} family ran. The installed HMA may not ship this check, or the fixture has no files matching its scope.`;
+    return `No checks from the ${prefix} family ran against this fixture. Either the installed HMA doesn't ship this check (try \`npx hackmyagent check-metadata | jq '.checks.${checkId}'\`), or the fixture has no files in its scope.`;
   }
-  return `${sameFamily.length} other ${prefix}-* check(s) ran but ${checkId} did not match. The fixture may be missing the specific pattern this check looks for.`;
+  const ran = sameFamily.map(f => f.checkId).slice(0, 5).join(', ');
+  return `${sameFamily.length} other ${prefix}-* check(s) ran (${ran}${sameFamily.length > 5 ? ', …' : ''}) but ${checkId} did not match. The fixture may be missing the specific pattern this check looks for.`;
 }
 
 /**
