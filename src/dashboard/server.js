@@ -128,21 +128,147 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.resolve(__dirname, '../..');
 
 /**
- * Parse scenario README for metadata
+ * Parse scenario README for metadata + structured sections.
+ * Sections ("## Attack Vector", "## Impact", etc.) are extracted as arrays
+ * of bullet/numbered items so the frontend can render them without a markdown
+ * library. References are parsed into {text, url} pairs.
  */
 function parseScenarioReadme(readmeContent) {
   const title = readmeContent.match(/^#\s+(.+)/m)?.[1] || 'Unknown';
   const checkMatch = readmeContent.match(/\*\*Check(?:\s*IDs?)?:\*\*\s+(\S+)/);
   const severityMatch = readmeContent.match(/\*\*Severity:\*\*\s+(\S+)/);
   const autoFixMatch = readmeContent.match(/\*\*Auto-Fix:\*\*\s+(\S+)/);
+  const oasbMatch = readmeContent.match(/\*\*OASB Control:\*\*\s+(\S+)/);
   const descLines = readmeContent.split('\n').filter(l => !l.startsWith('#') && !l.startsWith('**') && l.trim().length > 0);
+
+  const attackVector = extractListItems(readmeContent, 'Attack Vector');
+  const impact = extractListItems(readmeContent, 'Impact');
+  const remediation = extractListItems(readmeContent, 'Remediation');
+  const references = extractReferences(readmeContent);
+  const detectionStatus = extractDetectionStatus(readmeContent);
+
   return {
     title,
     checkId: checkMatch?.[1] || null,
     severity: severityMatch?.[1]?.toLowerCase() || 'unknown',
     autoFix: autoFixMatch?.[1]?.toLowerCase() === 'yes',
     description: descLines[0]?.trim() || '',
+    oasbControl: oasbMatch?.[1] || null,
+    sections: { attackVector, impact, remediation, references, detectionStatus },
   };
+}
+
+function extractSection(readme, heading) {
+  // Find "## <heading>" and take everything until the next "## " heading or EOF.
+  const marker = `## ${heading}`;
+  const start = readme.indexOf(marker);
+  if (start === -1) return '';
+  const bodyStart = start + marker.length;
+  const nextIdx = readme.indexOf('\n## ', bodyStart);
+  return readme.slice(bodyStart, nextIdx === -1 ? readme.length : nextIdx).trim();
+}
+
+function extractListItems(readme, heading) {
+  const body = extractSection(readme, heading);
+  if (!body) return [];
+  // Accept both numbered (1.) and bulleted (-, *) lists at start of line.
+  // Handle multi-line items (indented continuation).
+  const items = [];
+  let current = '';
+  for (const line of body.split('\n')) {
+    const listMatch = line.match(/^\s*(?:\d+\.|[-*])\s+(.+)/);
+    if (listMatch) {
+      if (current) items.push(current.trim());
+      current = listMatch[1];
+    } else if (current && line.trim()) {
+      current += ' ' + line.trim();
+    } else if (!line.trim() && current) {
+      items.push(current.trim());
+      current = '';
+    }
+  }
+  if (current) items.push(current.trim());
+  return items.map(stripInlineMd);
+}
+
+function extractReferences(readme) {
+  const body = extractSection(readme, 'References');
+  if (!body) return [];
+  const refs = [];
+  // Match both "- plain text" and "- [label](url)" forms.
+  const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/;
+  for (const line of body.split('\n')) {
+    const listMatch = line.match(/^\s*[-*]\s+(.+)/);
+    if (!listMatch) continue;
+    const text = listMatch[1];
+    const link = text.match(linkPattern);
+    if (link) {
+      refs.push({ text: text.replace(linkPattern, link[1]).trim(), url: link[2] });
+    } else {
+      refs.push({ text: text.trim(), url: null });
+    }
+  }
+  return refs;
+}
+
+/**
+ * Walk a directory, return files (not dirs) with relative paths + sizes.
+ * Capped at 100 entries so a pathological fixture can't blow up the UI.
+ */
+function listFilesRecursive(absDir, base) {
+  const out = [];
+  const walk = (dir) => {
+    if (out.length >= 100) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (out.length >= 100) return;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+      } else if (entry.isFile()) {
+        const stat = fs.statSync(full);
+        out.push({
+          path: path.relative(base, full),
+          size: stat.size,
+        });
+      }
+    }
+  };
+  try { walk(absDir); } catch { /* ignore */ }
+  out.sort((a, b) => a.path.localeCompare(b.path));
+  return out;
+}
+
+function extractDetectionStatus(readme) {
+  const body = extractSection(readme, 'Detection status');
+  if (!body) return null;
+  // Pull out the lead sentence (prose, not list) plus any "Deferred" bullet list.
+  const deferred = [];
+  const proseLines = [];
+  let inDeferred = false;
+  for (const line of body.split('\n')) {
+    if (/\*\*Deferred/.test(line)) { inDeferred = true; continue; }
+    const listMatch = line.match(/^\s*[-*]\s+(.+)/);
+    if (inDeferred && listMatch) {
+      deferred.push(stripInlineMd(listMatch[1].trim()));
+    } else if (!inDeferred && line.trim()) {
+      proseLines.push(line.trim());
+    }
+  }
+  return {
+    summary: stripInlineMd(proseLines.join(' ').trim()) || null,
+    deferred,
+  };
+}
+
+/**
+ * Strip markdown emphasis (**bold**, *italic*) and backtick code fences from
+ * a line. We render sections as plain text, so inline markdown leaks visually.
+ */
+function stripInlineMd(text) {
+  return text
+    .replace(/\*\*([^*]+)\*\*/g, '$1')   // bold
+    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '$1')  // italic
+    .replace(/`([^`]+)`/g, '$1');         // inline code
 }
 
 /**
@@ -370,6 +496,69 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
       }));
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(enriched));
+      return;
+    }
+
+    // List fixture files for a scenario: GET /api/scenarios/:name/files
+    if (req.method === 'GET' && pathname.startsWith('/api/scenarios/') && pathname.endsWith('/files')) {
+      const parts = pathname.split('/');
+      const scenarioName = decodeURIComponent(parts[3] || '');
+      const scenario = scenarioList.find(s => s.name === scenarioName);
+      if (!scenario) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Scenario not found' }));
+        return;
+      }
+      const vulnDir = path.join(PKG_ROOT, 'scenarios', scenario.name, 'vulnerable');
+      if (!existsSync(vulnDir)) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify([]));
+        return;
+      }
+      const files = listFilesRecursive(vulnDir, vulnDir);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(files));
+      return;
+    }
+
+    // Read a single fixture file: GET /api/scenarios/:name/file?path=<relpath>
+    // Resolved path is verified to live under scenarios/<name>/vulnerable/
+    // so "../" etc. cannot escape the sandbox.
+    if (req.method === 'GET' && pathname.startsWith('/api/scenarios/') && pathname.endsWith('/file')) {
+      const parts = pathname.split('/');
+      const scenarioName = decodeURIComponent(parts[3] || '');
+      const relPath = url.searchParams.get('path') || '';
+      const scenario = scenarioList.find(s => s.name === scenarioName);
+      if (!scenario) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Scenario not found' }));
+        return;
+      }
+      const vulnDir = path.join(PKG_ROOT, 'scenarios', scenario.name, 'vulnerable');
+      const resolved = path.resolve(vulnDir, relPath);
+      if (!resolved.startsWith(vulnDir + path.sep) && resolved !== vulnDir) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Path escapes scenario sandbox' }));
+        return;
+      }
+      if (!existsSync(resolved)) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'File not found' }));
+        return;
+      }
+      // Cap at 256KB — fixtures are small, large reads are suspicious.
+      const stat = fs.statSync(resolved);
+      if (stat.size > 256 * 1024) {
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'File too large to display', size: stat.size }));
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        path: relPath,
+        size: stat.size,
+        content: readFileSync(resolved, 'utf-8'),
+      }));
       return;
     }
 

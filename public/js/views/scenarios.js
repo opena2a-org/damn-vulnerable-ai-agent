@@ -7,7 +7,7 @@
  */
 import { el } from '../utils.js';
 import { openModal, closeModal } from '../components.js';
-import { scanScenario, fixScenario, fetchScenarios } from '../api.js';
+import { scanScenario, fixScenario, fetchScenarios, listScenarioFiles, readScenarioFile } from '../api.js';
 
 // Filter / sort state persists for the lifetime of the page. Scenarios view
 // is interactive, so re-renders only happen on explicit user action.
@@ -363,34 +363,96 @@ function renderFindingRow(d) {
 }
 
 function scenarioDetailModal(scenario, ctx) {
-  const detail = el('div');
+  const detail = el('div', { className: 'scenario-detail' });
+  const sections = scenario.sections || {};
 
+  // Header strip: completion banner OR coverage note
   if (scenario.completed) {
     detail.appendChild(el('div', { className: 'verify-result success', style: { marginBottom: '0.75rem' } },
       `Completed · +${scenario.completed.points} points`));
-  }
-
-  if (scenario.description) {
-    detail.appendChild(el('p', { className: 'scenario-desc', style: { color: 'var(--text)' } },
-      scenario.description));
-  }
-
-  if (scenario.expectedChecks && scenario.expectedChecks.length > 0) {
-    detail.appendChild(el('p', { style: { fontWeight: '600', marginTop: '0.75rem', fontSize: '0.85rem' } }, 'Expected checks'));
-    const checksWrap = el('div', { className: 'hma-checks' });
-    for (const c of scenario.expectedChecks) {
-      checksWrap.appendChild(el('span', { className: 'hma-check' }, c));
+  } else if (sections.detectionStatus && (!scenario.expectedChecks || scenario.expectedChecks.length === 0)) {
+    const ds = sections.detectionStatus;
+    const note = el('div', { className: 'scenario-coverage-note' });
+    note.appendChild(el('div', { className: 'scenario-coverage-head' }, 'HMA auto-detection not yet implemented'));
+    if (ds.summary) note.appendChild(el('div', { className: 'scenario-coverage-body' }, ds.summary));
+    if (ds.deferred && ds.deferred.length) {
+      note.appendChild(el('div', { className: 'scenario-coverage-head scenario-coverage-head-sm' }, 'Deferred'));
+      const ul = el('ul', { className: 'scenario-detail-list' });
+      for (const d of ds.deferred) ul.appendChild(el('li', {}, d));
+      note.appendChild(ul);
     }
-    detail.appendChild(checksWrap);
+    detail.appendChild(note);
   }
 
-  detail.appendChild(el('p', { style: { fontWeight: '600', marginTop: '0.75rem', fontSize: '0.85rem' } }, 'Fixture path'));
-  detail.appendChild(el('code', { className: 'inline-code' }, `scenarios/${scenario.name}/vulnerable/`));
+  // Meta row: OASB + check IDs
+  const metaRow = el('div', { className: 'scenario-detail-meta' });
+  if (scenario.oasbControl) {
+    metaRow.appendChild(el('span', { className: 'scenario-detail-meta-item' }, 'OASB ', el('strong', {}, scenario.oasbControl)));
+  }
+  if (scenario.expectedChecks && scenario.expectedChecks.length > 0) {
+    const checksBox = el('span', { className: 'scenario-detail-meta-item' }, 'detects ');
+    for (const c of scenario.expectedChecks) {
+      checksBox.appendChild(el('code', { className: 'inline-code', style: { marginLeft: '0.25rem' } }, c));
+    }
+    metaRow.appendChild(checksBox);
+  }
+  if (metaRow.children.length) detail.appendChild(metaRow);
 
-  // Action row — scan from within the modal so the user doesn't have to
-  // dismiss and hunt for the card.
+  // Description
+  if (scenario.description) {
+    detail.appendChild(el('p', { className: 'scenario-detail-desc' }, scenario.description));
+  }
+
+  // Structured sections
+  if (sections.attackVector && sections.attackVector.length) {
+    detail.appendChild(sectionBlock('Attack vector', sections.attackVector, { ordered: true }));
+  }
+  if (sections.impact && sections.impact.length) {
+    detail.appendChild(sectionBlock('Impact', sections.impact));
+  }
+  if (sections.remediation && sections.remediation.length) {
+    detail.appendChild(sectionBlock('Remediation', sections.remediation));
+  }
+
+  // Fixture file list — lazy-loaded, click to expand inline
+  const filesBlock = el('div', { className: 'scenario-detail-section' });
+  const filesHead = el('div', { className: 'scenario-detail-section-head' }, 'Fixture files ',
+    el('span', { className: 'scenario-detail-section-count' }, '(loading…)'));
+  filesBlock.appendChild(filesHead);
+  const filesList = el('div', { className: 'scenario-file-list' });
+  filesBlock.appendChild(filesList);
+  detail.appendChild(filesBlock);
+
+  listScenarioFiles(scenario.name)
+    .then(files => renderFileList(filesList, filesHead, scenario, files))
+    .catch(err => {
+      filesHead.replaceChildren('Fixture files ', el('span', { className: 'scenario-detail-section-count' }, '(unavailable)'));
+      filesList.appendChild(el('div', { className: 'scenario-file-err' }, err.message || 'Could not list files.'));
+    });
+
+  // References
+  if (sections.references && sections.references.length) {
+    const refBlock = el('div', { className: 'scenario-detail-section' });
+    refBlock.appendChild(el('div', { className: 'scenario-detail-section-head' }, 'References'));
+    const ul = el('ul', { className: 'scenario-detail-list scenario-detail-refs' });
+    for (const ref of sections.references) {
+      const li = el('li');
+      if (ref.url) {
+        const a = el('a', { href: ref.url, target: '_blank', rel: 'noopener noreferrer' }, ref.text);
+        a.appendChild(el('span', { className: 'scenario-detail-ref-arrow' }, ' ↗'));
+        li.appendChild(a);
+      } else {
+        li.appendChild(document.createTextNode(ref.text));
+      }
+      ul.appendChild(li);
+    }
+    refBlock.appendChild(ul);
+    detail.appendChild(refBlock);
+  }
+
+  // Action row
   const hasExpected = scenario.expectedChecks && scenario.expectedChecks.length > 0;
-  const actions = el('div', { style: { display: 'flex', gap: '0.5rem', marginTop: '1.25rem' } });
+  const actions = el('div', { className: 'scenario-detail-actions' });
   if (hasExpected && ctx && ctx.card) {
     const scanFromModal = el('button', { className: 'btn btn-primary btn-sm' }, 'Scan scenario');
     scanFromModal.addEventListener('click', () => {
@@ -400,12 +462,66 @@ function scenarioDetailModal(scenario, ctx) {
     });
     actions.appendChild(scanFromModal);
   }
-  const closeFromModal = el('button', { className: 'btn btn-ghost btn-sm' }, 'Close');
-  closeFromModal.addEventListener('click', () => closeModal());
-  actions.appendChild(closeFromModal);
+  const closeBtn = el('button', { className: 'btn btn-ghost btn-sm' }, 'Close');
+  closeBtn.addEventListener('click', () => closeModal());
+  actions.appendChild(closeBtn);
   detail.appendChild(actions);
 
   return detail;
+}
+
+function sectionBlock(title, items, { ordered = false } = {}) {
+  const block = el('div', { className: 'scenario-detail-section' });
+  block.appendChild(el('div', { className: 'scenario-detail-section-head' }, title));
+  const list = el(ordered ? 'ol' : 'ul', { className: 'scenario-detail-list' });
+  for (const item of items) list.appendChild(el('li', {}, item));
+  block.appendChild(list);
+  return block;
+}
+
+function renderFileList(container, headerEl, scenario, files) {
+  headerEl.replaceChildren('Fixture files ',
+    el('span', { className: 'scenario-detail-section-count' }, `(${files.length})`));
+  if (files.length === 0) {
+    container.appendChild(el('div', { className: 'scenario-file-err' },
+      'No vulnerable/ directory for this scenario.'));
+    return;
+  }
+  for (const f of files) {
+    const row = el('div', { className: 'scenario-file-row' });
+    const summary = el('div', { className: 'scenario-file-summary' });
+    summary.appendChild(el('span', { className: 'scenario-file-caret' }, '▸'));
+    summary.appendChild(el('code', { className: 'scenario-file-path' }, f.path));
+    summary.appendChild(el('span', { className: 'scenario-file-size' }, formatBytes(f.size)));
+    row.appendChild(summary);
+
+    const body = el('pre', { className: 'scenario-file-body' });
+    let loaded = false;
+    summary.addEventListener('click', async () => {
+      if (row.classList.contains('open')) {
+        row.classList.remove('open');
+        return;
+      }
+      row.classList.add('open');
+      if (loaded) return;
+      body.textContent = 'Loading…';
+      try {
+        const data = await readScenarioFile(scenario.name, f.path);
+        body.textContent = data.content;
+        loaded = true;
+      } catch (err) {
+        body.textContent = err.message || 'Could not read file.';
+      }
+    });
+    row.appendChild(body);
+    container.appendChild(row);
+  }
+}
+
+function formatBytes(n) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 /**
