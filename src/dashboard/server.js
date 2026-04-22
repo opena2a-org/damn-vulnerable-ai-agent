@@ -16,6 +16,7 @@ import { parseBody } from '../utils/http.js';
 import { initSandbox } from '../sandbox/init.js';
 import { configureLLM, disableLLM, getLLMConfig } from '../llm/provider.js';
 import { getTutorGuidance, askTutor, resetSession } from '../llm/tutor.js';
+import { runScan } from './scanner.js';
 
 const SCORES_DIR = path.join(process.cwd(), '.dvaa');
 
@@ -372,60 +373,56 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
       return;
     }
 
-    // Scenario verification
-    if (req.method === 'POST' && pathname.startsWith('/api/scenarios/') && pathname.endsWith('/verify')) {
+    // Scenario scan — runs HMA against scenarios/<name>/vulnerable/, compares
+    // findings to expected-checks.json, awards points if all expected checks fired.
+    // POST /api/scenarios/:name/scan  (body optional: { fix: boolean })
+    if (req.method === 'POST' && pathname.startsWith('/api/scenarios/')
+        && (pathname.endsWith('/scan') || pathname.endsWith('/fix'))) {
       const parts = pathname.split('/');
-      // /api/scenarios/:name/verify -- name is parts[3]
-      const scenarioName = decodeURIComponent(parts[3]);
+      const scenarioName = decodeURIComponent(parts[3] || '');
+      const isFix = pathname.endsWith('/fix');
+
+      const scenario = scenarioList.find(s => s.name === scenarioName);
+      if (!scenario) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Scenario not found' }));
+        return;
+      }
+
+      if (!scenario.expectedChecks || scenario.expectedChecks.length === 0) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Scenario has no expected checks defined' }));
+        return;
+      }
+
       try {
-        const body = await parseBody(req);
-        const findings = body.findings || [];
+        const result = await runScan({
+          pkgRoot: PKG_ROOT,
+          name: scenario.name,
+          expected: scenario.expectedChecks,
+          fix: isFix,
+        });
 
-        const scenario = scenarioList.find(s => s.name === scenarioName);
-        if (!scenario) {
-          res.writeHead(404, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Scenario not found' }));
-          return;
-        }
-
-        if (!scenario.expectedChecks || scenario.expectedChecks.length === 0) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Scenario has no expected checks defined' }));
-          return;
-        }
-
-        // Check if all expected checks are present in submitted findings
-        const foundChecks = scenario.expectedChecks.filter(c => findings.includes(c));
-        const missingChecks = scenario.expectedChecks.filter(c => !findings.includes(c));
-        const allFound = missingChecks.length === 0;
-
-        if (allFound) {
+        // On non-fix scans, mark completed if every expected check fired.
+        // Fix runs intentionally remove findings, so they can't complete a scenario
+        // — users see the "before/after" effect but still need a clean scan to win.
+        let completed = null;
+        if (!isFix && result.missing.length === 0) {
           const points = SCENARIO_POINTS[scenario.severity] || SCENARIO_POINTS.unknown;
-          scenarioState[scenarioName] = {
+          completed = {
             completedAt: Date.now(),
             points,
-            checksFound: foundChecks,
+            checksFound: result.fired,
           };
+          scenarioState[scenarioName] = completed;
           saveScores({ challenges: challengeState, scenarios: scenarioState }, teamName || null);
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({
-            success: true,
-            points,
-            checksFound: foundChecks,
-            message: `Scenario completed! +${points} points`,
-          }));
-        } else {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({
-            success: false,
-            checksFound: foundChecks,
-            checksMissing: missingChecks,
-            message: `Missing checks: ${missingChecks.join(', ')}`,
-          }));
         }
-      } catch {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid request body' }));
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ...result, completed }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message || 'Scan failed' }));
       }
       return;
     }

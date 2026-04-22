@@ -80,7 +80,7 @@ function route() {
 // Views that own their own interactive state (textarea content, dropdown selection,
 // in-flight chat). Auto-poll must not re-render these — it would clobber user input.
 // They re-render only on explicit navigation (hashchange).
-const INTERACTIVE_VIEWS = new Set(['attack-lab', 'settings']);
+const INTERACTIVE_VIEWS = new Set(['attack-lab', 'settings', 'scenarios']);
 
 /**
  * Render current view into #app.
