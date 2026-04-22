@@ -48,18 +48,19 @@ Docs:       https://github.com/opena2a-org/damn-vulnerable-ai-agent`);
   process.exit(0);
 }
 
-// Handle browse command
+// Handle browse command — spawn with argv (not a shell template literal) so
+// arguments cannot be shell-interpreted. Template-literal exec was CVE-class
+// command injection: a user running `dvaa browse "; rm -rf ~"` would execute it.
 if (args[0] === 'browse') {
-  const { execSync } = await import('child_process');
+  const { spawnSync } = await import('child_process');
   const { dirname, join } = await import('path');
   const { fileURLToPath } = await import('url');
   const __dirname = dirname(fileURLToPath(import.meta.url));
-  try {
-    execSync(`node ${join(__dirname, 'browse.js')} ${args.slice(1).join(' ')}`, { stdio: 'inherit' });
-  } catch (err) {
-    process.exit(err.status || 1);
-  }
-  process.exit(0);
+  const result = spawnSync('node', [join(__dirname, 'browse.js'), ...args.slice(1)], {
+    stdio: 'inherit',
+    shell: false,
+  });
+  process.exit(result.status ?? 1);
 }
 
 // Handle --version
