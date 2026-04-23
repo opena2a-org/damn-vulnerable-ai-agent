@@ -4,6 +4,7 @@
 
 import { el } from '../utils.js';
 import { codeBlock } from '../components.js';
+import { renderMarkdown } from '../markdown.js';
 
 // Session state
 let sessionId = 'session-' + Date.now();
@@ -83,20 +84,8 @@ function chatMessage(role, content, meta) {
   }
   msg.appendChild(header);
 
-  const body = el('div', { className: 'chat-msg-body' });
-  if (content.includes('```')) {
-    const parts = content.split(/(```[\s\S]*?```)/);
-    parts.forEach(part => {
-      if (part.startsWith('```')) {
-        const code = part.replace(/```\w*\n?/, '').replace(/```$/, '');
-        body.appendChild(codeBlock(code.trim()));
-      } else if (part.trim()) {
-        body.appendChild(el('p', {}, part.trim()));
-      }
-    });
-  } else {
-    body.appendChild(el('p', {}, content));
-  }
+  const body = el('div', { className: 'chat-msg-body md-body' });
+  for (const node of renderMarkdown(content)) body.appendChild(node);
   msg.appendChild(body);
   return msg;
 }
@@ -110,20 +99,8 @@ function tutorMessage(content, type = 'guidance') {
   header.appendChild(el('span', { className: 'tutor-msg-role' }, 'Tutor'));
   msg.appendChild(header);
 
-  const body = el('div', { className: 'tutor-msg-body' });
-  if (content.includes('```')) {
-    const parts = content.split(/(```[\s\S]*?```)/);
-    parts.forEach(part => {
-      if (part.startsWith('```')) {
-        const code = part.replace(/```\w*\n?/, '').replace(/```$/, '');
-        body.appendChild(codeBlock(code.trim()));
-      } else if (part.trim()) {
-        body.appendChild(el('p', {}, part.trim()));
-      }
-    });
-  } else {
-    body.appendChild(el('p', {}, content));
-  }
+  const body = el('div', { className: 'tutor-msg-body md-body' });
+  for (const node of renderMarkdown(content)) body.appendChild(node);
   msg.appendChild(body);
   return msg;
 }

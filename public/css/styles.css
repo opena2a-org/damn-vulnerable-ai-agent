@@ -857,6 +857,52 @@ body {
 }
 .tutor-input:focus { border-color: var(--purple); outline: none; }
 
+/* ===== Markdown rendering (tutor + chat) ===== */
+.md-body .md-h1 { font-size: 1rem; font-weight: 700; margin: 0.6rem 0 0.35rem; color: var(--text); }
+.md-body .md-h2 { font-size: 0.92rem; font-weight: 700; margin: 0.55rem 0 0.3rem; color: var(--text); }
+.md-body .md-h3 { font-size: 0.85rem; font-weight: 700; margin: 0.5rem 0 0.25rem; color: var(--text); text-transform: uppercase; letter-spacing: 0.03em; }
+.md-body .md-h4, .md-body .md-h5, .md-body .md-h6 { font-size: 0.8rem; font-weight: 700; margin: 0.45rem 0 0.2rem; color: var(--text); }
+.md-body .md-h1:first-child,
+.md-body .md-h2:first-child,
+.md-body .md-h3:first-child { margin-top: 0; }
+
+.md-body .md-p { margin: 0 0 0.5rem; line-height: 1.55; }
+.md-body .md-p:last-child { margin-bottom: 0; }
+
+.md-body .md-ul, .md-body .md-ol { margin: 0.25rem 0 0.55rem; padding-left: 1.25rem; }
+.md-body .md-ul li, .md-body .md-ol li { margin-bottom: 0.2rem; line-height: 1.55; }
+
+.md-body strong { font-weight: 700; color: var(--text); }
+.md-body em { font-style: italic; }
+
+.md-body .md-inline-code {
+  font-family: var(--mono); font-size: 0.8rem;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.08rem 0.3rem; border-radius: 3px;
+  color: var(--teal);
+}
+.md-body .md-code {
+  margin: 0.5rem 0; padding: 0.6rem 0.75rem;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-family: var(--mono); font-size: 0.78rem; line-height: 1.5;
+  overflow-x: auto; white-space: pre;
+}
+.md-body .md-code code { font-family: inherit; color: var(--text); background: transparent; padding: 0; }
+
+.md-body .md-hr { border: none; border-top: 1px solid var(--border); margin: 0.6rem 0; }
+
+.md-body .md-link {
+  color: var(--teal);
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(6, 182, 212, 0.35);
+}
+.md-body .md-link:hover { border-bottom-style: solid; }
+
+/* User-side chat bubbles get dark-on-teal text — adjust markdown colors */
+.chat-msg-user .md-body strong { color: inherit; }
+.chat-msg-user .md-body .md-inline-code { background: rgba(0, 0, 0, 0.15); color: #0a0e17; }
+.chat-msg-user .md-body .md-link { color: inherit; border-bottom-color: rgba(0, 0, 0, 0.3); }
+
 /* LLM Status Dot */
 .llm-status-dot {
   width: 8px; height: 8px; border-radius: 50%; display: inline-block;
