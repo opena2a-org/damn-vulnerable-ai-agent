@@ -101,6 +101,11 @@ export function successRate(attacks, successful) {
 /**
  * Create a DOM element with properties
  */
+// HTML boolean attributes: presence=true, absence=false. setAttribute(k,false)
+// sets the string "false" which HTML still interprets as present, flipping
+// the intended behavior. Skip these when value is falsy.
+const BOOLEAN_ATTRS = new Set(['disabled', 'readonly', 'checked', 'selected', 'required', 'multiple', 'hidden', 'autofocus', 'open']);
+
 export function el(tag, attrs = {}, ...children) {
   const elem = document.createElement(tag);
   for (const [key, val] of Object.entries(attrs)) {
@@ -109,6 +114,10 @@ export function el(tag, attrs = {}, ...children) {
     else if (key.startsWith('on')) elem.addEventListener(key.slice(2).toLowerCase(), val);
     else if (key === 'textContent') elem.textContent = val;
     else if (key === 'innerHTML') { /* skip — use textContent for safety */ }
+    else if (BOOLEAN_ATTRS.has(key)) {
+      if (val) elem.setAttribute(key, '');
+      // falsy → don't set the attribute at all
+    }
     else elem.setAttribute(key, val);
   }
   for (const child of children) {
