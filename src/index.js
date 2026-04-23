@@ -13,15 +13,28 @@ import { detectAttacks, SENSITIVE_DATA, SECURITY_LEVELS } from './core/vulnerabi
 import { createDashboardServer } from './dashboard/server.js';
 import { initSandbox } from './sandbox/init.js';
 import { callLLM, isLLMEnabled, configureLLM, disableLLM, getLLMConfig } from './llm/provider.js';
+import { isSubcommand, dispatch, listCommands } from './cli/router.js';
 
 // Parse command line args
 const args = process.argv.slice(2);
 
+// Subcommand dispatch: if argv[0] is a known subcommand (agents, health,
+// attack, logs, scan, benchmark, hma), the command owns the process and
+// exits. "browse" is handled below for backward compatibility with the
+// legacy inline implementation.
+if (args.length > 0 && isSubcommand(args[0])) {
+  await dispatch(args);
+  // dispatch() calls process.exit(); we never reach this line.
+}
+
 // Handle --help / -h
 if (args.includes('--help') || args.includes('-h')) {
+  const commands = listCommands();
+  const cmdLines = commands.map(c => `  ${c.name.padEnd(11)} ${c.summary}`);
   console.log(`Usage: dvaa [options]
+       dvaa <command> [args]
 
-Options:
+Server options (default mode — start DVAA dashboard + agent fleet):
   --all          Start all agents (default)
   --api          Start API agents only (ports 7001-7008)
   --mcp          Start MCP servers only (ports 7010-7013)
@@ -33,9 +46,9 @@ Options:
   --version      Show version
 
 Commands:
-  dvaa browse [url]  Send DVAA agents to browse a target site and report
-                     which agents get pwned. Default: agentpwn.com
-                     Options: --agents, --categories, --json, --publish
+${cmdLines.join('\n')}
+
+Run any command with --help for command-specific options.
 
 Agents:
   API (OpenAI-compatible)  SecureBot, HelperBot, LegacyBot, CodeBot, RAGBot, VisionBot, MemoryBot, LongwindBot
@@ -43,7 +56,6 @@ Agents:
   A2A (Agent-to-Agent)     Orchestrator, Worker
 
 Dashboard:  http://localhost:9000
-Wild test:  npx hackmyagent wild https://agentpwn.com
 Docs:       https://github.com/opena2a-org/damn-vulnerable-ai-agent`);
   process.exit(0);
 }

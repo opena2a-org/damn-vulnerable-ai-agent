@@ -15,22 +15,56 @@ import fs from 'fs';
 
 const SCAN_TIMEOUT_MS = 60_000;
 
-// Lazy-loaded map of every check HMA knows about: checkId -> { name, category,
-// severity, guidance, fix, attackClass }. Used to fill in detail for expected
-// checks that didn't fire, so the UI can show "AITOOL-001 — Jupyter Notebook
-// Publicly Accessible" instead of a bare ID.
+// HMA's `check-metadata` command scans test fixtures to build a registry of
+// every check ID it ships. That takes ~20s, so we cache the JSON on disk
+// keyed by HMA version: .hackmyagent-cache/check-metadata-v<version>.json.
+// Dashboard keeps an in-memory copy too so repeat /scan calls are instant.
 let checkRegistryCache = null;
 
 async function loadCheckRegistry(hmaBin) {
   if (checkRegistryCache !== null) return checkRegistryCache;
+
+  const pkgRoot = path.resolve(hmaBin, '../../..');
+  const cacheDir = path.join(pkgRoot, '.hackmyagent-cache');
+  const version = await getHmaVersion(hmaBin);
+  const cacheFile = version
+    ? path.join(cacheDir, `check-metadata-v${version}.json`)
+    : null;
+
+  // Disk cache hit — fast path.
+  if (cacheFile && fs.existsSync(cacheFile)) {
+    try {
+      checkRegistryCache = JSON.parse(fs.readFileSync(cacheFile, 'utf-8'));
+      return checkRegistryCache;
+    } catch { /* corrupt file — fall through to regenerate */ }
+  }
+
+  // Cold path: spawn HMA and populate the cache.
   try {
     const { stdout } = await spawnCapture(hmaBin, ['check-metadata'], 30_000);
     const parsed = JSON.parse(stdout);
     checkRegistryCache = parsed.checks || {};
+    if (cacheFile) {
+      try {
+        fs.mkdirSync(cacheDir, { recursive: true });
+        fs.writeFileSync(cacheFile, JSON.stringify(checkRegistryCache));
+      } catch { /* non-fatal */ }
+    }
   } catch {
     checkRegistryCache = {};
   }
   return checkRegistryCache;
+}
+
+async function getHmaVersion(hmaBin) {
+  try {
+    const { stdout } = await spawnCapture(hmaBin, ['--version'], 5_000);
+    // HMA prints "hackmyagent 0.11.15" or just "0.11.15" depending on build.
+    const match = stdout.match(/(\d+\.\d+\.\d+)/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
