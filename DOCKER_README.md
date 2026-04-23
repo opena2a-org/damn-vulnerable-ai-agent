@@ -131,14 +131,27 @@ curl -X POST http://localhost:7020/a2a/message -H "Content-Type: application/jso
 
 ## `dvaa` CLI
 
-The `dvaa` binary (e.g. `dvaa --api`, `dvaa browse`) is shipped by the npm package, **not** by this Docker image. To use it, install separately:
+The `dvaa` binary is shipped by the npm package, **not** by this Docker image. To use it, install separately:
 
 ```bash
 npm install -g damn-vulnerable-ai-agent
 dvaa --help
 ```
 
-The image's default `CMD` starts every agent and the dashboard together — no `dvaa` invocation needed.
+Key subcommands (all accept `--json` for CI):
+
+| | |
+|---|---|
+| `dvaa agents` | List all 14 agents with port, protocol, URL |
+| `dvaa health` | Ping the dashboard; exit 1 if unreachable |
+| `dvaa attack <agent\|url>` | Run HMA attack suite (accepts agent name or URL) |
+| `dvaa logs [--follow]` | Tail the attack log |
+| `dvaa scan <scenario> [--fix]` | Run HMA against a scenario fixture, optionally remediate |
+| `dvaa benchmark [path] [--level L1\|L2\|L3]` | OASB-1 compliance benchmark |
+| `dvaa hma <args…>` | Pass-through to the bundled HackMyAgent CLI |
+| `dvaa browse [url]` | Send DVAA agents to browse a target (agentpwn.com by default) |
+
+The image's default `CMD` starts every agent and the dashboard together — no `dvaa` invocation needed. The CLI is for scripting, CI, and the dev-workflow loop (spin up → attack → scan → fix → re-scan) from your host.
 
 ## Environment Variables
 

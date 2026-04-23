@@ -87,6 +87,38 @@ curl -X POST http://localhost:7020/a2a/message \
 
 The Attack Lab view in the dashboard (`http://localhost:9000` → Attack Lab) walks through multi-step kill chains interactively. **LLM mode is required for live kill-chain progression:** open Settings, paste an OpenAI or Anthropic API key, and the server will stream real progression through the reconnaissance → exploitation → exfiltration stages. Offline mode (default, no key) shows static stages for each scenario — useful for previewing the narrative but not for live exploitation.
 
+## CLI
+
+The `dvaa` binary (from the npm package, not the Docker image) wraps the dashboard API and the bundled HackMyAgent for scripting and CI. Install with:
+
+```bash
+npm install -g damn-vulnerable-ai-agent
+dvaa --help
+```
+
+| Command | What it does |
+|---|---|
+| `dvaa` | Start the dashboard and full agent fleet (same as `npm start`). |
+| `dvaa agents [--json]` | List all 14 agents with port, protocol, security level, URL. |
+| `dvaa health [--json]` | Ping the dashboard at `:9000`. Exit 1 if unreachable. |
+| `dvaa attack <agent\|url> [--intensity passive\|active\|aggressive] [--verbose]` | Run HMA attacks against a DVAA agent. `--all` runs the full fleet. |
+| `dvaa logs [--limit N] [--follow] [--json]` | Show or tail the attack log. |
+| `dvaa scan <scenario> [--fix] [--json]` / `dvaa scan --list` | Run HMA against a scenario fixture and diff findings against `expected-checks.json`. `--fix` remediates and re-scans. `--list` enumerates all 86 scenarios. |
+| `dvaa benchmark [path] [--level L1\|L2\|L3] [--json]` | Run OASB-1 compliance benchmark against a target directory. |
+| `dvaa hma <args...>` | Pass-through to the bundled HackMyAgent CLI for anything not covered above. |
+| `dvaa browse [url] [--agents X] [--categories Y] [--json] [--publish]` | Send DVAA agents to browse a target site (agentpwn.com by default). |
+
+Run any command with `--help` for per-command options.
+
+```bash
+# Typical dev-workflow loop
+dvaa &                              # start the fleet
+dvaa scan aitool-jupyter-noauth     # see what HMA detects
+dvaa scan aitool-jupyter-noauth --fix   # auto-remediate + re-scan
+dvaa attack legacybot --intensity aggressive   # break it another way
+dvaa logs --follow                  # watch attacks land live
+```
+
 ## Wild Testing with AgentPwn
 
 Send DVAA agents to browse [agentpwn.com](https://agentpwn.com) and see which ones get pwned by real-world injection payloads.
