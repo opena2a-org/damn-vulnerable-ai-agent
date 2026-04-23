@@ -72,6 +72,18 @@ export function fetchScenarios() {
   return get('/api/scenarios');
 }
 
-export function verifyScenario(scenarioName, findings) {
-  return post(`/api/scenarios/${encodeURIComponent(scenarioName)}/verify`, { findings });
+export function scanScenario(scenarioName) {
+  return post(`/api/scenarios/${encodeURIComponent(scenarioName)}/scan`);
+}
+
+export function fixScenario(scenarioName) {
+  return post(`/api/scenarios/${encodeURIComponent(scenarioName)}/fix`);
+}
+
+export function listScenarioFiles(scenarioName) {
+  return get(`/api/scenarios/${encodeURIComponent(scenarioName)}/files`);
+}
+
+export function readScenarioFile(scenarioName, relPath) {
+  return get(`/api/scenarios/${encodeURIComponent(scenarioName)}/file?path=${encodeURIComponent(relPath)}`);
 }

@@ -2,7 +2,7 @@
 # =============================================================================
 # DVAA Exploit: Tool Chain Exfiltration
 # Attack Class: Tool MITM / Chained Exploitation
-# Target: ToolBot MCP Server (port 3010) - JSON-RPC 2.0
+# Target: ToolBot MCP Server (port 7010) - JSON-RPC 2.0
 # Difficulty: Advanced
 #
 # Description:
@@ -14,10 +14,10 @@
 
 set -euo pipefail
 
-TARGET="http://localhost:3010/"
+TARGET="http://localhost:7010/"
 
 echo "=== Tool Chain Exfiltration ==="
-echo "Target: ToolBot MCP (port 3010)"
+echo "Target: ToolBot MCP (port 7010)"
 echo ""
 
 # Verify target is running
@@ -26,13 +26,13 @@ response=$(curl -s -w "\n%{http_code}" "$TARGET" \
   -d '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":0}' 2>/dev/null) || {
   echo "[ERROR] DVAA MCP server not running."
   echo "Start with: docker compose up -d"
-  echo "Or: docker run -p 3000-3008:3000-3008 -p 3010-3013:3010-3013 -p 3020-3021:3020-3021 -p 9000:9000 opena2a/dvaa"
+  echo "Or: docker run -p 7001-7008:7001-7008 -p 7010-7013:7010-7013 -p 7020-7021:7020-7021 -p 9000:9000 opena2a/dvaa"
   exit 1
 }
 
 http_code=$(echo "$response" | tail -1)
 if [ "$http_code" != "200" ]; then
-  echo "[ERROR] Got HTTP $http_code from ToolBot MCP. Is DVAA running on port 3010?"
+  echo "[ERROR] Got HTTP $http_code from ToolBot MCP. Is DVAA running on port 7010?"
   exit 1
 fi
 

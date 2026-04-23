@@ -42,7 +42,7 @@ const server = http.createServer((req, res) => {
   res.end('Not found');
 });
 
-const PORT = process.env.PORT || 3020;
+const PORT = process.env.PORT || 7020;
 server.listen(PORT, () => {
   console.log(`Parser Differential vulnerable agent on port ${PORT}`);
 });

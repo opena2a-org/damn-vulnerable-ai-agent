@@ -3,7 +3,7 @@
 **Category:** Multi-Step Attack Chain
 **Severity:** Critical
 **Check IDs:** SOUL-OVERRIDE-001, NEMO-005, NEMO-006, EXFIL-001, EXFIL-002
-**ATM Techniques:** T-6004, T-1004, T-7001, T-8002
+**ATM Techniques:** T-6004, T-1004, T-3001, T-8002
 
 ## Description
 
@@ -17,7 +17,7 @@ This chain demonstrates the "boiling frog" attack -- each individual drift step 
 
 2. **T-1004 (Security Level Probing):** Once safety checks are relaxed, the drift skill begins probing what the agent can now access. It tests file reads, database queries, and API calls with progressively higher privilege levels, mapping out the agent's effective permissions.
 
-3. **T-7001 (Data Collection):** With the security boundary mapped, the agent begins collecting sensitive data: user records, API keys from environment variables, database connection strings, and internal configuration files. Data is accumulated in memory across invocations.
+3. **T-3001 (Data Collection):** With the security boundary mapped, the agent begins collecting sensitive data: user records, API keys from environment variables, database connection strings, and internal configuration files. Data is accumulated in memory across invocations.
 
 4. **T-8002 (Encoded Exfiltration):** Collected data is steganographically encoded into normal-looking API responses. For example, whitespace patterns in formatted text encode binary data, or slight variations in numeric precision carry hidden bits. The encoded data is sent in responses that appear completely normal to monitoring systems.
 

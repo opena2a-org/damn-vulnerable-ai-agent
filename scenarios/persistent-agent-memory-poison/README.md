@@ -24,7 +24,7 @@ This agent persists conversation memory and session state to disk without integr
 ## Detection
 
 ```bash
-npx hackmyagent attack --target http://localhost:3021 --categories persistent-agent
+npx hackmyagent attack --target http://localhost:7021 --categories persistent-agent
 ```
 
 ## How to Fix It

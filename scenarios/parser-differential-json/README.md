@@ -22,7 +22,7 @@ This agent accepts JSON input through a lenient parser (JSON5/JSONC) that allows
 ## Detection
 
 ```bash
-npx hackmyagent attack --target http://localhost:3020 --categories parser-differential
+npx hackmyagent attack --target http://localhost:7020 --categories parser-differential
 ```
 
 ## How to Fix It

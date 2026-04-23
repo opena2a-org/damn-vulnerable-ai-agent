@@ -33,6 +33,10 @@ export const CATEGORY_LABELS = {
   mcpExploitation: 'MCP Exploitation',
   agentToAgent: 'Agent-to-Agent',
   supplyChain: 'Supply Chain',
+  memoryInjection: 'Memory Injection',
+  contextOverflow: 'Context Overflow',
+  toolRegistryPoisoning: 'Tool Registry Poisoning',
+  toolMitm: 'Tool MITM',
   'prompt-injection': 'Prompt Injection',
   'jailbreak': 'Jailbreak',
   'data-exfiltration': 'Data Exfiltration',
@@ -42,6 +46,10 @@ export const CATEGORY_LABELS = {
   'mcp-tool-exploitation': 'MCP Exploitation',
   'agent-to-agent': 'Agent-to-Agent',
   'supply-chain': 'Supply Chain',
+  'memory-injection': 'Memory Injection',
+  'context-overflow': 'Context Overflow',
+  'tool-registry-poisoning': 'Tool Registry Poisoning',
+  'tool-mitm': 'Tool MITM',
   mixed: 'Mixed',
 };
 

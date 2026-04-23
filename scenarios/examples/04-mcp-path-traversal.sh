@@ -2,7 +2,7 @@
 # =============================================================================
 # DVAA Exploit: MCP Path Traversal
 # Attack Class: MCP Exploitation / Path Traversal
-# Target: ToolBot MCP Server (port 3010) - JSON-RPC 2.0
+# Target: ToolBot MCP Server (port 7010) - JSON-RPC 2.0
 # Difficulty: Intermediate
 #
 # Description:
@@ -13,10 +13,10 @@
 
 set -euo pipefail
 
-TARGET="http://localhost:3010/"
+TARGET="http://localhost:7010/"
 
 echo "=== MCP Path Traversal ==="
-echo "Target: ToolBot MCP (port 3010)"
+echo "Target: ToolBot MCP (port 7010)"
 echo ""
 
 # Step 1: List available tools
@@ -31,7 +31,7 @@ tools_response=$(curl -s "$TARGET" \
   }' 2>/dev/null) || {
   echo "[ERROR] DVAA MCP server not running."
   echo "Start with: docker compose up -d"
-  echo "Or: docker run -p 3000-3008:3000-3008 -p 3010-3013:3010-3013 -p 3020-3021:3020-3021 -p 9000:9000 opena2a/dvaa"
+  echo "Or: docker run -p 7001-7008:7001-7008 -p 7010-7013:7010-7013 -p 7020-7021:7020-7021 -p 9000:9000 opena2a/dvaa"
   exit 1
 }
 

@@ -16,6 +16,7 @@ import { parseBody } from '../utils/http.js';
 import { initSandbox } from '../sandbox/init.js';
 import { configureLLM, disableLLM, getLLMConfig } from '../llm/provider.js';
 import { getTutorGuidance, askTutor, resetSession } from '../llm/tutor.js';
+import { runScan } from './scanner.js';
 
 const SCORES_DIR = path.join(process.cwd(), '.dvaa');
 
@@ -127,21 +128,147 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.resolve(__dirname, '../..');
 
 /**
- * Parse scenario README for metadata
+ * Parse scenario README for metadata + structured sections.
+ * Sections ("## Attack Vector", "## Impact", etc.) are extracted as arrays
+ * of bullet/numbered items so the frontend can render them without a markdown
+ * library. References are parsed into {text, url} pairs.
  */
 function parseScenarioReadme(readmeContent) {
   const title = readmeContent.match(/^#\s+(.+)/m)?.[1] || 'Unknown';
   const checkMatch = readmeContent.match(/\*\*Check(?:\s*IDs?)?:\*\*\s+(\S+)/);
   const severityMatch = readmeContent.match(/\*\*Severity:\*\*\s+(\S+)/);
   const autoFixMatch = readmeContent.match(/\*\*Auto-Fix:\*\*\s+(\S+)/);
+  const oasbMatch = readmeContent.match(/\*\*OASB Control:\*\*\s+(\S+)/);
   const descLines = readmeContent.split('\n').filter(l => !l.startsWith('#') && !l.startsWith('**') && l.trim().length > 0);
+
+  const attackVector = extractListItems(readmeContent, 'Attack Vector');
+  const impact = extractListItems(readmeContent, 'Impact');
+  const remediation = extractListItems(readmeContent, 'Remediation');
+  const references = extractReferences(readmeContent);
+  const detectionStatus = extractDetectionStatus(readmeContent);
+
   return {
     title,
     checkId: checkMatch?.[1] || null,
     severity: severityMatch?.[1]?.toLowerCase() || 'unknown',
     autoFix: autoFixMatch?.[1]?.toLowerCase() === 'yes',
     description: descLines[0]?.trim() || '',
+    oasbControl: oasbMatch?.[1] || null,
+    sections: { attackVector, impact, remediation, references, detectionStatus },
   };
+}
+
+function extractSection(readme, heading) {
+  // Find "## <heading>" and take everything until the next "## " heading or EOF.
+  const marker = `## ${heading}`;
+  const start = readme.indexOf(marker);
+  if (start === -1) return '';
+  const bodyStart = start + marker.length;
+  const nextIdx = readme.indexOf('\n## ', bodyStart);
+  return readme.slice(bodyStart, nextIdx === -1 ? readme.length : nextIdx).trim();
+}
+
+function extractListItems(readme, heading) {
+  const body = extractSection(readme, heading);
+  if (!body) return [];
+  // Accept both numbered (1.) and bulleted (-, *) lists at start of line.
+  // Handle multi-line items (indented continuation).
+  const items = [];
+  let current = '';
+  for (const line of body.split('\n')) {
+    const listMatch = line.match(/^\s*(?:\d+\.|[-*])\s+(.+)/);
+    if (listMatch) {
+      if (current) items.push(current.trim());
+      current = listMatch[1];
+    } else if (current && line.trim()) {
+      current += ' ' + line.trim();
+    } else if (!line.trim() && current) {
+      items.push(current.trim());
+      current = '';
+    }
+  }
+  if (current) items.push(current.trim());
+  return items.map(stripInlineMd);
+}
+
+function extractReferences(readme) {
+  const body = extractSection(readme, 'References');
+  if (!body) return [];
+  const refs = [];
+  // Match both "- plain text" and "- [label](url)" forms.
+  const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/;
+  for (const line of body.split('\n')) {
+    const listMatch = line.match(/^\s*[-*]\s+(.+)/);
+    if (!listMatch) continue;
+    const text = listMatch[1];
+    const link = text.match(linkPattern);
+    if (link) {
+      refs.push({ text: text.replace(linkPattern, link[1]).trim(), url: link[2] });
+    } else {
+      refs.push({ text: text.trim(), url: null });
+    }
+  }
+  return refs;
+}
+
+/**
+ * Walk a directory, return files (not dirs) with relative paths + sizes.
+ * Capped at 100 entries so a pathological fixture can't blow up the UI.
+ */
+function listFilesRecursive(absDir, base) {
+  const out = [];
+  const walk = (dir) => {
+    if (out.length >= 100) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (out.length >= 100) return;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+      } else if (entry.isFile()) {
+        const stat = fs.statSync(full);
+        out.push({
+          path: path.relative(base, full),
+          size: stat.size,
+        });
+      }
+    }
+  };
+  try { walk(absDir); } catch { /* ignore */ }
+  out.sort((a, b) => a.path.localeCompare(b.path));
+  return out;
+}
+
+function extractDetectionStatus(readme) {
+  const body = extractSection(readme, 'Detection status');
+  if (!body) return null;
+  // Pull out the lead sentence (prose, not list) plus any "Deferred" bullet list.
+  const deferred = [];
+  const proseLines = [];
+  let inDeferred = false;
+  for (const line of body.split('\n')) {
+    if (/\*\*Deferred/.test(line)) { inDeferred = true; continue; }
+    const listMatch = line.match(/^\s*[-*]\s+(.+)/);
+    if (inDeferred && listMatch) {
+      deferred.push(stripInlineMd(listMatch[1].trim()));
+    } else if (!inDeferred && line.trim()) {
+      proseLines.push(line.trim());
+    }
+  }
+  return {
+    summary: stripInlineMd(proseLines.join(' ').trim()) || null,
+    deferred,
+  };
+}
+
+/**
+ * Strip markdown emphasis (**bold**, *italic*) and backtick code fences from
+ * a line. We render sections as plain text, so inline markdown leaks visually.
+ */
+function stripInlineMd(text) {
+  return text
+    .replace(/\*\*([^*]+)\*\*/g, '$1')   // bold
+    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '$1')  // italic
+    .replace(/`([^`]+)`/g, '$1');         // inline code
 }
 
 /**
@@ -257,6 +384,12 @@ function serveStaticFile(publicDir, reqPath, res) {
 export function createDashboardServer({ stats, attackLog, challengeState, agents, logAttack, sandbox, teamName, timerMinutes }) {
   const publicDir = path.resolve(__dirname, '../../public');
 
+  // HOST_PORT_OFFSET lets users remap container ports (e.g. -p 8001:7001) and have the
+  // dashboard reflect the real host port. Container-internal binding stays on agent.port;
+  // this offset is only applied to ports rendered for the user.
+  const HOST_PORT_OFFSET = parseInt(process.env.HOST_PORT_OFFSET || '0', 10) || 0;
+  const displayPort = (p) => p + HOST_PORT_OFFSET;
+
   // Build scenario list once at startup
   const scenarioList = buildScenarioList();
 
@@ -332,7 +465,7 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
       const agentList = agents.map(a => ({
         id: a.id,
         name: a.name,
-        port: a.port,
+        port: displayPort(a.port),
         protocol: a.protocol,
         securityLevel: a.securityLevel.id,
         description: a.description,
@@ -366,60 +499,119 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
       return;
     }
 
-    // Scenario verification
-    if (req.method === 'POST' && pathname.startsWith('/api/scenarios/') && pathname.endsWith('/verify')) {
+    // List fixture files for a scenario: GET /api/scenarios/:name/files
+    if (req.method === 'GET' && pathname.startsWith('/api/scenarios/') && pathname.endsWith('/files')) {
       const parts = pathname.split('/');
-      // /api/scenarios/:name/verify -- name is parts[3]
-      const scenarioName = decodeURIComponent(parts[3]);
+      const scenarioName = decodeURIComponent(parts[3] || '');
+      const scenario = scenarioList.find(s => s.name === scenarioName);
+      if (!scenario) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Scenario not found' }));
+        return;
+      }
+      const vulnDir = path.join(PKG_ROOT, 'scenarios', scenario.name, 'vulnerable');
+      if (!existsSync(vulnDir)) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify([]));
+        return;
+      }
+      const files = listFilesRecursive(vulnDir, vulnDir);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(files));
+      return;
+    }
+
+    // Read a single fixture file: GET /api/scenarios/:name/file?path=<relpath>
+    // Resolved path is verified to live under scenarios/<name>/vulnerable/
+    // so "../" etc. cannot escape the sandbox.
+    if (req.method === 'GET' && pathname.startsWith('/api/scenarios/') && pathname.endsWith('/file')) {
+      const parts = pathname.split('/');
+      const scenarioName = decodeURIComponent(parts[3] || '');
+      const relPath = url.searchParams.get('path') || '';
+      const scenario = scenarioList.find(s => s.name === scenarioName);
+      if (!scenario) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Scenario not found' }));
+        return;
+      }
+      const vulnDir = path.join(PKG_ROOT, 'scenarios', scenario.name, 'vulnerable');
+      const resolved = path.resolve(vulnDir, relPath);
+      if (!resolved.startsWith(vulnDir + path.sep) && resolved !== vulnDir) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Path escapes scenario sandbox' }));
+        return;
+      }
+      if (!existsSync(resolved)) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'File not found' }));
+        return;
+      }
+      // Cap at 256KB — fixtures are small, large reads are suspicious.
+      const stat = fs.statSync(resolved);
+      if (stat.size > 256 * 1024) {
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'File too large to display', size: stat.size }));
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        path: relPath,
+        size: stat.size,
+        content: readFileSync(resolved, 'utf-8'),
+      }));
+      return;
+    }
+
+    // Scenario scan — runs HMA against scenarios/<name>/vulnerable/, compares
+    // findings to expected-checks.json, awards points if all expected checks fired.
+    // POST /api/scenarios/:name/scan  (body optional: { fix: boolean })
+    if (req.method === 'POST' && pathname.startsWith('/api/scenarios/')
+        && (pathname.endsWith('/scan') || pathname.endsWith('/fix'))) {
+      const parts = pathname.split('/');
+      const scenarioName = decodeURIComponent(parts[3] || '');
+      const isFix = pathname.endsWith('/fix');
+
+      const scenario = scenarioList.find(s => s.name === scenarioName);
+      if (!scenario) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Scenario not found' }));
+        return;
+      }
+
+      if (!scenario.expectedChecks || scenario.expectedChecks.length === 0) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Scenario has no expected checks defined' }));
+        return;
+      }
+
       try {
-        const body = await parseBody(req);
-        const findings = body.findings || [];
+        const result = await runScan({
+          pkgRoot: PKG_ROOT,
+          name: scenario.name,
+          expected: scenario.expectedChecks,
+          fix: isFix,
+        });
 
-        const scenario = scenarioList.find(s => s.name === scenarioName);
-        if (!scenario) {
-          res.writeHead(404, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Scenario not found' }));
-          return;
-        }
-
-        if (!scenario.expectedChecks || scenario.expectedChecks.length === 0) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Scenario has no expected checks defined' }));
-          return;
-        }
-
-        // Check if all expected checks are present in submitted findings
-        const foundChecks = scenario.expectedChecks.filter(c => findings.includes(c));
-        const missingChecks = scenario.expectedChecks.filter(c => !findings.includes(c));
-        const allFound = missingChecks.length === 0;
-
-        if (allFound) {
+        // On non-fix scans, mark completed if every expected check fired.
+        // Fix runs intentionally remove findings, so they can't complete a scenario
+        // — users see the "before/after" effect but still need a clean scan to win.
+        let completed = null;
+        if (!isFix && result.missing.length === 0) {
           const points = SCENARIO_POINTS[scenario.severity] || SCENARIO_POINTS.unknown;
-          scenarioState[scenarioName] = {
+          completed = {
             completedAt: Date.now(),
             points,
-            checksFound: foundChecks,
+            checksFound: result.fired,
           };
+          scenarioState[scenarioName] = completed;
           saveScores({ challenges: challengeState, scenarios: scenarioState }, teamName || null);
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({
-            success: true,
-            points,
-            checksFound: foundChecks,
-            message: `Scenario completed! +${points} points`,
-          }));
-        } else {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({
-            success: false,
-            checksFound: foundChecks,
-            checksMissing: missingChecks,
-            message: `Missing checks: ${missingChecks.join(', ')}`,
-          }));
         }
-      } catch {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid request body' }));
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ...result, completed }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message || 'Scan failed' }));
       }
       return;
     }
@@ -496,7 +688,8 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
     // Attack log
     if (req.method === 'GET' && pathname === '/api/attack-log') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(attackLog));
+      const display = attackLog.map(e => e.port ? { ...e, port: displayPort(e.port) } : e);
+      res.end(JSON.stringify(display));
       return;
     }
 

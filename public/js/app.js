@@ -77,10 +77,18 @@ function route() {
   render();
 }
 
+// Views that own their own interactive state (textarea content, dropdown selection,
+// in-flight chat). Auto-poll must not re-render these — it would clobber user input.
+// They re-render only on explicit navigation (hashchange).
+const INTERACTIVE_VIEWS = new Set(['attack-lab', 'settings', 'scenarios']);
+
 /**
- * Render current view into #app
+ * Render current view into #app.
+ * @param {object} opts
+ * @param {boolean} opts.fromPoll - If true, skip re-render for interactive views.
  */
-function render() {
+function render(opts = {}) {
+  if (opts.fromPoll && INTERACTIVE_VIEWS.has(state.currentView)) return;
   const app = document.getElementById('app');
   const viewFn = views[state.currentView];
   if (viewFn) {
@@ -127,7 +135,7 @@ async function poll() {
     dot.className = `status-dot ${state.online ? 'online' : 'offline'}`;
     text.textContent = state.online ? `${health.agents} agents` : 'Offline';
 
-    render();
+    render({ fromPoll: true });
   } catch {
     state.online = false;
     const dot = document.getElementById('status-dot');
@@ -161,11 +169,13 @@ function init() {
 
   // Hash routing
   window.addEventListener('hashchange', route);
-  route();
 
-  // Initial fetch + polling
-  poll();
-  setInterval(poll, 2000);
+  // Fetch initial data BEFORE first render so views (especially attack-lab)
+  // see populated state.agents on mount. Then start polling.
+  poll().finally(() => {
+    route();
+    setInterval(poll, 2000);
+  });
 }
 
 init();
