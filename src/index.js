@@ -22,9 +22,22 @@ const args = process.argv.slice(2);
 // attack, logs, scan, benchmark, hma), the command owns the process and
 // exits. "browse" is handled below for backward compatibility with the
 // legacy inline implementation.
-if (args.length > 0 && isSubcommand(args[0])) {
-  await dispatch(args);
-  // dispatch() calls process.exit(); we never reach this line.
+//
+// If argv[0] is a non-flag positional that ISN'T a known subcommand (e.g.
+// "dvaa helpr" or "dvaa screen"), reject up-front instead of silently
+// starting the server — server-start happens for flag-only or empty argv.
+if (args.length > 0 && !args[0].startsWith('-')) {
+  if (isSubcommand(args[0]) || args[0] === 'browse') {
+    if (isSubcommand(args[0])) {
+      await dispatch(args);
+      // dispatch() calls process.exit(); we never reach this line.
+    }
+    // browse falls through to the dedicated handler below.
+  } else {
+    console.error(`Unknown command: ${args[0]}`);
+    console.error('Run: dvaa --help');
+    process.exit(1);
+  }
 }
 
 // Handle --help / -h
