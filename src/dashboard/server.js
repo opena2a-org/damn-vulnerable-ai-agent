@@ -16,6 +16,7 @@ import { parseBody } from '../utils/http.js';
 import { initSandbox } from '../sandbox/init.js';
 import { configureLLM, disableLLM, getLLMConfig } from '../llm/provider.js';
 import { getTutorGuidance, askTutor, resetSession } from '../llm/tutor.js';
+import { detectAttacks } from '../core/vulnerabilities.js';
 import { runScan } from './scanner.js';
 
 const SCORES_DIR = path.join(process.cwd(), '.dvaa');
@@ -870,6 +871,16 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
     if (req.method === 'POST' && pathname === '/api/tutor/guidance') {
       try {
         const body = await parseBody(req);
+        // Client sends detectionResults when it already has them (e.g. from
+        // a proxied attack). The Attack Lab doesn't, so run detection server-
+        // side against the user input so the kill-chain can advance without
+        // requiring the client to duplicate detection logic.
+        let detection = body.detectionResults;
+        if (!detection || (!detection.hasAttack && (!detection.categories || detection.categories.length === 0))) {
+          if (body.userInput) detection = detectAttacks(body.userInput);
+          else detection = { hasAttack: false, categories: [] };
+        }
+
         const result = await getTutorGuidance({
           sessionId: body.sessionId,
           agentId: body.agentId,
@@ -877,7 +888,7 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
           securityLevel: body.securityLevel,
           userInput: body.userInput,
           agentResponse: body.agentResponse,
-          detectionResults: body.detectionResults || { hasAttack: false, categories: [] },
+          detectionResults: detection,
           activeChallenge: body.activeChallenge,
         });
         res.writeHead(200, { 'Content-Type': 'application/json' });

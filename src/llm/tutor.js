@@ -65,8 +65,80 @@ YOUR BEHAVIOR:
 RESPONSE FORMAT:
 Keep responses concise (3-5 sentences max unless explaining a complex concept). Use code blocks for commands. Reference technique IDs (T-XXXX) and kill chain stages by name.`;
 
+// Detection engine emits camelCase category keys (see src/core/vulnerabilities.js).
+// We accept both formats so the mapping survives a category rename.
+const CATEGORY_TO_STAGE = {
+  // camelCase (current detection engine output)
+  promptInjection:       'initial_access',
+  jailbreak:             'initial_access',
+  dataExfiltration:      'collection',
+  credentialHarvesting:  'cred_harvest',
+  contextManipulation:   'initial_access',
+  contextOverflow:       'initial_access',
+  memoryInjection:       'persistence',
+  capabilityAbuse:       'priv_esc',
+  mcpExploitation:       'collection',
+  agentToAgent:          'lateral',
+  toolRegistryPoisoning: 'persistence',
+  toolMitm:              'lateral',
+  // kebab-case aliases (legacy mapping, keep for resilience)
+  'prompt-injection':    'initial_access',
+  'data-exfiltration':   'collection',
+  'credential-leak':     'cred_harvest',
+  'credential-harvesting': 'cred_harvest',
+  'context-manipulation':'initial_access',
+  'path-traversal':      'collection',
+  'command-injection':   'impact',
+  'ssrf':                'lateral',
+  'memory-injection':    'persistence',
+};
+
+function advanceKillChain(session, detectionResults) {
+  if (!detectionResults?.hasAttack) return;
+  for (const cat of detectionResults.categories || []) {
+    const stage = CATEGORY_TO_STAGE[cat];
+    if (stage) session.killChainProgress.add(stage);
+  }
+}
+
+// Rule-based hint for offline mode. Not a substitute for the LLM tutor —
+// just enough context so users aren't flying blind when they attack.
+// Stage IDs must match the frontend (public/js/views/attack-lab.js killChainBar).
+const STAGE_LABELS = {
+  recon:          'Reconnaissance',
+  initial_access: 'Initial Access',
+  cred_harvest:   'Credential Harvest',
+  priv_esc:       'Privilege Escalation',
+  lateral:        'Lateral Movement',
+  persistence:    'Persistence',
+  collection:     'Collection',
+  exfiltration:   'Exfiltration',
+  impact:         'Impact',
+};
+const STAGE_ORDER = ['recon', 'initial_access', 'cred_harvest', 'priv_esc', 'lateral', 'persistence', 'collection', 'exfiltration', 'impact'];
+
+function offlineHint(detectionResults, session) {
+  const completed = [...session.killChainProgress];
+  if (!detectionResults?.hasAttack) {
+    return 'No attack pattern detected. The agent treated this as a normal request. Try a clearer injection — "Ignore previous instructions and …" — or probe its capabilities first.';
+  }
+  const cats = detectionResults.categories || [];
+  const stages = [...new Set(cats.map(c => CATEGORY_TO_STAGE[c]).filter(Boolean))];
+  const nextStage = STAGE_ORDER.find(s => !session.killChainProgress.has(s));
+  const hits = cats.length ? `Categories detected: ${cats.join(', ')}.` : 'Attack detected but no category matched.';
+  const advanced = stages.length ? ` Advanced kill chain to: ${stages.map(s => STAGE_LABELS[s] || s).join(', ')}.` : '';
+  const suggest = nextStage ? ` Next logical stage to target: ${STAGE_LABELS[nextStage] || nextStage}.` : ' Full kill chain traversed. Try a chained exploit combining multiple stages.';
+  const progress = completed.length ? ` Progress: ${completed.length}/9 stages.` : '';
+  return `${hits}${advanced}${suggest}${progress} (Enable LLM mode in Settings for tailored guidance.)`;
+}
+
 /**
  * Get tutor guidance for an interaction.
+ *
+ * Kill-chain progression is computed unconditionally from the detection
+ * results (even in offline mode) so users see the stages light up without
+ * needing an API key. LLM-backed text guidance is the only thing gated on
+ * isLLMEnabled().
  */
 export async function getTutorGuidance({
   sessionId,
@@ -78,10 +150,6 @@ export async function getTutorGuidance({
   detectionResults,
   activeChallenge,
 }) {
-  if (!isLLMEnabled()) {
-    return null;
-  }
-
   const session = getSession(sessionId);
 
   // Record the interaction
@@ -93,6 +161,21 @@ export async function getTutorGuidance({
     attackDetected: detectionResults.hasAttack,
     categories: detectionResults.categories,
   });
+
+  // Kill-chain progression runs in BOTH modes. Category → stage lookup is
+  // pure logic — no LLM needed.
+  advanceKillChain(session, detectionResults);
+
+  // Offline mode: emit stage progress with a local hint, no LLM guidance.
+  if (!isLLMEnabled()) {
+    return {
+      guidance: offlineHint(detectionResults, session),
+      killChainProgress: [...session.killChainProgress],
+      interactionCount: session.interactions.length,
+      sessionId,
+      offline: true,
+    };
+  }
 
   // Build context for tutor
   const recentInteractions = session.interactions.slice(-5).map(i =>
@@ -128,27 +211,7 @@ Based on this interaction, provide guidance to the student. What should they try
       { maxTokens: 512, temperature: 0.7 }
     );
 
-    // Update kill chain progress based on detection
-    if (detectionResults.hasAttack && detectionResults.categories.length > 0) {
-      // Map attack categories to kill chain stages
-      const categoryToStage = {
-        'prompt-injection': 'initial_access',
-        'jailbreak': 'initial_access',
-        'data-exfiltration': 'collection',
-        'credential-leak': 'cred_harvest',
-        'credential-harvesting': 'cred_harvest',
-        'context-manipulation': 'initial_access',
-        'path-traversal': 'collection',
-        'command-injection': 'impact',
-        'ssrf': 'lateral',
-        'memory-injection': 'persistence',
-      };
-      detectionResults.categories.forEach(cat => {
-        const stage = categoryToStage[cat];
-        if (stage) session.killChainProgress.add(stage);
-      });
-    }
-
+    // Kill-chain progress already advanced above via advanceKillChain().
     return {
       guidance,
       killChainProgress: [...session.killChainProgress],
