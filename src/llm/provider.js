@@ -9,7 +9,7 @@
 let llmConfig = {
   provider: null,    // 'openai' or 'anthropic'
   apiKey: null,
-  model: null,       // e.g. 'gpt-4o-mini', 'claude-sonnet-4-20250514'
+  model: null,       // e.g. 'gpt-4o-mini', 'claude-sonnet-4-6'
   enabled: false,
 };
 
@@ -18,9 +18,11 @@ export function configureLLM({ provider, apiKey, model }) {
     throw new Error('provider and apiKey are required');
   }
 
+  // Defaults chosen for DVAA's training-tool use case: fast + cost-effective
+  // over maximum capability. Users can override via the Model field.
   const defaults = {
     openai: 'gpt-4o-mini',
-    anthropic: 'claude-sonnet-4-20250514',
+    anthropic: 'claude-sonnet-4-6',
   };
 
   llmConfig = {
