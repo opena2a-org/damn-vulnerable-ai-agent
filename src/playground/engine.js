@@ -563,7 +563,7 @@ class OpenAIClient {
  * Anthropic Client Wrapper
  */
 class AnthropicClient {
-  constructor(apiKey, model = 'claude-sonnet-4-5-20250929') {
+  constructor(apiKey, model = 'claude-sonnet-4-6') {
     this.client = new Anthropic({ apiKey });
     this.model = model;
   }
