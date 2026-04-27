@@ -1,5 +1,13 @@
 # Changelog — damn-vulnerable-ai-agent
 
+## 0.8.2
+
+### Fixed
+- Subcommand telemetry events (`dvaa agents`, `dvaa scan`, etc.) were silently lost because the dispatcher fired `tele.track()` and immediately called `process.exit()`, killing Node before the HTTP request flushed. Discovered during prod canary verification — the curl probe landed in the Registry but the actual CLI did not. Fix: bump to `@opena2a/telemetry@0.1.2` (adds `flush()` and a `beforeExit` drain) and `await tele.flush()` in the dispatcher before exit. Per-event 2s timeout unchanged — `dvaa <cmd>` never hangs longer than that.
+
+### Note
+- v0.8.1 was tagged but the npm publish failed (Trusted Publisher not yet configured for `damn-vulnerable-ai-agent`). v0.8.2 supersedes it; users should install 0.8.2 directly.
+
 ## 0.8.1
 
 ### Added
