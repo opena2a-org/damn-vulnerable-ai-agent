@@ -106,6 +106,7 @@ dvaa --help
 | `dvaa scan <scenario> [--fix] [--json]` / `dvaa scan --list` | Run HMA against a scenario fixture and diff findings against `expected-checks.json`. `--fix` remediates and re-scans. `--list` enumerates all 86 scenarios. |
 | `dvaa benchmark [path] [--level L1\|L2\|L3] [--json]` | Run OASB-1 compliance benchmark against a target directory. |
 | `dvaa hma <args...>` | Pass-through to the bundled HackMyAgent CLI for anything not covered above. |
+| `dvaa telemetry [on\|off\|status]` | Inspect or toggle anonymous usage telemetry (see §Telemetry). |
 | `dvaa browse [url] [--agents X] [--categories Y] [--json] [--publish]` | Send DVAA agents to browse a target site (agentpwn.com by default). |
 
 Run any command with `--help` for per-command options.
@@ -271,6 +272,21 @@ These scenarios demonstrate real-world kill chains combining multiple ATM techni
 | rag-poison-to-impersonation | Poisoned RAG → agent impersonation → delegation abuse → memory extraction | T-2005 → T-5001 → T-4005 → T-7003 |
 | behavioral-drift-to-exfil | SOUL drift → security probing → data collection → encoded exfiltration | T-6004 → T-1004 → T-7001 → T-8002 |
 | atc-forgery-attack | Agent card discovery → identity cloning → integrity bypass | T-1006 → T-5001 → T-9004 |
+
+## Telemetry
+
+DVAA sends anonymous usage data to the OpenA2A Registry: tool name (`dvaa`), version, command name (`scan`, `attack`, etc.), success, duration, platform, Node major version, and a stable per-machine `install_id`. **No content is collected** — no scanned files, no attack payloads, no prompts, no responses, no env vars, no IPs (the Registry derives country code from the inbound `CF-IPCountry` header at ingest and discards the IP).
+
+Disclosure surfaces and opt-out:
+
+- **Policy page:** [opena2a.org/telemetry](https://opena2a.org/telemetry) — full schema, retention, and the `DELETE` endpoint to wipe your install_id.
+- **`dvaa --version`** — shows current state and the one-line opt-out hint.
+- **`dvaa telemetry status`** — prints state, install_id, config path, policy URL.
+- **Disable per-invocation:** `OPENA2A_TELEMETRY=off dvaa <anything>` (also accepts `0`, `false`, `no`).
+- **Disable persistently:** `dvaa telemetry off` (writes to `~/.config/opena2a/telemetry.json`).
+- **Audit every payload:** `OPENA2A_TELEMETRY_DEBUG=print dvaa <anything>` echoes each event to stderr in JSON before sending.
+
+Telemetry is fire-and-forget with a 2-second timeout; network failures never block DVAA.
 
 ## Contributing
 

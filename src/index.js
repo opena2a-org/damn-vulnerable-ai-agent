@@ -8,12 +8,29 @@
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import * as tele from '@opena2a/telemetry';
+import { versionLine } from '@opena2a/cli-ui';
 import { getAllAgents, getAgentsByProtocol } from './core/agents.js';
 import { detectAttacks, SENSITIVE_DATA, SECURITY_LEVELS } from './core/vulnerabilities.js';
 import { createDashboardServer } from './dashboard/server.js';
 import { initSandbox } from './sandbox/init.js';
 import { callLLM, isLLMEnabled, configureLLM, disableLLM, getLLMConfig } from './llm/provider.js';
 import { isSubcommand, dispatch, listCommands } from './cli/router.js';
+
+// Resolve our own version once at startup — used by --version and tele.init.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PKG_VERSION = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf-8')).version;
+  } catch { return '0.0.0'; }
+})();
+
+// Tier-1 anonymous usage telemetry. Default ON; opt-out via env or
+// `dvaa telemetry off`. Disclosure surfaces: README §Telemetry,
+// `dvaa --version` line, `dvaa telemetry status`, opena2a.org/telemetry.
+// init() loads opt-out config + persists install_id; never throws.
+await tele.init({ tool: 'dvaa', version: PKG_VERSION });
 
 // Parse command line args
 const args = process.argv.slice(2);
@@ -88,16 +105,10 @@ if (args[0] === 'browse') {
   process.exit(result.status ?? 1);
 }
 
-// Handle --version
+// Handle --version — uses the shared versionLine helper so the telemetry
+// disclosure line is consistent across every opena2a-org CLI.
 if (args.includes('--version')) {
-  const { readFileSync } = await import('fs');
-  const { join, dirname } = await import('path');
-  const { fileURLToPath } = await import('url');
-  const __dirname = dirname(fileURLToPath(import.meta.url));
-  try {
-    const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'));
-    console.log(pkg.version);
-  } catch { console.log('0.5.0'); }
+  console.log(versionLine({ tool: 'dvaa', version: PKG_VERSION, telemetry: tele.status() }));
   process.exit(0);
 }
 
@@ -1258,6 +1269,9 @@ async function executeMcpTool(agent, toolName, args) {
 
 // Start servers
 console.log('Starting agents...\n');
+
+// Anonymous tier-1 telemetry — fire-and-forget, no PII. See `dvaa telemetry`.
+tele.start();
 
 const allAgents = getAllAgents();
 
