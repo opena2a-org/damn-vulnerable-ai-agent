@@ -111,12 +111,41 @@ docker exec dvaa-smoke whoami                         # node, not root
 docker exec dvaa-smoke node_modules/.bin/hackmyagent --version   # current pinned HMA
 ```
 
-## 7. Cleanup
+## 7. Telemetry — disclosure surfaces and opt-out (2 min)
+
+Tier-1 telemetry shipped with v0.8.1. Verify the four disclosure surfaces and the opt-out paths actually work. **Do not point at the production endpoint while smoking** — set `OPENA2A_TELEMETRY_URL=http://127.0.0.1:1/never` so events go to a port that refuses connections (proves fire-and-forget tolerance) instead of polluting prod aggregates.
+
+```bash
+export OPENA2A_TELEMETRY_URL=http://127.0.0.1:1/never
+unset OPENA2A_TELEMETRY
+rm -f ~/.config/opena2a/telemetry.json   # start from a clean slate
+```
+
+| # | Command | Expected |
+|---|---------|----------|
+| 7.1 | `dvaa --version` | Two lines: `dvaa 0.8.1` then `Telemetry: on (opt-out: OPENA2A_TELEMETRY=off  •  details: opena2a.org/telemetry)` |
+| 7.2 | `dvaa telemetry status` | Prints `state: on`, a UUID install_id, the config path, the policy URL, and the toggle hint |
+| 7.3 | `dvaa telemetry off` | Prints `Telemetry disabled for dvaa.` Then `dvaa --version` shows `Telemetry: off`. `~/.config/opena2a/telemetry.json` has `"enabled": false`. |
+| 7.4 | `dvaa telemetry on` | Re-enables persistently. |
+| 7.5 | `OPENA2A_TELEMETRY=off dvaa telemetry status` | Shows `state: off` even though file says `on` (env wins). |
+| 7.6 | `OPENA2A_TELEMETRY_DEBUG=print dvaa agents` | Stderr contains a `[opena2a:telemetry]` line with the JSON payload (`tool: "dvaa"`, `event: "command"`, `name: "agents"`, `success: true`, `duration_ms: <int>`, no PII fields). |
+| 7.7 | `dvaa agents` (with the unreachable URL) | Command completes normally and exits 0. The unreachable telemetry endpoint must not slow the command perceptibly (≤2s timeout). |
+
+Fail the release if:
+- any line of output omits the disclosure
+- the persisted config file leaks anything beyond `enabled` and `installId`
+- the debug-print payload contains scanned content, file paths, env vars, or any field outside the locked schema (tool, version, install_id, event, name, success, duration_ms, platform, node_major)
+- `dvaa agents` blocks more than 2 seconds when the telemetry endpoint is unreachable
+
+## 8. Cleanup
 
 ```bash
 docker rm -f dvaa-smoke
 pkill -f "node src/index.js" 2>/dev/null
 rm -rf .dvaa .hackmyagent-cache
+unset OPENA2A_TELEMETRY_URL
+# Restore your real telemetry config if you had one — the tests above
+# overwrite ~/.config/opena2a/telemetry.json.
 ```
 
 ---

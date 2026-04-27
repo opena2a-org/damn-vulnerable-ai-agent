@@ -13,6 +13,8 @@ import runLogs from './commands/logs.js';
 import runScan from './commands/scan.js';
 import runBenchmark from './commands/benchmark.js';
 import runHma from './commands/hma.js';
+import runTelemetry from './commands/telemetry.js';
+import * as tele from '@opena2a/telemetry';
 
 const COMMANDS = {
   agents:    { run: runAgents,    summary: 'List DVAA agents with port, protocol, and security level.' },
@@ -22,6 +24,7 @@ const COMMANDS = {
   scan:      { run: runScan,      summary: 'Run HackMyAgent against a scenario fixture; --fix to remediate.' },
   benchmark: { run: runBenchmark, summary: 'Run OASB-1 benchmark against a DVAA agent.' },
   hma:       { run: runHma,       summary: 'Pass-through to the bundled HackMyAgent CLI.' },
+  telemetry: { run: runTelemetry, summary: 'Inspect or toggle anonymous usage telemetry: on | off | status.' },
   browse:    { run: null,         summary: 'Send DVAA agents to browse a target site (handled in index.js).' },
 };
 
@@ -39,6 +42,24 @@ export async function dispatch(argv) {
   const [name, ...rest] = argv;
   const cmd = COMMANDS[name];
   if (!cmd || !cmd.run) return false;
-  const exitCode = await cmd.run(rest);
+
+  // The telemetry subcommand inspects/toggles itself — don't track it
+  // (would create awkward feedback like "command: telemetry, success: true"
+  // on every status check).
+  const trackable = name !== 'telemetry';
+  const startedAt = trackable ? Date.now() : 0;
+  let exitCode = 0;
+  try {
+    exitCode = await cmd.run(rest);
+  } catch (err) {
+    if (trackable) tele.error(name, err?.code || err?.name || 'UNKNOWN');
+    throw err;
+  }
+  if (trackable) {
+    void tele.track(name, {
+      success: (exitCode ?? 0) === 0,
+      durationMs: Date.now() - startedAt,
+    });
+  }
   process.exit(exitCode ?? 0);
 }
