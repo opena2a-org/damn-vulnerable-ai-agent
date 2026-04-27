@@ -1,6 +1,6 @@
 {
   "name": "damn-vulnerable-ai-agent",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "The AI agent you're supposed to break. 14 agents, 12 vulnerability categories, zero consequences.",
   "type": "module",
   "main": "src/index.js",
@@ -43,7 +43,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
     "@opena2a/cli-ui": "0.4.0",
-    "@opena2a/telemetry": "0.1.1",
+    "@opena2a/telemetry": "0.1.2",
     "hackmyagent": "^0.11.0",
     "openai": "^6.21.0"
   }

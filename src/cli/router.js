@@ -60,6 +60,11 @@ export async function dispatch(argv) {
       success: (exitCode ?? 0) === 0,
       durationMs: Date.now() - startedAt,
     });
+    // process.exit() does NOT trigger Node's beforeExit hook, so the SDK's
+    // natural drain doesn't fire here. Flush explicitly so the in-flight
+    // POST has time to land. flush() is bounded by the SDK's 2s per-event
+    // timeout — never hangs the CLI longer than that.
+    await tele.flush();
   }
   process.exit(exitCode ?? 0);
 }
