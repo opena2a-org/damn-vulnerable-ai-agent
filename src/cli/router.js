@@ -57,7 +57,12 @@ export async function dispatch(argv) {
   }
   if (trackable) {
     void tele.track(name, {
-      success: (exitCode ?? 0) === 0,
+      // Exit 1 = scenario triggered (dvaa's job is to demonstrate the
+      // attack, exit 1 signals "demo ran, attack landed"); exit >=2 is
+      // a real crash. Matches @opena2a/telemetry.successFromExitCode
+      // (post-0.2.0) which will replace this inline check once the
+      // dep pin bumps.
+      success: (exitCode ?? 0) <= 1,
       durationMs: Date.now() - startedAt,
     });
     // process.exit() does NOT trigger Node's beforeExit hook, so the SDK's
