@@ -1,17 +1,21 @@
 /**
  * HMA scanner bridge.
  *
- * Shells out to node_modules/.bin/hackmyagent against a scenario's vulnerable/
- * fixture, parses the JSON output, and returns a structured result the UI can
- * render directly (fired, missing, diagnostic text per finding).
+ * Resolves hackmyagent via the shared CLI resolver (cli/hma.js getHmaBinPath)
+ * and runs it against a scenario's vulnerable/ fixture, parses the JSON
+ * output, and returns a structured result the UI can render directly (fired,
+ * missing, diagnostic text per finding).
  *
- * Always invokes the bundled HMA (pinned in package.json), never a globally
- * installed one — keeps expected-checks.json in version-parity with the binary.
+ * Prefers the locally-installed hackmyagent (pinned in package.json) but
+ * falls back to require.resolve / PATH so the dashboard works in any npm
+ * install layout. Version-parity with expected-checks.json is enforced by
+ * pinning hackmyagent's version in package.json, not by the resolver path.
  */
 
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import { getHmaBinPath } from '../cli/hma.js';
 
 const SCAN_TIMEOUT_MS = 60_000;
 
@@ -78,11 +82,11 @@ async function getHmaVersion(hmaBin) {
  * @returns {Promise<ScanResult>}
  */
 export async function runScan({ pkgRoot, name, expected, fix = false }) {
-  const hmaBin = path.join(pkgRoot, 'node_modules', '.bin', 'hackmyagent');
+  const hmaBin = getHmaBinPath();
   const scenarioDir = path.join(pkgRoot, 'scenarios', name, 'vulnerable');
 
-  if (!fs.existsSync(hmaBin)) {
-    throw new Error('HMA binary not found at node_modules/.bin/hackmyagent. Run `npm install`.');
+  if (!hmaBin) {
+    throw new Error('HMA binary not found. Run `npm install hackmyagent` (or `npm install -g hackmyagent`).');
   }
   if (!fs.existsSync(scenarioDir)) {
     throw new Error(`Scenario has no vulnerable/ directory: ${name}`);
