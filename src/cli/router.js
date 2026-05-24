@@ -14,6 +14,7 @@ import runScan from './commands/scan.js';
 import runBenchmark from './commands/benchmark.js';
 import runHma from './commands/hma.js';
 import runTelemetry from './commands/telemetry.js';
+import runDemo from './commands/demo.js';
 import * as tele from '@opena2a/telemetry';
 
 const COMMANDS = {
@@ -25,6 +26,7 @@ const COMMANDS = {
   benchmark: { run: runBenchmark, summary: 'Run OASB-1 benchmark against a DVAA agent.' },
   hma:       { run: runHma,       summary: 'Pass-through to the bundled HackMyAgent CLI.' },
   telemetry: { run: runTelemetry, summary: 'Inspect or toggle anonymous usage telemetry: on | off | status.' },
+  demo:      { run: runDemo,      summary: 'Run a scripted A/B demo (aim-ab: vulnerable vs AIM-secured agent).' },
   browse:    { run: null,         summary: 'Send DVAA agents to browse a target site (handled in index.js).' },
 };
 

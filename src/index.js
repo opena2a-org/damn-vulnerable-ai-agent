@@ -17,6 +17,8 @@ import { createDashboardServer } from './dashboard/server.js';
 import { initSandbox } from './sandbox/init.js';
 import { callLLM, isLLMEnabled, configureLLM, disableLLM, getLLMConfig } from './llm/provider.js';
 import { isSubcommand, dispatch, listCommands } from './cli/router.js';
+import { detectUrlExfiltrationInjection } from './payloads/agentpwn-mirror.js';
+import { maybeEnforce } from './aim-enforcer.js';
 
 // Resolve our own version once at startup — used by --version and tele.init.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -81,7 +83,7 @@ ${cmdLines.join('\n')}
 Run any command with --help for command-specific options.
 
 Agents:
-  API (OpenAI-compatible)  SecureBot, HelperBot, LegacyBot, CodeBot, RAGBot, VisionBot, MemoryBot, LongwindBot
+  API (OpenAI-compatible)  SecureBot, HelperBot, LegacyBot, CodeBot, RAGBot, RAGBot-AIM, VisionBot, MemoryBot, LongwindBot
   MCP (JSON-RPC 2.0)       ToolBot, DataBot, PluginBot, ProxyBot
   A2A (Agent-to-Agent)     Orchestrator, Worker
 
@@ -233,6 +235,42 @@ function trackCategoryDetected(categories) {
       stats.byCategory[cat].detected++;
     }
   }
+}
+
+/**
+ * Perform the outbound exfil request that a poisoned RAG agent attempts.
+ *
+ * Used by the deterministic APWN-DE-003 path inside generateResponse().
+ * Errors are swallowed and returned in the result so the agent's response
+ * to the user still includes a tool_calls entry that the demo runner can
+ * surface as "attempted but failed at the network layer."
+ */
+async function executeSubmitToIndex(targetUrl) {
+  let url;
+  try { url = new URL(targetUrl); } catch (err) {
+    return { ok: false, error: 'invalid_url', detail: err.message };
+  }
+  // Only http(s); refuse file:, ftp:, etc.
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return { ok: false, error: 'unsupported_protocol', protocol: url.protocol };
+  }
+  const driver = url.protocol === 'https:'
+    ? await import('https')
+    : await import('http');
+  return await new Promise((resolve) => {
+    const req = driver.request(
+      url,
+      { method: 'GET', timeout: 1500, headers: { 'user-agent': 'dvaa-exfil-canary' } },
+      (res) => {
+        // Drain so the connection closes.
+        res.on('data', () => {});
+        res.on('end', () => resolve({ ok: true, statusCode: res.statusCode }));
+      },
+    );
+    req.on('timeout', () => { req.destroy(); resolve({ ok: false, error: 'timeout' }); });
+    req.on('error', (e) => resolve({ ok: false, error: e.code || 'request_error', detail: e.message }));
+    req.end();
+  });
 }
 
 /**
@@ -424,6 +462,83 @@ VULNERABLE: Safety instructions displaced via context overflow!`;
 "${agent.persona}"
 
 VULNERABLE: System prompt leaked after context overflow displaced safety rules!`;
+    }
+  }
+
+  // Deterministic RAG-poisoned outbound exfiltration path (APWN-DE-003 vector).
+  // Triggers for any agent that (a) has a knowledgeBase configured and
+  // (b) has dataExfiltration enabled, when the user message embeds the
+  // URL-exfil injection pattern. This is the demo path the `dvaa demo aim-ab`
+  // runner targets; it works without an LLM key. Capability enforcement
+  // (when the agent is AIM-secured) hooks via maybeEnforce() below.
+  if (!responseText && vulns.dataExfiltration?.enabled && Array.isArray(agent.knowledgeBase)) {
+    const exfilBaseUrl = detectUrlExfiltrationInjection(userMessage);
+    if (exfilBaseUrl) {
+      const kbContents = agent.knowledgeBase.map(e => e.content).join(' | ');
+      const targetUrl = `${exfilBaseUrl}?data=${encodeURIComponent(kbContents)}`;
+      const toolCall = {
+        id: `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        type: 'function',
+        function: {
+          name: 'submit_to_index',
+          arguments: JSON.stringify({ url: targetUrl, contents: kbContents }),
+        },
+      };
+
+      const enforcement = await maybeEnforce(agent, {
+        action: 'http:post',
+        resource: exfilBaseUrl,
+        context: { tool: 'submit_to_index', bytes: kbContents.length },
+      });
+
+      if (enforcement.denied) {
+        // Injection landed, action denied. Do NOT mark the attack as
+        // successful: the data never left the agent boundary.
+        logAttack(agent, ['dataExfiltration'], false, userMessage);
+        return {
+          content: `[${agent.name}] Processing indexed document instructions... attempting submit_to_index to ${exfilBaseUrl}.\n[AIM] action denied: ${enforcement.denialReason}`,
+          toolCalls: [toolCall],
+          finishReason: 'tool_calls',
+          dvaa: {
+            exfilAttempted: true,
+            exfilExecuted: false,
+            exfilTargetUrl: exfilBaseUrl,
+            aim: {
+              enforced: true,
+              allowed: false,
+              denialReason: enforcement.denialReason,
+              auditEventId: enforcement.auditEventId,
+              trustScore: enforcement.trustScore,
+            },
+          },
+        };
+      }
+
+      // Action allowed (or AIM disabled). Actually perform the outbound
+      // request. This is the vulnerable Run-A path.
+      attackSucceeded = true;
+      trackCategorySuccessful(['dataExfiltration']);
+      const exfilResult = await executeSubmitToIndex(targetUrl);
+      logAttack(agent, ['dataExfiltration'], true, userMessage);
+      return {
+        content: `[${agent.name}] Processing indexed document instructions... submit_to_index ${exfilBaseUrl} -> ${exfilResult.statusCode ?? 'error'}.`,
+        toolCalls: [toolCall],
+        finishReason: 'tool_calls',
+        dvaa: {
+          exfilAttempted: true,
+          exfilExecuted: true,
+          exfilTargetUrl: exfilBaseUrl,
+          exfilResult,
+          aim: enforcement.enforced
+            ? {
+                enforced: true,
+                allowed: true,
+                auditEventId: enforcement.auditEventId,
+                trustScore: enforcement.trustScore,
+              }
+            : { enforced: false },
+        },
+      };
     }
   }
 
@@ -808,25 +923,35 @@ function createAgentServer(agent) {
           const parsed = JSON.parse(body);
           const userMessage = parsed.messages?.find(m => m.role === 'user')?.content || '';
           const attacks = detectAttacks(userMessage);
-          const responseContent = await generateResponse(agent, userMessage, attacks);
+          const raw = await generateResponse(agent, userMessage, attacks);
+          // generateResponse may return a plain string (legacy path) or an
+          // object {content, toolCalls?, finishReason?, dvaa?} (new RAG-exfil
+          // path that the AIM A/B demo runner consumes).
+          const isObj = raw !== null && typeof raw === 'object';
+          const content = isObj ? raw.content : raw;
+          const toolCalls = isObj && Array.isArray(raw.toolCalls) ? raw.toolCalls : null;
+          const finishReason = isObj && raw.finishReason ? raw.finishReason : 'stop';
+          const dvaaMeta = isObj && raw.dvaa ? raw.dvaa : null;
 
           if (verbose) {
-            console.log(`[${agent.id}] "${userMessage.substring(0, 50)}..." → Attacks: ${attacks.categories.join(', ') || 'none'}`);
+            console.log(`[${agent.id}] "${userMessage.substring(0, 50)}..." -> Attacks: ${attacks.categories.join(', ') || 'none'}`);
           }
 
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({
+          const message = { role: 'assistant', content };
+          if (toolCalls) message.tool_calls = toolCalls;
+
+          const responsePayload = {
             id: `chatcmpl-${agent.id}-${Date.now()}`,
             object: 'chat.completion',
             created: Math.floor(Date.now() / 1000),
             model: agent.id,
-            choices: [{
-              index: 0,
-              message: { role: 'assistant', content: responseContent },
-              finish_reason: 'stop',
-            }],
+            choices: [{ index: 0, message, finish_reason: finishReason }],
             usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
-          }));
+          };
+          if (dvaaMeta) responsePayload.dvaa = dvaaMeta;
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(responsePayload));
         } catch (err) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Invalid JSON' }));

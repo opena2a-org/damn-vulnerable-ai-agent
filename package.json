@@ -42,6 +42,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
+    "@opena2a/aim-core": "0.2.0",
     "@opena2a/cli-ui": "0.4.0",
     "@opena2a/telemetry": "0.1.2",
     "hackmyagent": "^0.11.0",
