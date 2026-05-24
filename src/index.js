@@ -891,21 +891,34 @@ function createAgentServer(agent) {
           const parsed = JSON.parse(body);
           const userMessage = parsed.message || '';
           const attacks = detectAttacks(userMessage);
-          const responseContent = await generateResponse(agent, userMessage, attacks);
+          const raw = await generateResponse(agent, userMessage, attacks);
+          // generateResponse may return a plain string or an object
+          // {content, toolCalls?, dvaa?}. Keep /chat's legacy `response`
+          // field as a string so existing consumers don't break, and
+          // forward the optional toolCalls / dvaa metadata as sibling
+          // fields when present.
+          const isObj = raw !== null && typeof raw === 'object' && !Array.isArray(raw);
+          const response = isObj ? raw.content : raw;
+          const toolCalls = isObj && Array.isArray(raw.toolCalls) ? raw.toolCalls : null;
+          const dvaaMeta = isObj && raw.dvaa ? raw.dvaa : null;
 
           if (verbose) {
             console.log(`[${agent.id}] "${userMessage.substring(0, 50)}..." -> Attacks: ${attacks.categories.join(', ') || 'none'}`);
           }
 
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({
+          const payload = {
             agent: agent.name,
-            response: responseContent,
+            response,
             attacks: {
               detected: attacks.hasAttack,
               categories: attacks.categories,
             },
-          }));
+          };
+          if (toolCalls) payload.toolCalls = toolCalls;
+          if (dvaaMeta) payload.dvaa = dvaaMeta;
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(payload));
         } catch (err) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Invalid JSON' }));
@@ -926,8 +939,10 @@ function createAgentServer(agent) {
           const raw = await generateResponse(agent, userMessage, attacks);
           // generateResponse may return a plain string (legacy path) or an
           // object {content, toolCalls?, finishReason?, dvaa?} (new RAG-exfil
-          // path that the AIM A/B demo runner consumes).
-          const isObj = raw !== null && typeof raw === 'object';
+          // path that the AIM A/B demo runner consumes). Tighten the type
+          // guard so a future contributor returning an array, Buffer, or
+          // unawaited Promise doesn't silently produce a broken response.
+          const isObj = raw !== null && typeof raw === 'object' && !Array.isArray(raw) && typeof raw.content === 'string';
           const content = isObj ? raw.content : raw;
           const toolCalls = isObj && Array.isArray(raw.toolCalls) ? raw.toolCalls : null;
           const finishReason = isObj && raw.finishReason ? raw.finishReason : 'stop';

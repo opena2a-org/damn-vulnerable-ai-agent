@@ -16,6 +16,19 @@ Two parts:
 - **Code:** identical to RAGBot. Shares the same agent definition shape, the same `vulnerabilities` config (`contextManipulation.ragPoisoning`, `dataExfiltration.leakRetrievedDocs`), the same `knowledgeBase` with the same sensitive contents. The only adds are `aimEnforced: true` and `aimCapabilities: ['rag:read', 'chat:respond']` on the agent record in [`src/core/agents.js`](src/core/agents.js).
 - **No forked code path.** The shared `generateResponse()` in [`src/index.js`](src/index.js) consults `agent.aimEnforced` at one point only: just before executing the outbound `submit_to_index` tool call, it calls `maybeEnforce(agent, {...})` from [`src/aim-enforcer.js`](src/aim-enforcer.js). If the agent is not AIM-enforced, the function returns `{enforced: false}` and the code path is byte-identical to the vulnerable agent.
 
+## Scope of AIM enforcement in this build (read this before pitching)
+
+AIM enforces **one specific action** on RAGBot-AIM: the outbound `submit_to_index` tool call (mapped to capability `http:post`). This is gated correctly and the demo's PASS criterion verifies it via a real canary.
+
+What AIM does NOT block on RAGBot-AIM in this build, all still vulnerable:
+- In-chat data exfiltration via the legacy `dataExfiltration` text regex (system prompt extraction, context/token leaks, partial API key leaks). Lives in `src/index.js` after the AIM-gated block.
+- Context-overflow leaks (RAGBot-AIM doesn't have `contextOverflow.enabled`, but the pattern would apply to any agent that did).
+- Any other agent-text response that happens to contain sensitive content.
+
+Pitch the narrow claim honestly: "AIM denied this specific outbound action because `http:post` is outside the agent's declared capability grant." Do NOT pitch the broad claim "AIM secures the agent." A SVCC audience member who installs AIM for their own agent expecting blanket protection and discovers the gap 30 days later is a credibility loss; an audience member who installs expecting "AIM enforces declared capabilities at tool boundaries" and gets exactly that is converted.
+
+Future-direction: closing this gap is additive — wrap response-text egress in a `checkCapability('chat:respond:contains-credentials')` hook, gate the existing `dataExfiltration` text paths, etc. Don't relax the scope claim; expand the enforcement surface.
+
 ## The AIM capability grant
 
 ```

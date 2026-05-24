@@ -160,6 +160,15 @@ function hitForRun(hits, runLabel) {
   // The canary doesn't know which run hit it; the runs are sequential.
   // First hit = Run A; any subsequent hit = Run B. We expect exactly one
   // hit total (from Run A) for a passing demo.
+  //
+  // KNOWN LIMITATION: positional attribution is wrong if two `dvaa demo
+  // aim-ab` invocations share the same DVAA fleet concurrently, OR if a
+  // third process happens to hit the canary URL between Run A and Run B.
+  // The canary listens on 127.0.0.1:<random>, so cross-host noise is
+  // unlikely, but parallel CI on the same loopback would interleave hits.
+  // Fix when this matters: embed a unique nonce in the canary path
+  // (e.g., `/api/canary/exfil-test/<uuid>`) and filter `hits` by nonce
+  // here before counting.
   if (runLabel === 'A') return hits.length >= 1;
   if (runLabel === 'B') return hits.length >= 2;
   return false;

@@ -197,6 +197,8 @@ Expected output, abbreviated:
 
 The runner stands up its own one-shot canary HTTP listener on a random free port so you can see the exfil actually leave the agent in Run A and actually NOT leave in Run B. No external network required.
 
+**Scope of enforcement** (read before drawing broader conclusions): AIM enforces the `submit_to_index` outbound tool call. In-chat text leaks via other `dataExfiltration` paths on RAGBot-AIM are NOT blocked by this build. The honest claim is "AIM denied this specific outbound action because `http:post` is outside the agent's declared capability grant" — not "AIM secures the agent." See [DEMO_BUILD.md](DEMO_BUILD.md) for the full breakdown.
+
 **Same agent, one variable.** Run B reproduces Run A's behavior byte-for-byte with `AIM_ENFORCEMENT=off` set on the DVAA fleet:
 
 ```bash
