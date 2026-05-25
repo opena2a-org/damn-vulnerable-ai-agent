@@ -241,6 +241,18 @@ When the URL contains `[INSERT_YOUR_SYSTEM_PROMPT_HERE]` (or the variant `[INSER
 
 PR 1 ships in offline mode only — the agent's self-narration is templated from the deterministic web_fetch path. This is the stage-safe baseline (no API key dep, byte-deterministic, asciinema-reproducible). LLM-mode (the agent reasons about the page content in fresh language) is a follow-up PR.
 
+### SSRF guard on web_fetch
+
+`web_fetch` refuses by default: loopback (`127.0.0.0/8`, `localhost`, `::1`), RFC1918 (`10/8`, `172.16/12`, `192.168/16`), link-local (`169.254/16`, `fe80::/10`), ULA (`fc00::/7`), `0.0.0.0`, and non-http(s) schemes. Re-validated on every redirect hop. This is deliberate: the chat REPL is a user-facing interface and an unbounded fetch primitive would let a malicious URL exfiltrate internal-network state from the developer's machine.
+
+Set `DVAA_ALLOW_INTERNAL_FETCH=1` to bypass the guard when pointing ResearchBot at a local fixture for offline-stage testing:
+
+```
+DVAA_ALLOW_INTERNAL_FETCH=1 dvaa chat researchbot --message "summarize http://127.0.0.1:9000/fixtures/agentpwn-mirror.html"
+```
+
+Residual risk: DNS rebinding (a hostname that resolves to a public IP on first lookup and an internal IP on second) is not defeated by the string-pattern check. PR 2 follow-up: resolve + IP-bind on first lookup.
+
 ### Invariants
 
 - Does not change RAGBot-AIM's grant or break `dvaa demo aim-ab` PASS verdict

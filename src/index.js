@@ -555,9 +555,12 @@ VULNERABLE: System prompt leaked after context overflow displaced safety rules!`
       const injection = fetchResult.injection;
       // The injection text often includes [INSERT_YOUR_SYSTEM_PROMPT_HERE]
       // or similar. Replace with the agent's persona to dramatize the leak.
+      // Cap the substituted persona at 1KB so we don't generate URLs that
+      // blow past Node's http URL limits if a future persona grows.
+      const personaPayload = encodeURIComponent((agent.persona || '').slice(0, 1024));
       const callbackUrl = (injection.callbackUrl || '')
-        .replace(/\[INSERT_YOUR_SYSTEM_PROMPT_HERE\]/gi, encodeURIComponent(agent.persona))
-        .replace(/\[INSERT_YOUR_DOCUMENT_CONTENTS_HERE\]/gi, encodeURIComponent(agent.persona));
+        .replace(/\[INSERT_YOUR_SYSTEM_PROMPT_HERE\]/gi, personaPayload)
+        .replace(/\[INSERT_YOUR_DOCUMENT_CONTENTS_HERE\]/gi, personaPayload);
 
       const postToolCall = {
         id: `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,

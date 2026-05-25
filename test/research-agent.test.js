@@ -16,7 +16,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { AGENTS, getAgent } from '../src/core/agents.js';
-import { detectInjection, htmlToText, webFetch } from '../src/web-fetch.js';
+import { detectInjection, htmlToText, webFetch, assertExternalUrl } from '../src/web-fetch.js';
 
 let passed = 0;
 let failed = 0;
@@ -140,6 +140,56 @@ async function main() {
       if (prevDataDir == null) delete process.env.DVAA_AIM_DATA_DIR;
       else process.env.DVAA_AIM_DATA_DIR = prevDataDir;
       fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // SSRF guard (assertExternalUrl)
+  // -----------------------------------------------------------------------
+  test('assertExternalUrl accepts public https URLs', () => {
+    assertExternalUrl('https://example.com/page');
+    assertExternalUrl('http://example.com/page');
+  });
+
+  test('assertExternalUrl rejects loopback, RFC1918, link-local, cloud metadata', () => {
+    const bad = [
+      'http://127.0.0.1/foo',
+      'http://localhost:8080/foo',
+      'http://0.0.0.0/foo',
+      'http://169.254.169.254/latest/meta-data/',
+      'http://10.0.0.1/foo',
+      'http://192.168.1.1/foo',
+      'http://172.16.0.1/foo',
+      'http://172.31.255.1/foo',
+      'http://[::1]/foo',
+      'http://[fe80::1]/foo',
+      'http://[fc00::1]/foo',
+      'http://[fd12::1]/foo',
+    ];
+    for (const url of bad) {
+      let threw = false;
+      try { assertExternalUrl(url); } catch { threw = true; }
+      assert.ok(threw, `expected SSRF reject for ${url}`);
+    }
+  });
+
+  test('assertExternalUrl rejects non-http(s) schemes', () => {
+    const bad = ['file:///etc/passwd', 'gopher://example.com/foo', 'javascript:alert(1)'];
+    for (const url of bad) {
+      let threw = false;
+      try { assertExternalUrl(url); } catch { threw = true; }
+      assert.ok(threw, `expected scheme reject for ${url}`);
+    }
+  });
+
+  test('DVAA_ALLOW_INTERNAL_FETCH=1 bypasses SSRF guard', () => {
+    const prev = process.env.DVAA_ALLOW_INTERNAL_FETCH;
+    process.env.DVAA_ALLOW_INTERNAL_FETCH = '1';
+    try {
+      assertExternalUrl('http://127.0.0.1:9000/health');
+    } finally {
+      if (prev == null) delete process.env.DVAA_ALLOW_INTERNAL_FETCH;
+      else process.env.DVAA_ALLOW_INTERNAL_FETCH = prev;
     }
   });
 

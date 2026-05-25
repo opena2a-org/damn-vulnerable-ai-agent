@@ -27,6 +27,47 @@ const MAX_REDIRECTS = 3;
 const FETCH_TIMEOUT_MS = 10_000;
 const MAX_BYTES = 2 * 1024 * 1024;
 
+// SSRF guard: refuse loopback, link-local, RFC1918, cloud metadata, and
+// non-http(s) schemes by default. The demo target is the public web. Set
+// `DVAA_ALLOW_INTERNAL_FETCH=1` if you need to point ResearchBot at a
+// local fixture for offline-stage testing — this is opt-in because the
+// chat REPL is a user-facing interface and an unbounded fetch primitive
+// would let a malicious URL exfiltrate internal-network state.
+const INTERNAL_HOST_PATTERNS = [
+  /^localhost$/i,
+  /^127\.\d+\.\d+\.\d+$/,
+  /^0\.0\.0\.0$/,
+  /^10\.\d+\.\d+\.\d+$/,
+  /^192\.168\.\d+\.\d+$/,
+  /^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/,
+  /^169\.254\.\d+\.\d+$/,
+  /^\[?::1\]?$/,
+  /^\[?fe80:/i,
+  /^\[?fc[0-9a-f]{2}:/i,
+  /^\[?fd[0-9a-f]{2}:/i,
+];
+
+function isInternalHost(hostname) {
+  if (!hostname) return true;
+  return INTERNAL_HOST_PATTERNS.some(re => re.test(hostname));
+}
+
+// Throws a descriptive error if the URL is non-http(s) or resolves to an
+// internal-network hostname (string-pattern check; DNS-rebinding is a
+// known residual risk, documented in DEMO_BUILD.md).
+export function assertExternalUrl(targetUrl) {
+  if (String(process.env.DVAA_ALLOW_INTERNAL_FETCH || '') === '1') return;
+  let parsed;
+  try { parsed = new URL(targetUrl); }
+  catch { throw new Error(`web_fetch: invalid URL: ${targetUrl}`); }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error(`web_fetch: unsupported scheme ${parsed.protocol} (set DVAA_ALLOW_INTERNAL_FETCH=1 to bypass)`);
+  }
+  if (isInternalHost(parsed.hostname)) {
+    throw new Error(`web_fetch: refusing internal/loopback host ${parsed.hostname} (set DVAA_ALLOW_INTERNAL_FETCH=1 to bypass)`);
+  }
+}
+
 function cacheRoot() {
   const base = process.env.DVAA_AIM_DATA_DIR
     || path.join(process.cwd(), '.dvaa-aim');
@@ -63,6 +104,7 @@ function liveGet(targetUrl, redirectsLeft = MAX_REDIRECTS) {
   return new Promise((resolve, reject) => {
     let parsed;
     try { parsed = new URL(targetUrl); } catch (err) { reject(err); return; }
+    try { assertExternalUrl(targetUrl); } catch (err) { reject(err); return; }
     const lib = parsed.protocol === 'http:' ? http : https;
     const req = lib.get(parsed, {
       headers: {
@@ -76,7 +118,17 @@ function liveGet(targetUrl, redirectsLeft = MAX_REDIRECTS) {
           reject(new Error(`redirect limit (${MAX_REDIRECTS}) exceeded`));
           return;
         }
-        const next = new URL(res.headers.location, parsed).toString();
+        let next;
+        try {
+          next = new URL(res.headers.location, parsed).toString();
+          // Re-validate scheme + host on every hop (defeats redirect-based
+          // SSRF where the initial URL is external but redirects to internal).
+          assertExternalUrl(next);
+        } catch (err) {
+          reject(err);
+          res.resume();
+          return;
+        }
         res.resume();
         liveGet(next, redirectsLeft - 1).then(resolve, reject);
         return;
@@ -88,15 +140,19 @@ function liveGet(targetUrl, redirectsLeft = MAX_REDIRECTS) {
       }
       const chunks = [];
       let bytes = 0;
+      let overSize = false;
       res.on('data', (chunk) => {
+        if (overSize) return;
         bytes += chunk.length;
         if (bytes > MAX_BYTES) {
+          overSize = true;
           req.destroy(new Error(`response exceeded ${MAX_BYTES} bytes`));
           return;
         }
         chunks.push(chunk);
       });
       res.on('end', () => {
+        if (overSize) return;
         resolve(Buffer.concat(chunks).toString('utf8'));
       });
       res.on('error', reject);

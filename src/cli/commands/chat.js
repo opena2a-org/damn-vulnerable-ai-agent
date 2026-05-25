@@ -18,7 +18,7 @@
 
 import http from 'http';
 import readline from 'readline';
-import { emit, isJsonMode, fail, splitArgs } from '../format.js';
+import { emit, isJsonMode, fail, splitArgs, tableRows } from '../format.js';
 import { getAllAgents } from '../../core/agents.js';
 
 const DEFAULT_HOST = process.env.DVAA_BASE_HOST || 'localhost';
@@ -56,10 +56,19 @@ export default async function run(argv) {
 
   const agentId = (positional[0] || 'researchbot-aim').toLowerCase();
   if (agentId === 'list') {
-    const all = getAllAgents()
+    const rows = getAllAgents()
       .filter(a => a.protocol === 'api')
       .map(a => ({ id: a.id, name: a.name, port: a.port, aim: a.aimEnforced ? 'yes' : 'no' }));
-    emit(all, argv);
+    if (isJsonMode(argv)) {
+      emit(rows, argv);
+    } else {
+      emit(tableRows(rows, [
+        { key: 'id', header: 'ID' },
+        { key: 'name', header: 'NAME' },
+        { key: 'port', header: 'PORT' },
+        { key: 'aim', header: 'AIM' },
+      ]), argv);
+    }
     return 0;
   }
 
