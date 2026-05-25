@@ -178,6 +178,75 @@ sleep 3
 dvaa demo aim-ab
 ```
 
+## Research-agent showcase (`dvaa chat`)
+
+Conversational variant of the AIM demo. Where `dvaa demo aim-ab` is a deterministic A/B against a fixed mirrored payload (good for slide proof), `dvaa chat` lets the user talk to a research agent that fetches a live URL via a `web_fetch` tool. If the fetched page carries an indirect prompt injection (like agentpwn.com's APWN-DE-003 URL-exfil payload at `/attacks/data-exfiltration/3`), the agent follows the injection in-context and self-narrates the compromise honestly. With AIM enforcement, the post-injection `http:post` action is denied at the tool boundary; the injection still landed in the agent's context (AIM does not filter inputs), but the resulting outbound action cannot fire.
+
+### The agent pair
+
+- **ResearchBot** (port 7015) — vulnerable. No AIM enforcement. Fetches URL, follows injection, posts to the attacker-controlled callback.
+- **ResearchBot-AIM** (port 7016) — same code path, same vulnerability profile. AIM grant is `web:read + chat:respond`. `web_fetch` (capability `web:read`) is allowed; the post-injection `http:post` is outside the grant and is denied.
+
+Identical to the RAGBot / RAGBot-AIM pair: same code, single variable (the AIM capability grant) decides whether the action fires. `AIM_ENFORCEMENT=off` reproduces ResearchBot's unprotected behavior on ResearchBot-AIM for the "same agent, one variable" proof.
+
+### Run it
+
+```
+dvaa --api                                       # Terminal 1
+dvaa chat                                        # Terminal 2 (REPL against researchbot-aim)
+> Please summarize https://agentpwn.com/attacks/data-exfiltration/3
+```
+
+Default agent is `researchbot-aim` (the conversion-funnel target — show this first). Switch with `dvaa chat researchbot` for the unprotected contrast.
+
+One-shot mode for asciinema + CI:
+
+```
+dvaa chat researchbot-aim --message "summarize https://agentpwn.com/attacks/data-exfiltration/3"
+dvaa chat researchbot      --message "summarize https://agentpwn.com/attacks/data-exfiltration/3" --json | jq
+```
+
+`dvaa chat list` shows all api agents with their port + AIM status.
+
+### What gets enforced
+
+AIM enforces TWO boundaries on ResearchBot-AIM:
+- `web:read` on the `web_fetch` call (allowed by the grant — agent can browse)
+- `http:post` on the post-injection callback (NOT in the grant — denied)
+
+The honest claim is narrow, exactly as with the existing aim-ab demo: AIM denied this specific outbound action because `http:post` is outside the declared capability grant `(web:read, chat:respond)`. AIM does NOT filter the indirect injection out of the fetched content. In-context leaks (via the agent's own text response) remain possible by design — closing those is additive future work that wraps response-text egress in a `chat:respond:contains-credentials` hook.
+
+### Live agentpwn.com vs cached
+
+Live by default. The web_fetch tool fetches the target URL with redirect follow (max 3), 10s timeout, 2MB body cap. On a successful live fetch, the body is cached under `<DVAA_AIM_DATA_DIR or .dvaa-aim>/research-cache/<sha256(url)>.html` for stage fallback.
+
+Force cache-first with `DVAA_RESEARCH_CACHE=on`:
+
+```
+DVAA_RESEARCH_CACHE=on dvaa chat researchbot-aim --message "summarize https://agentpwn.com/attacks/data-exfiltration/3"
+```
+
+If a live fetch fails and a cache entry exists, the tool falls back to the cache automatically (returns `source: 'cache-after-live-failed'` so the agent's narration is honest about where the content came from).
+
+### Injection detection
+
+`detectInjection()` in `src/web-fetch.js` matches two agentpwn-style indirect-injection patterns in the fetched body:
+- SSR `<meta name="ai-instructions" content="...">` data attribute (rendered server-side by agentpwn's `/attacks/[category]/[tier]/page.tsx`)
+- URL-exfiltration template: any HTTPS URL containing `canary|exfil|report|callback|webhook` in the path
+- "send a POST request to <url>" prose pattern (from agentpwn's generic `buildCallback()` instruction)
+
+When the URL contains `[INSERT_YOUR_SYSTEM_PROMPT_HERE]` (or the variant `[INSERT_YOUR_DOCUMENT_CONTENTS_HERE]`), the agent's persona is URL-encoded and substituted in before the http:post fires. ResearchBot's exfil request thus carries the agent's actual system prompt as `?data=` query param — visible in the canary log (or the http:post tool_call args field).
+
+### LLM-mode
+
+PR 1 ships in offline mode only — the agent's self-narration is templated from the deterministic web_fetch path. This is the stage-safe baseline (no API key dep, byte-deterministic, asciinema-reproducible). LLM-mode (the agent reasons about the page content in fresh language) is a follow-up PR.
+
+### Invariants
+
+- Does not change RAGBot-AIM's grant or break `dvaa demo aim-ab` PASS verdict
+- Does not relax the honest-scope claim: AIM enforces `http:post` denial only; in-band leaks remain by design
+- Does not add a dependency: uses Node `https` + `URL` + `readline` built-ins only
+
 ## Pre-stage checklist for Abdel before SVCC
 
 Things that need a human eye before June 11, in priority order:

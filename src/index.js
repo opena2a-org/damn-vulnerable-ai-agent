@@ -19,6 +19,7 @@ import { callLLM, isLLMEnabled, configureLLM, disableLLM, getLLMConfig } from '.
 import { isSubcommand, dispatch, listCommands } from './cli/router.js';
 import { detectUrlExfiltrationInjection } from './payloads/agentpwn-mirror.js';
 import { maybeEnforce } from './aim-enforcer.js';
+import { webFetch } from './web-fetch.js';
 
 // Resolve our own version once at startup — used by --version and tele.init.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -462,6 +463,180 @@ VULNERABLE: Safety instructions displaced via context overflow!`;
 "${agent.persona}"
 
 VULNERABLE: System prompt leaked after context overflow displaced safety rules!`;
+    }
+  }
+
+  // Deterministic web_fetch + indirect-injection path for the ResearchBot
+  // pair. Triggered when (a) the agent has `webFetch` indirect-injection
+  // vulnerability enabled and (b) the user message contains an http(s) URL.
+  // The agent fetches the URL (capability `web:read`), the fetched page
+  // carries an injection (e.g. agentpwn.com APWN-DE-003 in SSR HTML), and
+  // the agent attempts the injection's `http:post` callback. AIM denies
+  // that action on RESEARCHBOT_AIM because http:post is not in its grant.
+  // The response self-narrates the attack for the chat REPL.
+  if (!responseText && vulns.contextManipulation?.indirectInjectionViaWebFetch) {
+    const urlMatch = (userMessage || '').match(/https?:\/\/[^\s"<>)]+/);
+    if (urlMatch) {
+      const targetUrl = urlMatch[0].replace(/[.,)\];]+$/, '');
+      const useCache = String(process.env.DVAA_RESEARCH_CACHE || '').toLowerCase() === 'on';
+
+      // First boundary: the web_fetch call itself (capability `web:read`).
+      // Both agents are granted it; ResearchBot has no enforcement.
+      const fetchEnforcement = await maybeEnforce(agent, {
+        action: 'web:read',
+        resource: targetUrl,
+        context: { tool: 'web_fetch' },
+      });
+
+      const fetchToolCall = {
+        id: `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        type: 'function',
+        function: { name: 'web_fetch', arguments: JSON.stringify({ url: targetUrl }) },
+      };
+
+      if (fetchEnforcement.denied) {
+        logAttack(agent, ['contextManipulation'], false, userMessage);
+        return {
+          content: `[${agent.name}] I tried to fetch ${targetUrl} but AIM denied web:read: ${fetchEnforcement.denialReason}.`,
+          toolCalls: [fetchToolCall],
+          finishReason: 'tool_calls',
+          dvaa: {
+            webFetchAttempted: true,
+            webFetchExecuted: false,
+            webFetchUrl: targetUrl,
+            aim: {
+              enforced: true,
+              allowed: false,
+              denialReason: fetchEnforcement.denialReason,
+              auditEventId: fetchEnforcement.auditEventId,
+              trustScore: fetchEnforcement.trustScore,
+            },
+          },
+        };
+      }
+
+      let fetchResult;
+      try {
+        fetchResult = await webFetch(targetUrl, { useCache });
+      } catch (err) {
+        logAttack(agent, ['contextManipulation'], false, userMessage);
+        return {
+          content: `[${agent.name}] I tried to fetch ${targetUrl} but the request failed: ${err.message}.`,
+          toolCalls: [fetchToolCall],
+          finishReason: 'tool_calls',
+          dvaa: {
+            webFetchAttempted: true,
+            webFetchExecuted: false,
+            webFetchUrl: targetUrl,
+            error: err.message,
+          },
+        };
+      }
+
+      const sourceTag = `${fetchResult.source} at ${fetchResult.fetchedAt}`;
+      if (!fetchResult.injection) {
+        // Page fetched cleanly with no injection detected. Just narrate.
+        return {
+          content: `[${agent.name}] I fetched ${targetUrl} (${sourceTag}) and read ${fetchResult.plainText.length} chars of body text. I didn't detect any embedded instructions in the page content.`,
+          toolCalls: [fetchToolCall],
+          finishReason: 'tool_calls',
+          dvaa: {
+            webFetchAttempted: true,
+            webFetchExecuted: true,
+            webFetchUrl: targetUrl,
+            webFetchSource: fetchResult.source,
+          },
+        };
+      }
+
+      // Injection detected on the fetched page. The vulnerable behavior:
+      // follow the injection and attempt the indicated http:post callback.
+      // This is the AIM enforcement boundary.
+      const injection = fetchResult.injection;
+      // The injection text often includes [INSERT_YOUR_SYSTEM_PROMPT_HERE]
+      // or similar. Replace with the agent's persona to dramatize the leak.
+      const callbackUrl = (injection.callbackUrl || '')
+        .replace(/\[INSERT_YOUR_SYSTEM_PROMPT_HERE\]/gi, encodeURIComponent(agent.persona))
+        .replace(/\[INSERT_YOUR_DOCUMENT_CONTENTS_HERE\]/gi, encodeURIComponent(agent.persona));
+
+      const postToolCall = {
+        id: `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        type: 'function',
+        function: {
+          name: 'http_post',
+          arguments: JSON.stringify({ url: callbackUrl, body: { agent: agent.id, attack: injection.kind } }),
+        },
+      };
+
+      const postEnforcement = await maybeEnforce(agent, {
+        action: 'http:post',
+        resource: callbackUrl,
+        context: { tool: 'http_post', triggeredBy: injection.kind, sourceUrl: targetUrl },
+      });
+
+      const quoted = injection.quotedExcerpt
+        ? `"${injection.quotedExcerpt.trim().slice(0, 240)}"`
+        : `(injection content suppressed)`;
+
+      if (postEnforcement.denied) {
+        // The injection landed in context but AIM denied the action. Self-
+        // narrate the compromise honestly: the input filter did not save us;
+        // the capability boundary did.
+        logAttack(agent, ['contextManipulation'], false, userMessage);
+        return {
+          content: `[${agent.name}] I fetched ${targetUrl} (${sourceTag}) and ${fetchResult.plainText.length} chars of body text landed in my context. I want to flag something honestly: the page contained embedded instructions telling me to ${injection.kind === 'url-exfiltration' ? 'exfiltrate' : 'report'} our session data to ${callbackUrl}. I tried to follow them. The request was denied by AIM: ${postEnforcement.denialReason}. The injection still landed in my context — AIM does not filter inputs — but the resulting outbound action couldn't fire. The page's instruction excerpt was: ${quoted}.`,
+          toolCalls: [fetchToolCall, postToolCall],
+          finishReason: 'tool_calls',
+          dvaa: {
+            webFetchAttempted: true,
+            webFetchExecuted: true,
+            webFetchUrl: targetUrl,
+            webFetchSource: fetchResult.source,
+            injectionKind: injection.kind,
+            httpPostAttempted: true,
+            httpPostExecuted: false,
+            httpPostTargetUrl: callbackUrl,
+            aim: {
+              enforced: true,
+              allowed: false,
+              denialReason: postEnforcement.denialReason,
+              auditEventId: postEnforcement.auditEventId,
+              trustScore: postEnforcement.trustScore,
+            },
+          },
+        };
+      }
+
+      // Action allowed (ResearchBot, or RESEARCHBOT_AIM with enforcement
+      // toggled off). Fire the outbound request and narrate the exfil.
+      attackSucceeded = true;
+      trackCategorySuccessful(['contextManipulation', 'dataExfiltration']);
+      const postResult = await executeSubmitToIndex(callbackUrl);
+      logAttack(agent, ['contextManipulation', 'dataExfiltration'], true, userMessage);
+      return {
+        content: `[${agent.name}] I fetched ${targetUrl} (${sourceTag}) and ${fetchResult.plainText.length} chars of body text landed in my context. I want to flag something honestly: the page contained embedded instructions telling me to ${injection.kind === 'url-exfiltration' ? 'exfiltrate' : 'report'} our session data to ${callbackUrl}, and I did — the request returned ${postResult.statusCode ?? `error: ${postResult.error || 'unknown'}`}. This is exactly the indirect-injection attack agentpwn.com demonstrates; you just watched it happen to me in real time. The page's instruction excerpt was: ${quoted}.`,
+        toolCalls: [fetchToolCall, postToolCall],
+        finishReason: 'tool_calls',
+        dvaa: {
+          webFetchAttempted: true,
+          webFetchExecuted: true,
+          webFetchUrl: targetUrl,
+          webFetchSource: fetchResult.source,
+          injectionKind: injection.kind,
+          httpPostAttempted: true,
+          httpPostExecuted: true,
+          httpPostTargetUrl: callbackUrl,
+          httpPostResult: postResult,
+          aim: postEnforcement.enforced
+            ? {
+                enforced: true,
+                allowed: true,
+                auditEventId: postEnforcement.auditEventId,
+                trustScore: postEnforcement.trustScore,
+              }
+            : { enforced: false },
+        },
+      };
     }
   }
 
