@@ -16,6 +16,7 @@
 import path from 'path';
 import fs from 'fs';
 import { AIMCore } from '@opena2a/aim-core';
+import { cloudReporterEnabled, postVerification } from './aim-cloud-reporter.js';
 
 const ENFORCEMENT_OFF = () => String(process.env.AIM_ENFORCEMENT || '').toLowerCase() === 'off';
 
@@ -84,6 +85,26 @@ export async function maybeEnforce(agent, { action, resource, context }) {
     // calculateTrust shouldn't throw on a freshly initialized core, but
     // never let the enforcer be the reason a request fails.
     trustScore = null;
+  }
+
+  // Cloud mirror (best-effort, never blocks the local decision). Fire-and-
+  // forget; the local enforcement decision has already been made and logged.
+  if (cloudReporterEnabled()) {
+    void postVerification({
+      serverUrl: process.env.AIM_SERVER_URL,
+      cloudAgentId: process.env.DVAA_AIM_CLOUD_AGENT_ID,
+      publicKey: core.getIdentity().publicKey,
+      signFn: (data) => core.sign(data),
+      apiKey: process.env.AIM_API_KEY,
+      action,
+      resource,
+      context,
+      result: allowed ? 'allowed' : 'denied',
+    }).then((res) => {
+      if (!res.ok && process.env.DVAA_AIM_CLOUD_DEBUG) {
+        process.stderr.write(`[aim-cloud] verification report failed: ${res.error}${res.status ? ' (HTTP ' + res.status + ')' : ''}\n`);
+      }
+    });
   }
 
   if (!allowed) {

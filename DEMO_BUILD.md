@@ -79,6 +79,67 @@ Flags:
 - `--json` Machine-readable output (for CI piping).
 - `--verbose` Includes raw chat responses and the full canary hit log.
 
+## Cloud mode (live AIM dashboard view)
+
+Default mode is local-first: aim-core stores the agent's Ed25519 identity, capability policy, audit log, and trust score on disk under `.dvaa-aim/<agent.id>/`. The `dvaa demo aim-ab` runner shows the denied event in CLI but there's no dashboard.
+
+Cloud mode adds a fire-and-forget mirror of each enforcement decision to an AIM server, where the agent is registered and the verification events appear in the dashboard UI. The local enforcement decision remains authoritative; the cloud post is best-effort and never blocks the request.
+
+**Bring up a local AIM stack and register the agent (one-shot):**
+
+```bash
+# From the dvaa repo root:
+./docs/demo/setup-aim-local.sh
+```
+
+The script will:
+1. `docker compose up` the 4-service AIM stack (postgres + redis + backend + frontend) in the sibling `agent-identity-management/` repo
+2. Generate `.env` with shell-safe random secrets for postgres / redis / JWT / keyvault (re-uses existing if present)
+3. Add a `docker-compose.override.yml` that remaps aim-postgres to host port 5433 (so it coexists with a local postgres on 5432)
+4. Seed a local admin user (`admin@opena2a.org` / `AIM2025!Secure`) via direct SQL using a bcrypt hash from migration 072
+5. Log in as that admin to capture a JWT
+6. Generate DVAA's Ed25519 identity for `ragbot-aim` (or reuse if `.dvaa-aim/ragbot-aim/identity.json` exists)
+7. Register the agent against the local backend with that public key and capabilities `rag:read, chat:respond`
+8. Print the env vars to copy into the next `dvaa --api` invocation
+
+**Local-only credentials, do not use in production.** The admin password is the DVAA-CTF default and is documented publicly; the script will refuse to run if it can detect a public-facing backend endpoint (TODO: that detection isn't in yet — for now just don't point it at a real cloud).
+
+**Run the demo with cloud reporting on:**
+
+```bash
+# Terminal 1 — DVAA fleet with cloud env set
+export AIM_SERVER_URL=http://localhost:8080
+export AIM_API_KEY=not_required_for_local_verifications
+export DVAA_AIM_CLOUD_AGENT_ID=<uuid the setup script printed>
+dvaa --api
+
+# Terminal 2 — the demo runner
+dvaa demo aim-ab
+```
+
+After the demo finishes, open http://localhost:3000, log in (`admin@opena2a.org` / `AIM2025!Secure`), navigate to Agents → see `dvaa-ragbot-aim` registered, navigate to Verification Events → see two events (one for each `dvaa demo aim-ab` run, with `action_type: http:post`, `status: success`, agent's trust score, Ed25519 signature on the request body).
+
+This is the SVCC conversion-funnel visual. Show the CLI demo for proof, then click into the dashboard to show the registered agent + audit trail. The talk pitch is "AIM denied this specific http:post because it's outside the agent's grant" — keep the claim narrow per the Scope section above.
+
+**Cloud-mode contract (so future maintainers don't re-derive it):**
+
+The reporter implements the Python SDK's `verify_capability` wire format (`aim_sdk/client.py:504-620`). One POST per enforcement decision to `/api/v1/sdk-api/verifications` with:
+- Body: `{agentId, capability, resource, context, timestamp, signature, publicKey, enforcementResult}`
+- Signature: Ed25519 over the canonical signature payload `{action_type, agent_id, context, resource, timestamp}`, JSON-serialized with sorted keys and Python's default separators (`', '` and `': '`) — see `src/aim-cloud-reporter.js pythonJsonStringify()`
+- Auth: NO bearer header. The Ed25519 signature in the body IS the auth (server `Ed25519AgentMiddleware` verifies against the agent's registered public key). The `X-API-Key` header is sent if `AIM_API_KEY` is set, but the verifications endpoint ignores it.
+
+**Tear down the local AIM stack when done:**
+
+```bash
+docker compose \
+  -f ../agent-identity-management/docker-compose.quickstart.yml \
+  -f ../agent-identity-management/docker-compose.override.yml \
+  --env-file ../agent-identity-management/.env \
+  down
+```
+
+Or `down -v` to also wipe the postgres volume (you'll need to re-seed the admin on next bring-up).
+
 ## How to run the AgentPwn showcase
 
 Same target URL DVAA documents in its main README; the 15th agent slots into the standard `dvaa browse` enumeration:
