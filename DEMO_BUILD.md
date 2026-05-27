@@ -250,6 +250,18 @@ dvaa chat --llm researchbot-aim \
 
 The flag reads `ANTHROPIC_API_KEY` from the shell and POSTs it to the fleet's `/api/llm/configure` endpoint on port 9000. The key is held in-memory on the fleet process for the rest of that `dvaa --api` lifetime; it is never written to disk. Model defaults to `claude-sonnet-4-6`; override via `DVAA_LLM_MODEL=...`.
 
+Loopback guard: if `--host` names anything other than `localhost`, `127.0.0.1`, or `::1`, `--llm` refuses by default rather than forward the key. To opt in, set `DVAA_ALLOW_REMOTE_LLM_CONFIGURE` to the **exact host value** (not `1`):
+
+```
+DVAA_ALLOW_REMOTE_LLM_CONFIGURE="other-host.example.internal" \
+  dvaa chat --llm --host other-host.example.internal \
+  --message "summarize https://agentpwn.com/attacks/data-exfiltration/3"
+```
+
+The override must name the exact host so a stale env var from one shell session doesn't accidentally apply to a different `--host` value (copy-paste safety).
+
+Debugging: LLM failures silently fall back to the deterministic template so the demo never hard-fails. To surface the underlying error reason on stderr while iterating on prompts, set `DVAA_DEBUG=1` on the fleet process.
+
 Wire-up:
 - `web_fetch` + injection detection + AIM enforcement + optional `http_post` all run deterministically, same as offline mode. Only the natural-language `content` field of the response is different.
 - For each of the four web_fetch outcomes (`fetch-denied`, `no-injection`, `aim-blocked-post`, `exfil-fired`) [`src/llm/research-narration.js`](src/llm/research-narration.js) builds a tool-report context and calls the LLM via [`src/llm/provider.js`](src/llm/provider.js). The agent's system prompt is built per-agent by `buildResearchAgentSystem()` in [`src/llm/prompts.js`](src/llm/prompts.js).

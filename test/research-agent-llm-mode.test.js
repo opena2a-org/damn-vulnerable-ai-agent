@@ -18,6 +18,9 @@
  */
 
 import { strict as assert } from 'assert';
+import { spawnSync } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { AGENTS, getAgent } from '../src/core/agents.js';
 import {
   buildResearchAgentSystem,
@@ -279,6 +282,109 @@ async function main() {
       });
       assert.ok(out.includes('AIM denied web:read'), 'template fallback missing on LLM failure');
     } finally {
+      globalThis.fetch = originalFetch;
+      disableLLM();
+    }
+  });
+
+  // ---------------------------------------------------------------------
+  // renderResearchNarration: DVAA_DEBUG=1 surfaces fallback reason on stderr
+  // ---------------------------------------------------------------------
+  await test('DVAA_DEBUG=1 logs the LLM failure reason to stderr', async () => {
+    configureLLM({ provider: 'anthropic', apiKey: 'test-key' });
+    globalThis.fetch = async () => { throw new Error('debug-boom'); };
+    process.env.DVAA_DEBUG = '1';
+    const captured = [];
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = (chunk) => { captured.push(String(chunk)); return true; };
+    try {
+      await renderResearchNarration({
+        kind: 'fetch-denied',
+        agent: getAgent('researchbot-aim'),
+        userMessage: 'fetch',
+        targetUrl: 'https://example.com/inj',
+        fetchEnforcement: { denialReason: 'web:read not in grant' },
+      });
+      const joined = captured.join('');
+      assert.ok(joined.includes('[DVAA_DEBUG]'), 'debug log prefix missing');
+      assert.ok(joined.includes('debug-boom'), 'underlying error message not propagated to debug log');
+    } finally {
+      process.stderr.write = origWrite;
+      delete process.env.DVAA_DEBUG;
+      globalThis.fetch = originalFetch;
+      disableLLM();
+    }
+  });
+
+  // ---------------------------------------------------------------------
+  // dvaa chat --llm guard: subprocess tests for the pre-network checks.
+  // We spawn a fresh node process so the guard's fail()/process.exit() does
+  // not terminate this test runner. The guard runs BEFORE the pre-flight
+  // ping, so no fleet needs to be running for these to assert.
+  // ---------------------------------------------------------------------
+  const __filename = fileURLToPath(import.meta.url);
+  const REPO_ROOT = path.resolve(path.dirname(__filename), '..');
+  const CLI = path.join(REPO_ROOT, 'src', 'index.js');
+
+  function runChat(args, env) {
+    const fullEnv = { ...process.env, ...env };
+    return spawnSync('node', [CLI, 'chat', ...args, '--message', 'x'], {
+      encoding: 'utf-8', shell: false, timeout: 8_000, env: fullEnv,
+    });
+  }
+
+  await test('--llm with non-loopback host refuses without override', () => {
+    const r = runChat(['--llm', '--host', 'evil.example.com'], {
+      ANTHROPIC_API_KEY: 'test-key',
+      DVAA_ALLOW_REMOTE_LLM_CONFIGURE: '',
+    });
+    assert.notEqual(r.status, 0, 'guard should have failed; exit was 0');
+    assert.ok(/Refusing to POST ANTHROPIC_API_KEY to non-loopback host/.test(r.stderr + r.stdout), 'expected refusal message');
+  });
+
+  await test('--llm refuses DVAA_ALLOW_REMOTE_LLM_CONFIGURE=1 broad-override', () => {
+    const r = runChat(['--llm', '--host', 'evil.example.com'], {
+      ANTHROPIC_API_KEY: 'test-key',
+      DVAA_ALLOW_REMOTE_LLM_CONFIGURE: '1',
+    });
+    assert.notEqual(r.status, 0, 'broad =1 override must NOT bypass the guard');
+    assert.ok(/must name the host/.test(r.stderr + r.stdout), 'expected the "must name the host" hardening guidance');
+  });
+
+  await test('--llm refuses host-mismatched override (stale env var protection)', () => {
+    const r = runChat(['--llm', '--host', 'other.example.com'], {
+      ANTHROPIC_API_KEY: 'test-key',
+      DVAA_ALLOW_REMOTE_LLM_CONFIGURE: 'previously.example.com',
+    });
+    assert.notEqual(r.status, 0, 'override naming a different host must NOT apply');
+    assert.ok(/Refusing to POST/.test(r.stderr + r.stdout), 'expected the refusal');
+  });
+
+  await test('--llm refuses missing ANTHROPIC_API_KEY on loopback', () => {
+    const r = runChat(['--llm'], { ANTHROPIC_API_KEY: '' });
+    assert.notEqual(r.status, 0, 'should fail without ANTHROPIC_API_KEY');
+    assert.ok(/--llm requires ANTHROPIC_API_KEY/.test(r.stderr + r.stdout), 'expected the env-var requirement');
+  });
+
+  await test('DVAA_DEBUG unset stays silent on LLM failure', async () => {
+    configureLLM({ provider: 'anthropic', apiKey: 'test-key' });
+    globalThis.fetch = async () => { throw new Error('silent-boom'); };
+    delete process.env.DVAA_DEBUG;
+    const captured = [];
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = (chunk) => { captured.push(String(chunk)); return true; };
+    try {
+      await renderResearchNarration({
+        kind: 'fetch-denied',
+        agent: getAgent('researchbot-aim'),
+        userMessage: 'fetch',
+        targetUrl: 'https://example.com/inj',
+        fetchEnforcement: { denialReason: 'web:read not in grant' },
+      });
+      const joined = captured.join('');
+      assert.ok(!joined.includes('[DVAA_DEBUG]'), 'debug log leaked without DVAA_DEBUG=1');
+    } finally {
+      process.stderr.write = origWrite;
       globalThis.fetch = originalFetch;
       disableLLM();
     }

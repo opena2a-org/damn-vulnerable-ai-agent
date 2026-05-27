@@ -52,10 +52,20 @@ export async function renderResearchNarration(ctx) {
     if (llmText && typeof llmText === 'string' && llmText.trim().length > 0) {
       return `[${(ctx.agent && ctx.agent.name) || 'ResearchBot'}] ${llmText.trim()}`;
     }
-  } catch {
-    // fall through to template
+    debugLog(`research-narration: LLM returned empty/non-string for kind=${ctx.kind}; falling back to template`);
+  } catch (err) {
+    debugLog(`research-narration: LLM call threw for kind=${ctx.kind}: ${err && err.message}; falling back to template`);
   }
   return template;
+}
+
+// Errors in the LLM path are swallowed so the demo never hard-fails on an
+// unreachable API. Set DVAA_DEBUG=1 to surface them on stderr while
+// iterating on prompts.
+function debugLog(msg) {
+  if (process.env.DVAA_DEBUG === '1') {
+    process.stderr.write(`[DVAA_DEBUG] ${msg}\n`);
+  }
 }
 
 function buildTemplateNarration(ctx) {

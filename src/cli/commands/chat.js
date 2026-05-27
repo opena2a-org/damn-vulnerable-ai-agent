@@ -101,8 +101,15 @@ export default async function run(argv) {
   // network at all.
   if (flags.has('llm')) {
     const isLoopback = host === 'localhost' || host === '127.0.0.1' || host === '::1';
-    if (!isLoopback && process.env.DVAA_ALLOW_REMOTE_LLM_CONFIGURE !== '1') {
-      fail(`Refusing to POST ANTHROPIC_API_KEY to non-loopback host "${host}".\nSet DVAA_ALLOW_REMOTE_LLM_CONFIGURE=1 to override (you are sending the key to a third-party machine).`);
+    if (!isLoopback) {
+      // Defense against the copy-paste accident where DVAA_ALLOW_REMOTE_LLM_CONFIGURE
+      // was set in the shell for one fleet host and then a different --host
+      // value is passed. The override MUST name the exact host the key is
+      // going to. A bare =1, an unrelated host, or an empty value all refuse.
+      const override = process.env.DVAA_ALLOW_REMOTE_LLM_CONFIGURE;
+      if (!override || override !== host) {
+        fail(`Refusing to POST ANTHROPIC_API_KEY to non-loopback host "${host}".\nTo opt in, set DVAA_ALLOW_REMOTE_LLM_CONFIGURE to the exact host value (DVAA_ALLOW_REMOTE_LLM_CONFIGURE="${host}").\nThe override must name the host so a stale env var doesn't apply to a different --host.`);
+      }
     }
     if (!process.env.ANTHROPIC_API_KEY) {
       fail(`--llm requires ANTHROPIC_API_KEY in the environment.\nExport it (export ANTHROPIC_API_KEY=...) then re-run the command. The key is forwarded to the running fleet via POST http://${host}:${DASHBOARD_PORT}/api/llm/configure and is not stored on disk.`);
