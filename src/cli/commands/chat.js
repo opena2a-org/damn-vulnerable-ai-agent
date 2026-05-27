@@ -94,6 +94,21 @@ export default async function run(argv) {
   const host = values.host || DEFAULT_HOST;
   const baseUrl = `http://${host}:${agent.port}`;
 
+  // If --llm was passed, validate the loopback constraint AND the env-var
+  // presence BEFORE any network activity. The configure POST sends the API
+  // key in the request body; even the pre-flight ping leaks "dvaa chat" to
+  // the host. Fail-fast on a misconfigured host before touching the
+  // network at all.
+  if (flags.has('llm')) {
+    const isLoopback = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+    if (!isLoopback && process.env.DVAA_ALLOW_REMOTE_LLM_CONFIGURE !== '1') {
+      fail(`Refusing to POST ANTHROPIC_API_KEY to non-loopback host "${host}".\nSet DVAA_ALLOW_REMOTE_LLM_CONFIGURE=1 to override (you are sending the key to a third-party machine).`);
+    }
+    if (!process.env.ANTHROPIC_API_KEY) {
+      fail(`--llm requires ANTHROPIC_API_KEY in the environment.\nExport it (export ANTHROPIC_API_KEY=...) then re-run the command. The key is forwarded to the running fleet via POST http://${host}:${DASHBOARD_PORT}/api/llm/configure and is not stored on disk.`);
+    }
+  }
+
   // Pre-flight: ping the agent's /health endpoint (falls back to /chat reach).
   const reachable = await ping(baseUrl);
   if (!reachable.ok) {
@@ -101,11 +116,7 @@ export default async function run(argv) {
   }
 
   if (flags.has('llm')) {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      fail(`--llm requires ANTHROPIC_API_KEY in the environment.\nExport it (export ANTHROPIC_API_KEY=...) then re-run the command. The key is forwarded to the running fleet via POST http://${host}:${DASHBOARD_PORT}/api/llm/configure and is not stored on disk.`);
-    }
-    const configured = await enableLlmOnFleet(host, apiKey);
+    const configured = await enableLlmOnFleet(host, process.env.ANTHROPIC_API_KEY);
     if (!configured.ok) {
       fail(`Failed to enable LLM mode on fleet at http://${host}:${DASHBOARD_PORT}: ${configured.error}\nIs the dashboard running? It listens on port ${DASHBOARD_PORT} when you start dvaa --api.`);
     }
