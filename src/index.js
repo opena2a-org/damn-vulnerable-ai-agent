@@ -61,6 +61,24 @@ if (args.length > 0 && !args[0].startsWith('-')) {
   }
 }
 
+// Handle browse command — spawn with argv (not a shell template literal) so
+// arguments cannot be shell-interpreted. Template-literal exec was CVE-class
+// command injection: a user running `dvaa browse "; rm -rf ~"` would execute it.
+//
+// Runs BEFORE the global --help check below so `dvaa browse --help` reaches
+// browse.js's own help text instead of falling back to the root help.
+if (args[0] === 'browse') {
+  const { spawnSync } = await import('child_process');
+  const { dirname, join } = await import('path');
+  const { fileURLToPath } = await import('url');
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  const result = spawnSync('node', [join(__dirname, 'browse.js'), ...args.slice(1)], {
+    stdio: 'inherit',
+    shell: false,
+  });
+  process.exit(result.status ?? 1);
+}
+
 // Handle --help / -h
 if (args.includes('--help') || args.includes('-h')) {
   const commands = listCommands();
@@ -92,21 +110,6 @@ Agents:
 Dashboard:  http://localhost:9000
 Docs:       https://github.com/opena2a-org/damn-vulnerable-ai-agent`);
   process.exit(0);
-}
-
-// Handle browse command — spawn with argv (not a shell template literal) so
-// arguments cannot be shell-interpreted. Template-literal exec was CVE-class
-// command injection: a user running `dvaa browse "; rm -rf ~"` would execute it.
-if (args[0] === 'browse') {
-  const { spawnSync } = await import('child_process');
-  const { dirname, join } = await import('path');
-  const { fileURLToPath } = await import('url');
-  const __dirname = dirname(fileURLToPath(import.meta.url));
-  const result = spawnSync('node', [join(__dirname, 'browse.js'), ...args.slice(1)], {
-    stdio: 'inherit',
-    shell: false,
-  });
-  process.exit(result.status ?? 1);
 }
 
 // Handle --version — uses the shared versionLine helper so the telemetry

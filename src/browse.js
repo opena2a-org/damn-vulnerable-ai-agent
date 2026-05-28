@@ -23,6 +23,41 @@
 import { getAllAgents } from './core/agents.js';
 
 const args = process.argv.slice(2);
+
+const USAGE = `dvaa browse [target] [options]
+
+Send DVAA agents to browse a target site and report which agents get
+pwned at which attack tiers. Default target: https://www.agentpwn.com.
+
+Arguments:
+  [target]                  HTTPS URL to send the agents to.
+                            Default: https://www.agentpwn.com
+
+Options:
+  --agents <ids>            Comma-separated agent ids to include
+                            (e.g. helperbot,legacybot). Default: all api agents.
+  --categories <cats>       Comma-separated attack categories to test
+                            (e.g. prompt-injection,data-exfiltration).
+                            Default: all categories in the payload set.
+  --json                    Machine-readable JSON output.
+  --publish                 Submit the results to the Registry.
+  --verbose, -v             Include per-payload detail.
+  --help, -h                Show this message.
+
+Examples:
+  dvaa browse
+  dvaa browse https://example.com
+  dvaa browse --agents helperbot,legacybot --json
+  dvaa browse --categories prompt-injection --verbose
+
+Requires: DVAA agents running in another terminal (dvaa --api).
+`;
+
+if (args.includes('--help') || args.includes('-h')) {
+  process.stdout.write(USAGE);
+  process.exit(0);
+}
+
 const TARGET = args.find(a => a.startsWith('http')) || 'https://www.agentpwn.com';
 const JSON_OUTPUT = args.includes('--json');
 const PUBLISH = args.includes('--publish');

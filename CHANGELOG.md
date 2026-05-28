@@ -1,5 +1,27 @@
 # Changelog — damn-vulnerable-ai-agent
 
+## 0.9.1
+
+### Fixed — UX papercuts from the 0.9.0 release-test
+
+Drains the three "Known issues will fix in 0.9.1" items from 0.9.0's CHANGELOG. Two of them lived in `@opena2a/cli-ui` and were fixed at root (cli-ui 0.5.1); one was local to `src/browse.js`.
+
+- **`dvaa telemetry --help`** now prints a proper usage block (actions, per-invocation override `OPENA2A_TELEMETRY=off`, debug knob `OPENA2A_TELEMETRY_DEBUG=print`). Previously fell into the cli-ui `Unknown action` default branch and printed `Unknown action '--help'. Try 'dvaa telemetry [on|off|status]'.`. Root-cause fix in `@opena2a/cli-ui@0.5.1` `runTelemetryCommand`; consumed here by bumping the pin.
+- **`dvaa telemetry status`** toggle hint now flips based on current state — suggests `off` + `OPENA2A_TELEMETRY=off` when telemetry is on, suggests `on` + `OPENA2A_TELEMETRY=on` when telemetry is off. Previously always suggested `off`, which was useless when telemetry was already off. Root-cause fix in `@opena2a/cli-ui@0.5.1` `renderStatus`.
+- **`dvaa browse --help`** now prints a browse-specific usage block (target arg, `--agents`, `--categories`, `--json`, `--publish`, `--verbose`) instead of falling back to the root `dvaa --help`. Root cause: `src/index.js`'s global `--help` check ran before the `browse` handler. Reordered so the `browse` subprocess spawn happens first, then `src/browse.js` checks `--help`/`-h` and prints its own usage. Subcommand-dispatched commands (`chat`, `demo`, `telemetry`, etc.) already had this property via `dispatch()`; only `browse` was special-cased.
+
+### Changed — dependencies
+
+- Bumped `@opena2a/cli-ui` pin from `0.4.0` to `0.5.1`. 0.5.0 (rich-context check block primitives, 2026-05-09) was a feature release we hadn't picked up yet; 0.5.1 (this release-test fixes) is what 0.9.1 actually needs. No DVAA code depends on 0.5.0's new exports.
+
+### Tests
+
+- `test/browse-help.test.js` (NEW): 3 subprocess tests asserting `--help` exits 0 + prints browse-specific text + does NOT leak root help (the exact bug class). Locks the fix in so a future index.js refactor can't reintroduce the regression.
+
+### Honest scope
+
+This release ships only the UX papercuts from 0.9.0's release-test. No new agents, no new commands, no AIM behavior change. RAGBot-AIM and ResearchBot-AIM enforcement contracts are unchanged.
+
 ## 0.9.0
 
 ### Added — AIM A/B demo
