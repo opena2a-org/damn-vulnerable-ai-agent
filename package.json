@@ -1,7 +1,7 @@
 {
   "name": "damn-vulnerable-ai-agent",
-  "version": "0.8.3",
-  "description": "The AI agent you're supposed to break. 14 agents, 12 vulnerability categories, zero consequences.",
+  "version": "0.9.0",
+  "description": "The AI agent you're supposed to break. 17 agents, 12 vulnerability categories, zero consequences.",
   "type": "module",
   "main": "src/index.js",
   "bin": {

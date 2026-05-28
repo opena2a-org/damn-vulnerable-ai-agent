@@ -1,5 +1,60 @@
 # Changelog — damn-vulnerable-ai-agent
 
+## 0.9.0
+
+### Added — AIM A/B demo
+
+- **RAGBot-AIM**, the 15th agent (#42). Same code as RAGBot, with `aimEnforced: true` and capability grant `rag:read + chat:respond`. The shared `generateResponse()` consults `agent.aimEnforced` at one point only — just before the outbound `submit_to_index` tool call — so the AIM-enforced path is byte-identical to the vulnerable path except for the one `maybeEnforce()` check.
+- **`dvaa demo aim-ab`** runner (#42). Deterministic A/B against the AgentPwn `APWN-DE-003` URL-exfiltration payload. Stands up a one-shot canary listener, POSTs the same poisoned document to RAGBot and to RAGBot-AIM, and prints a presenter-friendly comparison. Exit 0 = PASS (injection landed on both, Run A executed the exfil, Run B was denied by AIM). Useful as a stage demo AND a CI regression gate. Backed by `@opena2a/aim-core@0.2.0`; local Ed25519 identity, JSON-lines audit log, capability policy, and trust score all stored under `<DVAA_AIM_DATA_DIR or .dvaa-aim>/<agent.id>/`. No server, no API key, no network beyond the canary.
+- **Cloud-mode reporter** (#44). Optional fire-and-forget mirror of each AIM enforcement decision to a registered AIM server. The local enforcement decision remains authoritative; the cloud post is best-effort. Ed25519-signed POST to `/api/v1/sdk-api/verifications`, matching the Python `aim-sdk@1.21.0` `verify_capability` wire format. Set `AIM_SERVER_URL` + `DVAA_AIM_CLOUD_AGENT_ID` to enable; `docs/demo/setup-aim-local.sh` brings up the 4-service local stack and registers the agent.
+
+### Added — Interactive research-agent demo
+
+- **ResearchBot + ResearchBot-AIM pair** (#45). Conversational variant of the AIM demo on ports 7015 / 7016. Same code, single variable (capability grant). ResearchBot-AIM's grant is `web:read + chat:respond`; the post-injection `http:post` callback is denied at the tool boundary while the injection still lands in context. Matches the RAGBot pair's "same agent, one variable" pattern.
+- **`web_fetch` tool with SSRF guard** (#45). HTTPS GET + redirect follow + HTML text extraction. The guard refuses loopback / RFC1918 / link-local / cloud-metadata / non-http(s) by default and re-validates on every redirect hop. `DVAA_ALLOW_INTERNAL_FETCH=1` bypasses for offline-stage testing against local fixtures. Sha256-keyed cache under `.dvaa-aim/research-cache/` for stage fallback when live agentpwn.com is unreachable.
+- **`dvaa chat <agent>`** REPL (#45). Readline-based interactive chat against a running fleet agent. `--message "..."` one-shot for asciinema + CI smoke. `dvaa chat list` prints all api agents with their port + AIM status. Pretty-prints `tool_calls` and the `dvaa` metadata (AIM enforcement, web_fetch source, http_post result).
+
+### Added — LLM-mode narration
+
+- **`dvaa chat --llm`** (#47). Opt-in LLM mode for the research-agent narration. The deterministic web_fetch path is unchanged — `web_fetch` still fires real tool calls, injection detection runs, AIM enforcement runs, and the optional `http_post` still fires (or is denied) exactly as before. Only the natural-language `content` field is sourced differently: with `--llm`, the agent reasons about the same tool report in fresh prose; without it, the existing byte-deterministic template renders. `tool_calls` and `dvaa` metadata are byte-identical across modes.
+- **CHIEF-CSR rule encoded in the prompt** (#47). The AIM-variant system prompt explicitly instructs the model not to overclaim AIM's scope — it must say "AIM denied the outbound `http_post` call because `http:post` is outside the grant" rather than "AIM blocked the attack." Live-tested against `agentpwn.com/attacks/data-exfiltration/3`: narration cites the denial reason verbatim and acknowledges "AIM did not filter it out — but the outbound action did not fire."
+- **Loopback guard on `--llm`** (#47). `--llm` reads `ANTHROPIC_API_KEY` from the environment and POSTs it to the fleet's `/api/llm/configure` endpoint on port 9000. If `--host` is non-loopback, the guard refuses by default. To opt in, `DVAA_ALLOW_REMOTE_LLM_CONFIGURE` must name the **exact host value** — a bare `=1` is refused so a stale env var from one shell session can't accidentally apply to a different `--host`. `DVAA_DEBUG=1` surfaces LLM fallback errors on stderr.
+- **Silent fallback**: LLM call failures (no key, timeout, network error, empty response) fall back to the deterministic template. The demo never hard-fails because of an unreachable API.
+
+### Changed
+
+- Description updated from "14 agents" to "17 agents" (matches the actual fleet: 11 api + 4 mcp + 2 a2a).
+
+### Fixed — packaging
+
+- **`.npmignore` added.** Previous releases shipped the local `.pre-push-review-passed` marker (0.8.2 visible on npm). With the new research-agent runtime state under `.dvaa-aim/` (Ed25519 identities including private keys, JSON-lines audit logs, web_fetch cache), an unguarded `npm pack` would forward developer-machine state — including the maintainer's secret key — into the published tarball. The `.npmignore` excludes `.dvaa-aim/`, the pre-push / release-test markers, `test/`, `.tgz` artifacts, `CLAUDE.md` / `.claude/` and other editor configs, `STATUS.md`, and `.github/` workflow YAML. Verified clean: 0.9.0 tarball ships 456 files vs 458 in 0.8.2 (smaller despite adding the research-agent surface, because runtime state + marker files + CI configs are no longer shipped).
+
+### Known issues (will fix in 0.9.1)
+
+These were caught in the 0.9.0 release test against the built tarball; all three are pre-existing UX papercuts (present since 0.8.1) and none affect security or the headline AIM demo, so they don't gate this release.
+
+- `dvaa telemetry --help` errors with `Unknown action '--help'` instead of printing help. Every other subcommand accepts `--help`.
+- `dvaa browse --help` falls back to the root help instead of printing browse-specific help. The command is listed in `dvaa --help` but its own help text is missing.
+- `dvaa telemetry status` always prints `toggle: 'dvaa telemetry off'` regardless of current state. When state is `off`, the suggested toggle should be `on`.
+
+### Documentation
+
+- `DEMO_BUILD.md` reference: scope honesty, capability grants, enforcement toggle, demo runner contract, cloud-mode contract, research-agent showcase, LLM-mode contract. Conference-agnostic language throughout (#46).
+- `STATUS.md` (#43) reference-only build status; status badge on README.
+
+### Tests
+
+- 19 research-agent-llm-mode smoke tests covering prompt builders, no-overclaim sentinel phrases, four template kinds (`fetch-denied`, `no-injection`, `aim-blocked-post`, `exfil-fired`), LLM-enabled path (mocked fetch), fallback-on-failure path, `DVAA_DEBUG` visibility, and 4 subprocess tests locking in the loopback guard (refuses non-loopback w/o override, refuses bare `=1`, refuses host-mismatched override, refuses missing `ANTHROPIC_API_KEY`).
+- 15 research-agent tests for agent registration, `htmlToText`, `detectInjection`, cache round-trip, and SSRF guard accept/reject (loopback / RFC1918 / link-local / scheme rejection / env-var bypass).
+- All existing tests still pass: 75 novel-agents + 6 cli-hma + playground + attack-log.
+
+### Honest scope (load-bearing)
+
+- AIM enforces outbound tool-boundary actions only. It does NOT filter inputs. An injection in fetched page content WILL land in the agent's context regardless of AIM; the capability layer denies the resulting outbound action only.
+- RAGBot-AIM enforces one action (`http:post` for `submit_to_index`). Other in-band leak paths (response-text `dataExfiltration` regex, context-overflow leaks, memory-injection leaks) remain by design.
+- ResearchBot-AIM enforces two boundaries (`web:read` allowed, `http:post` denied). In-band leaks via the agent's own text response remain by design.
+- The narrow claim is the pitch. The LLM-mode prompt encodes that constraint so even a freshly-reasoned narration cannot drift into overclaim.
+
 ## 0.8.2
 
 ### Fixed
