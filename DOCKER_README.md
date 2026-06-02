@@ -2,7 +2,7 @@
 
 **The AI agent you're supposed to break.**
 
-14 agents. 8 attack classes. Zero consequences. DVAA is an intentionally vulnerable AI agent platform for learning, red-teaming, and validating security tools. Think [DVWA](https://dvwa.co.uk/) / [OWASP WebGoat](https://owasp.org/www-project-webgoat/), but for AI agents.
+17 agents. 8 attack classes. Zero consequences. DVAA is an intentionally vulnerable AI agent platform for learning, red-teaming, and validating security tools. Think [DVWA](https://dvwa.co.uk/) / [OWASP WebGoat](https://owasp.org/www-project-webgoat/), but for AI agents.
 
 - **Learn** — Understand AI agent vulnerabilities hands-on with CTF-style challenges (5,900 total points)
 - **Attack** — Practice prompt injection, jailbreaking, data exfiltration, and more
@@ -17,9 +17,9 @@
 docker run -d --name dvaa \
   -p 9000:9000 \
   -p 7001-7008:7001-7008 \
-  -p 7010-7013:7010-7013 \
+  -p 7010-7016:7010-7016 \
   -p 7020-7021:7020-7021 \
-  opena2a/dvaa:0.8.0
+  opena2a/dvaa:0.9.1
 ```
 
 Open the dashboard at [http://localhost:9000](http://localhost:9000).
@@ -47,7 +47,7 @@ No environment variables or external services needed. Simulated mode (default) w
 
 The dashboard at `http://localhost:9000` includes six integrated views:
 
-- **Agents** — Grid of all 14 agents with live stats, security levels, and test commands
+- **Agents** — Grid of all 17 agents with live stats, security levels, and test commands
 - **Challenges** — CTF-style challenge board with 5,900 total points, progressive hints, and in-browser verification
 - **Attack Lab** — Interactive multi-step kill-chain walkthroughs (live progression requires LLM mode)
 - **Attack Log** — Real-time scrolling table of detected attacks with filters by agent, category, and result
@@ -76,6 +76,9 @@ Test your own system prompts against real security attacks:
 | LegacyBot | 7003 | Critical | OpenAI API | All vulnerabilities enabled, credential leaks |
 | CodeBot | 7004 | Vulnerable | OpenAI API | Capability abuse, command injection |
 | RAGBot | 7005 | Weak | OpenAI API | RAG poisoning, document exfiltration |
+| RAGBot-AIM | 7014 | AIM-protected | OpenAI API | Same code as RAGBot, capability grant enforced by AIM |
+| ResearchBot | 7015 | Weak | OpenAI API | Web-content prompt injection during research/browsing |
+| ResearchBot-AIM | 7016 | AIM-protected | OpenAI API | Same code as ResearchBot, outbound tool calls gated by AIM |
 | VisionBot | 7006 | Weak | OpenAI API | Image-based prompt injection |
 | MemoryBot | 7007 | Vulnerable | OpenAI API | Memory injection, cross-session persistence |
 | LongwindBot | 7008 | Weak | OpenAI API | Context overflow, safety displacement |
@@ -93,6 +96,7 @@ Test your own system prompts against real security attacks:
 | 9000 | Web dashboard (agents, challenges, attack lab, log, stats, playground) |
 | 7001-7008 | OpenAI-compatible API agents (`/v1/chat/completions`) |
 | 7010-7013 | MCP tool servers (JSON-RPC at `/`, legacy at `/mcp/execute`) |
+| 7014-7016 | AIM-protected + research API agents (`/v1/chat/completions`) |
 | 7020-7021 | A2A agents (`/a2a/message`) |
 
 ## Vulnerability Categories
@@ -142,7 +146,7 @@ Key subcommands (all accept `--json` for CI):
 
 | | |
 |---|---|
-| `dvaa agents` | List all 14 agents with port, protocol, URL |
+| `dvaa agents` | List all 17 agents with port, protocol, URL |
 | `dvaa health` | Ping the dashboard; exit 1 if unreachable |
 | `dvaa attack <agent\|url>` | Run HMA attack suite (accepts agent name or URL) |
 | `dvaa logs [--follow]` | Tail the attack log |
@@ -169,8 +173,8 @@ The image's default `CMD` starts every agent and the dashboard together — no `
 # Remap host ports 7001-7021 → 7501-7521. Container-internal ports stay unchanged.
 docker run -d -e HOST_PORT_OFFSET=500 \
   -p 9000:9000 \
-  -p 7501-7508:7001-7008 -p 7510-7513:7010-7013 -p 7520-7521:7020-7021 \
-  opena2a/dvaa:0.8.0
+  -p 7501-7508:7001-7008 -p 7510-7516:7010-7016 -p 7520-7521:7020-7021 \
+  opena2a/dvaa:0.9.1
 ```
 
 `HOST_PORT_OFFSET` affects only what the dashboard **displays** (test commands, agent URLs). The container still binds internally to `7001-7021`. Remapping with `-p 8001:7001` without setting the env var will leave the dashboard telling users to hit `7001` while the agent is actually on `8001`.

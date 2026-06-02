@@ -148,7 +148,7 @@ else
     -d "{
       \"name\": \"dvaa-ragbot-aim\",
       \"displayName\": \"DVAA RAGBot-AIM\",
-      \"description\": \"DVAA 15th agent: same RAG code as RAGBot, AIM capability enforcement at the tool boundary\",
+      \"description\": \"DVAA AIM-protected agent: same RAG code as RAGBot, AIM capability enforcement at the tool boundary\",
       \"agentType\": \"custom\",
       \"version\": \"0.8.3\",
       \"publicKey\": \"$PUBKEY\",

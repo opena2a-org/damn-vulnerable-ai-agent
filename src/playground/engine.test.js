@@ -62,7 +62,11 @@ async function testAttackCategories() {
   // Each category should have attacks
   for (const [category, data] of Object.entries(results.categories)) {
     assert(data.attacks.length > 0, `${category} should have attacks`);
-    assert(data.total === data.blocked + data.succeeded, `${category} counts should be consistent`);
+    // An attack can be neither blocked nor succeeded (ambiguous response), so
+    // blocked + succeeded is a lower bound on total, not an equality. See the
+    // engine's per-category tally in engine.js (the ambiguous-response comment).
+    assert(data.blocked + data.succeeded <= data.total, `${category} counts should not exceed total`);
+    assert(data.total === data.attacks.length, `${category} total should equal attack count`);
   }
 }
 

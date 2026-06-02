@@ -5,10 +5,10 @@
 [![Docker Hub](https://img.shields.io/docker/pulls/opena2a/dvaa)](https://hub.docker.com/r/opena2a/dvaa)
 [![OASB Compatible](https://img.shields.io/badge/OASB-1.0-teal)](https://oasb.ai)
 
-An intentionally vulnerable AI agent platform for security training, red-teaming, and validating security tools. 15 agents, 12 vulnerability categories, 3 protocols. The [DVWA](https://dvwa.co.uk/) of AI agents.
+An intentionally vulnerable AI agent platform for security training, red-teaming, and validating security tools. 17 agents, 12 vulnerability categories, 3 protocols. The [DVWA](https://dvwa.co.uk/) of AI agents.
 
 ```bash
-docker run -p 9000:9000 -p 7001-7008:7001-7008 -p 7010-7013:7010-7013 -p 7020-7021:7020-7021 opena2a/dvaa:0.8.0
+docker run -p 9000:9000 -p 7001-7008:7001-7008 -p 7010-7016:7010-7016 -p 7020-7021:7020-7021 opena2a/dvaa:0.9.1
 open http://localhost:9000
 ```
 
@@ -30,6 +30,8 @@ open http://localhost:9000
 | CodeBot | 7004 | Vulnerable | Capability abuse, command injection |
 | RAGBot | 7005 | Weak | RAG poisoning, document exfiltration |
 | RAGBot-AIM | 7014 | AIM-protected | Same code as RAGBot, capability grant enforced by AIM |
+| ResearchBot | 7015 | Weak | Web-content prompt injection during research/browsing |
+| ResearchBot-AIM | 7016 | AIM-protected | Same code as ResearchBot, outbound tool calls gated by AIM |
 | VisionBot | 7006 | Weak | Image-based prompt injection |
 | MemoryBot | 7007 | Vulnerable | Memory injection, cross-session persistence |
 | LongwindBot | 7008 | Weak | Context overflow, safety displacement |
@@ -101,7 +103,7 @@ dvaa --help
 | Command | What it does |
 |---|---|
 | `dvaa` | Start the dashboard and full agent fleet (same as `npm start`). |
-| `dvaa agents [--json]` | List all 14 agents with port, protocol, security level, URL. |
+| `dvaa agents [--json]` | List all 17 agents with port, protocol, security level, URL. |
 | `dvaa health [--json]` | Ping the dashboard at `:9000`. Exit 1 if unreachable. |
 | `dvaa attack <agent\|url> [--intensity passive\|active\|aggressive] [--verbose]` | Run HMA attacks against a DVAA agent. `--all` runs the full fleet. |
 | `dvaa logs [--limit N] [--follow] [--json]` | Show or tail the attack log. |
@@ -163,7 +165,7 @@ This integration connects DVAA (the lab) with AgentPwn (the wild). The same atta
 
 ## AIM-Protected Agent
 
-The 15th agent, **RAGBot-AIM** (port 7014), runs the same code as RAGBot. The only difference is a capability grant of `rag:read` and `chat:respond`, enforced by [`@opena2a/aim-core`](https://www.npmjs.com/package/@opena2a/aim-core) at the tool-call boundary. No server, no API key, no network. Identity, audit log, capability policy, and trust score all live on disk under `.dvaa-aim/ragbot-aim/`.
+The AIM-protected agent, **RAGBot-AIM** (port 7014), runs the same code as RAGBot. The only difference is a capability grant of `rag:read` and `chat:respond`, enforced by [`@opena2a/aim-core`](https://www.npmjs.com/package/@opena2a/aim-core) at the tool-call boundary. No server, no API key, no network. Identity, audit log, capability policy, and trust score all live on disk under `.dvaa-aim/ragbot-aim/`.
 
 The deterministic A/B against a single AgentPwn payload (`APWN-DE-003`, RAG-poisoned URL exfiltration):
 
@@ -296,8 +298,8 @@ VERBOSE=true            # Detailed logging
 # Remap host ports 7001-7021 → 7501-7521. Container-internal ports stay unchanged.
 docker run -d -e HOST_PORT_OFFSET=500 \
   -p 9000:9000 \
-  -p 7501-7508:7001-7008 -p 7510-7513:7010-7013 -p 7520-7521:7020-7021 \
-  opena2a/dvaa:0.8.0
+  -p 7501-7508:7001-7008 -p 7510-7516:7010-7016 -p 7520-7521:7020-7021 \
+  opena2a/dvaa:0.9.1
 ```
 
 `HOST_PORT_OFFSET` only affects what the dashboard **displays** (e.g. test commands, agent URLs). The container still binds internally to `7001-7021`. You are responsible for the matching `-p` mappings — naive `-p 8001:7001` without the env var means the dashboard will keep telling users to hit `7001` when the agent is actually on `8001`.

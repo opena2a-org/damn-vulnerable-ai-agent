@@ -8,6 +8,7 @@
     "dvaa": "src/index.js"
   },
   "scripts": {
+    "test": "node --test",
     "start": "node src/index.js",
     "start:all": "node src/index.js --all",
     "start:api": "node src/index.js --api",
