@@ -61,6 +61,19 @@ Based on [OASB-1](https://oasb.ai) (Open Agent Security Benchmark):
 | Tool Registry Poisoning | Manipulate tool discovery and registration |
 | Tool MITM | Intercept and modify tool communications |
 
+## From attack to defense
+
+DVAA shows you how agents break. Each attack class maps to an OpenA2A control that stops it in your own agents. Every command below is real and runnable — break it here, then defend it for real.
+
+| Attack you just ran | OpenA2A control | Get started |
+|---------------------|-----------------|-------------|
+| Prompt injection, jailbreak, context manipulation/overflow, MCP exploitation, tool poisoning/MITM | **[HackMyAgent](https://github.com/opena2a-org/hackmyagent)** — scan an agent setup and harden it | `npx hackmyagent secure` |
+| Capability abuse, outbound data exfiltration, A2A trust abuse | **[AIM](https://github.com/opena2a-org/agent-identity-management)** — cryptographic identity + capability grants enforced at the tool-call boundary | `dvaa demo aim-ab` ([see below](#aim-protected-agent)) |
+| Credential and secret leaks | **[Secretless](https://github.com/opena2a-org/secretless-ai)** — keep secrets out of agent and LLM context | `npx secretless-ai init` |
+| Browser-session agent takeover | **[BrowserGuard](https://github.com/opena2a-org/ai-browserguard)** — block agent takeover inside the browser | [Install from Chrome Web Store](https://chromewebstore.google.com/detail/ojphpdmabflmcjhglfogmkdgchkncikf) |
+
+The RAGBot-AIM A/B below is the shortest end-to-end proof: same agent code, the same injection landing on both, AIM denying the outbound action on the protected one.
+
 ## Testing with HackMyAgent
 
 DVAA is the primary target for [HackMyAgent](https://github.com/opena2a-org/hackmyagent) adversarial testing. The dev workflow loop: **spin up → attack → scan with HMA → fix → re-scan.**
@@ -167,15 +180,19 @@ This integration connects DVAA (the lab) with AgentPwn (the wild). The same atta
 
 The AIM-protected agent, **RAGBot-AIM** (port 7014), runs the same code as RAGBot. The only difference is a capability grant of `rag:read` and `chat:respond`, enforced by [`@opena2a/aim-core`](https://www.npmjs.com/package/@opena2a/aim-core) at the tool-call boundary. No server, no API key, no network. Identity, audit log, capability policy, and trust score all live on disk under `.dvaa-aim/ragbot-aim/`.
 
+![RAGBot-AIM A/B demo: same code, AIM denies the outbound exfil on the protected agent](docs/aim-ab-demo.gif)
+
 The deterministic A/B against a single AgentPwn payload (`APWN-DE-003`, RAG-poisoned URL exfiltration):
 
 ```bash
-# Terminal 1
+# Terminal 1 — run the fleet on the host (NOT via docker; see note below)
 dvaa --api
 
 # Terminal 2
 dvaa demo aim-ab
 ```
+
+> **Run the demo against a host fleet, not a docker fleet.** The runner's canary listener binds to the host's `127.0.0.1`. When the fleet runs inside the docker container, the agent's outbound exfil to `127.0.0.1` resolves to the container's loopback, never reaches the host canary, and Run A reports `canary received exfil: no` with `Verdict: FAIL`. Start the fleet with `dvaa --api` (or `npm start`) on the same host for the A/B to work.
 
 Expected output, abbreviated:
 
