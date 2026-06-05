@@ -35,6 +35,10 @@ export default async function run(argv) {
   // tele.init() snapshots the opt-out config - setting OPENA2A_TELEMETRY here
   // would be too late (init already ran), so it is handled at process entry.
   const scenario = positional[0] || 'aim-ab';
+  if (scenario === 'flight') {
+    const { default: runFlight } = await import('./demo-flight.js');
+    return await runFlight(argv, flags);
+  }
   if (scenario !== 'aim-ab') {
     fail(`Unknown demo scenario: ${scenario}\nRun: dvaa demo --help`);
   }
@@ -469,19 +473,27 @@ async function startCanary() {
 const USAGE = `Usage: dvaa demo <scenario> [--json] [--verbose]
 
 Scenarios:
+  flight    Three-act story: a flight-booking agent holding a synthetic
+            traveler wallet. It searches flights, then a poisoned travel
+            page makes the unprotected agent exfiltrate the wallet; the
+            same agent under AIM is denied at the egress boundary.
+            Self-contained: manages its own fleet, no pre-flight needed.
   aim-ab    Deterministic A/B: vulnerable RAGBot vs AIM-secured RAGBot-AIM
             against a single AgentPwn payload (APWN-DE-003). Shows
             injection lands on both, action denied on the AIM agent.
 
-Pre-flight:
+Pre-flight (aim-ab only):
   Both RAGBot (port 7005) and RAGBot-AIM (port 7014) must be reachable.
   Start the fleet in another terminal: dvaa --api
+  The flight scenario needs no pre-flight - it runs its own fleet.
 
 Options:
-  --interactive, -i  Step through the A/B live with pauses + narration
+  --interactive, -i  Step through the demo live with pauses + narration
                      (for a follow-along audience; requires a terminal)
-  --cloud    Mirror the denied event to your AIM dashboard. Requires
-             'aim-sdk login' first; falls back to local-only if offline.
+  --live     flight: fetch the real target instead of the seeded offline
+             page; the capture lands on the public agentpwn /pwned wall.
+  --cloud    aim-ab: mirror the denied event to your AIM dashboard.
+             Requires 'aim-sdk login' first; falls back to local-only.
   --json     Machine-readable output (for CI / scripting)
   --verbose  Include raw chat responses and canary hit log
   --help     Show this message

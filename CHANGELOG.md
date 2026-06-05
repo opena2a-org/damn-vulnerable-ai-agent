@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Added: `dvaa demo flight` — a relatable three-act AIM demo
+
+- **One command, no pre-reqs.** `dvaa demo flight` stands up its own isolated fleet (dedicated data dir, research cache on), seeds a deterministic poisoned page, runs the three acts over the agents' real HTTP API, and tears the fleet down. Nothing to start by hand (unlike `aim-ab`, which needs `dvaa --api` first). Fails fast with a clear message if ports 7017/7018 are already taken.
+- **The story.** A flight-booking agent holds a synthetic traveler wallet. Act 1: it searches flights normally. Act 2: asked to "search the deals page for cheaper flights", the unprotected `FlightBot` fetches a poisoned travel page, follows the indirect injection, and exfiltrates the wallet — observable on a local canary. Act 3: the same agent code under an AIM grant (`FlightBot-AIM`) is denied at the `http:post` egress boundary; the wallet does not leave and the trust score drops. The injection lands both times — the capability grant, not an input filter, is what contains it.
+- **New agents** `FlightBot` (7017) / `FlightBot-AIM` (7018): the ResearchBot web-fetch mechanic re-skinned with a `flight:search` tool and a `get_user_wallet`-exposed wallet. The AIM grant is `{web:read, flight:search, chat:respond}` — the agent may read its own wallet to book, but cannot ship it to an untrusted callback.
+- **Synthetic data only.** The wallet uses public test card PANs (`4242 4242 4242 4242`), `@example.com` emails, and FAKE-marked identity/passport/loyalty values. It looks real on stage and can never collide with real PII. Asserted in `test/flight-demo.test.js`.
+- **Brand-neutral and reusable.** Agent name (`DVAA_AGENT_NAME`), target URL (`DVAA_FLIGHT_URL`), and ports are configurable; carrier names in the benign results are generic. No venue strings.
+- **`--live`** fetches the real target instead of the seeded offline page, so the capture lands on the public agentpwn `/pwned` wall for third-party review. **`--interactive` / `-i`** steps through the three acts with pauses for a live audience. **`--json`** emits a machine-readable verdict.
+- **Run script** `docs/demo/FLIGHT_RUN_SCRIPT.md`: presenter runbook (one-command start, beat-by-beat narration, the pip-install + `aim-sdk login` framing for Act 3, reset, failure fallbacks).
+- _Deferred:_ a `--cloud` dashboard mirror for this scenario (the existing `aim-ab --cloud` covers the dashboard view today; the flight fleet is ephemeral, so cloud binding needs a stable identity first).
+
+### Tests
+
+- `test/flight-demo.test.js` (NEW): agent registration + grants, synthetic-data safety (FAKE/test-card/example.com assertions), brand-neutral results, and poisoned-page injection detection with placeholder survival. Network-free.
+
 ### Added: live-demo support for `dvaa demo aim-ab`
 
 - **Behavioral trust score now drops on a denied action.** The A/B demo previously showed a static `30/100`. RAGBot-AIM's current trust is now lowered by each `denied` out-of-scope attempt recorded in its audit log (`-6` per denial, floored at `5`), so Run B shows `30/100 -> 24/100`. The drop is event-driven and traces to the real denied event, not a hard-coded animation. Reset by truncating the agent's `audit.jsonl`. Logic in `src/aim-enforcer.js` (`trustDelta`); the static base from `@opena2a/aim-core` is unchanged.

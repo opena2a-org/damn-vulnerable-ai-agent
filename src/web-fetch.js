@@ -303,4 +303,16 @@ export async function webFetch(url, { useCache = false, allowLive = true } = {})
   }
 }
 
+/**
+ * Pre-populate the research cache for `url` with `body`. Used by the
+ * `dvaa demo flight` runner to stage a deterministic, offline poisoned page
+ * keyed to the exact URL the agent will fetch, so the demo never depends on
+ * the live network. Returns the cache file path, or null if the write failed.
+ * Reuses the same key + root scheme as live fetches so a seeded entry is
+ * indistinguishable from a cached live fetch.
+ */
+export function seedCache(url, body) {
+  return writeCache(url, body);
+}
+
 export { htmlToText };
