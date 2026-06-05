@@ -76,6 +76,11 @@ test('registerOrLoadAgent registers a new agent, then loads from cache', async (
   assert.equal(received[1].body.name, 'dvaa-ragbot-aim');
   assert.equal(received[1].body.publicKey, 'PUBKEY==');
   assert.deepEqual(received[1].body.capabilities, ['rag:read', 'chat:respond']);
+  // The hosted backend rejects a registration missing these (HTTP 500
+  // "name and display_name are required"); pin the full contract.
+  assert.equal(received[1].body.displayName, 'DVAA RAGBot-AIM');
+  assert.equal(received[1].body.agentType, 'custom');
+  assert.ok(received[1].body.description, 'description is required by the hosted backend');
 
   // Second call hits the cache — no new HTTP requests.
   const before = received.length;

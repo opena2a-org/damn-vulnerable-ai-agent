@@ -162,7 +162,7 @@ This registration contract is the hosted mirror of [`docs/demo/setup-aim-local.s
 
 **Honest scope (unchanged):** `--cloud` posts a faithful copy of the *locally-enforced* decision. Local enforcement remains authoritative; the dashboard event is a mirror, not a second enforcement. The narrow claim still holds — AIM denied this `http:post` because it is outside the grant.
 
-**Verification status:** the registration + verification wire-format is covered by a mock-backend test ([`test/aim-cloud-register.test.js`](test/aim-cloud-register.test.js)) and exercised end-to-end against a local mock. It has NOT yet been run against the live hosted backend (that needs a real `aim-sdk login`). **Do a real `aim-sdk login` + `--cloud` dry run before the talk** and confirm the event appears in the dashboard.
+**Verification status:** verified end-to-end against the live hosted backend (`api.aim.opena2a.org`) on 2026-06-05 — `dvaa-ragbot-aim` registered under a real account and the denied `http:post` posted as a verification event that the server cryptographically verified (`status: success, result: verified`, queryable via `GET /api/v1/verification-events?agentId=<id>`). The registration payload requires the full SDK shape (`name`, `displayName`, `description`, `agentType`, `publicKey`); the hosted backend returns HTTP 500 "name and display_name are required" without them (localhost accepts a subset). Re-run a real `aim-sdk login` + `--cloud` dry run on the stage machine before the talk in case the login session has expired.
 
 ## Interactive mode (`-i`, follow-along)
 

@@ -177,7 +177,17 @@ export async function registerOrLoadAgent({ apiBase, jwt, publicKey, name = AGEN
     method: 'POST',
     url: `${apiBase}/api/v1/agents`,
     jwt,
-    body: { name, publicKey, capabilities },
+    // The hosted backend requires the full SDK registration shape
+    // (name + displayName + description + agentType + publicKey); localhost
+    // accepts a subset. Send the full shape so both work.
+    body: {
+      name,
+      displayName: 'DVAA RAGBot-AIM',
+      description: 'DVAA RAGBot-AIM — AIM A/B capability-containment demo agent',
+      agentType: 'custom',
+      publicKey,
+      capabilities,
+    },
   });
   if (reg.status === 401) return { error: 'unauthorized', detail: 'login token rejected or expired — run: aim-sdk login' };
   const id = reg.body?.id || reg.body?.agentId;
