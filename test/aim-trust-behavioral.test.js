@@ -3,7 +3,7 @@
  *
  * aim-core's calculateTrust() scores configuration posture and is static. DVAA
  * adds a behavioral penalty: each `denied` out-of-scope attempt in the agent's
- * audit log lowers its current trust by a fixed amount, floored. The SVCC demo
+ * audit log lowers its current trust by a fixed amount, floored. The A/B demo
  * relies on this producing a visible, honest before -> after drop on Run B.
  *
  * These tests pin: (1) a denied action drops the score, (2) an allowed action

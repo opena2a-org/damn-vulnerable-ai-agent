@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Record an asciinema cast of `dvaa demo aim-ab` for the SVCC stage fallback.
+# Record an asciinema cast of `dvaa demo aim-ab` for a live-demo fallback.
 #
 # Usage:
 #   ./docs/demo/record-aim-ab.sh

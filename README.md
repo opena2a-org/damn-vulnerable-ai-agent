@@ -125,7 +125,7 @@ dvaa --help
 | `dvaa hma <args...>` | Pass-through to the bundled HackMyAgent CLI for anything not covered above. |
 | `dvaa telemetry [on\|off\|status]` | Inspect or toggle anonymous usage telemetry (see §Telemetry). |
 | `dvaa browse [url] [--agents X] [--categories Y] [--json] [--publish]` | Send DVAA agents to browse a target site (agentpwn.com by default). |
-| `dvaa demo aim-ab [--json] [--verbose]` | Run the deterministic A/B: same agent code, AIM enforcement off vs on. |
+| `dvaa demo aim-ab [-i] [--cloud] [--json] [--verbose]` | Run the deterministic A/B: same agent code, AIM enforcement off vs on. `-i` steps through it interactively for a live audience; `--cloud` mirrors the denied event to your AIM dashboard ([see below](#aim-protected-agent)). |
 
 Run any command with `--help` for per-command options.
 
@@ -210,10 +210,12 @@ Expected output, abbreviated:
   canary received exfil:   no  (action denied by AIM before it left)
   AIM denial reason:       action 'http:post' is outside the agent's declared capability grant (rag:read, chat:respond)
   AIM audit event id:      <iso-timestamp>
-  AIM trust score:         30/100 (improving)
+  AIM trust score:         30/100 -> 24/100  (-6: agent attempted 1 out-of-scope action, denied)
 
   Verdict: PASS  injection landed on both, AIM denied the action on B.
 ```
+
+The trust score drops because the agent attempted an action outside its grant and was denied. The drop is event-driven: each denied attempt recorded in the agent's audit log lowers its current trust, floored so it never collapses to zero. Truncate `.dvaa-aim/ragbot-aim/audit.jsonl` to reset it to the base score.
 
 The runner stands up its own one-shot canary HTTP listener on a random free port so you can see the exfil actually leave the agent in Run A and actually NOT leave in Run B. No external network required.
 
@@ -227,6 +229,20 @@ dvaa demo aim-ab                  # Terminal 2 (now fails the verdict)
 ```
 
 This proves the AIM enforcement is the only delta. See [DEMO_BUILD.md](DEMO_BUILD.md) for the full scenario design, capability grant, and what each surface checks.
+
+**Follow along live.** `dvaa demo aim-ab -i` steps through Run A and Run B with pauses and narration so a room can follow each beat, then prints the commands to reproduce it. Plain mode shows the whole result on one screen; `-i` is for a live audience.
+
+**Show it in your AIM dashboard.** `--cloud` mirrors the denied action to your hosted AIM account so the event appears in the dashboard UI. Log in once with the AIM SDK, then run with `--cloud`:
+
+```bash
+aim-sdk login                  # browser login to your AIM account (once)
+dvaa --api                     # Terminal 1 (offline is fine; the demo posts the event itself)
+dvaa demo aim-ab --cloud       # Terminal 2
+```
+
+It registers RAGBot-AIM under your account and posts the denied `http:post` as a signed verification event. Open the printed dashboard URL and go to the agent's Verification Events to see it. The local A/B stays authoritative and offline; `--cloud` only adds the dashboard view, and falls back to the local-only demo if you are not logged in.
+
+**Fully offline.** Add `--offline` to the fleet (`dvaa --api --offline`) to disable anonymous telemetry for an airplane-mode run. The A/B itself never needs the network: the canary binds to host loopback and AIM enforcement is local.
 
 RAGBot-AIM also shows up in `dvaa browse` as the agent that survives the RAG-poisoning + outbound-exfil payload while the rest of the fleet does not.
 
