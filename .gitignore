@@ -16,3 +16,6 @@ dist/
 # Test/screenshot artifacts (session-local)
 .playwright-mcp/
 rc*-*.png
+
+# Local AIM runtime data — agent identity (private key), audit log, cloud-agent cache
+.dvaa-aim/
