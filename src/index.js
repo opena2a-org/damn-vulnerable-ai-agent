@@ -92,6 +92,7 @@ Server options (default mode — start DVAA dashboard + agent fleet):
   --mcp          Start MCP servers only (ports 7010-7013)
   --a2a          Start A2A agents only (ports 7020-7021)
   --verbose, -v  Enable verbose logging
+  --offline      Airplane-mode: disable anonymous telemetry (no network calls)
   --team <name>  Team mode (separate scoreboards per team)
   --timer <min>  Workshop timer (countdown in dashboard)
   --help, -h     Show this help
@@ -126,7 +127,7 @@ const timerIdx = args.indexOf('--timer');
 const timerMinutes = timerIdx >= 0 && args[timerIdx + 1] ? parseInt(args[timerIdx + 1]) : null;
 
 // Filter flags — only consider known boolean flags and value-consuming flags
-const knownFlags = ['--all', '--api', '--mcp', '--a2a', '--verbose', '-v', '--team', '--timer', 'browse'];
+const knownFlags = ['--all', '--api', '--mcp', '--a2a', '--verbose', '-v', '--team', '--timer', '--offline', 'browse'];
 // Build set of indices that are flag values (consumed by --team or --timer)
 const consumedIndices = new Set();
 if (teamIdx >= 0 && args[teamIdx + 1]) consumedIndices.add(teamIdx + 1);
@@ -140,13 +141,19 @@ if (unknownFlags.length > 0) {
 }
 
 // Non-protocol flags should not prevent starting all agents
-const nonProtocolFlags = ['--verbose', '-v', '--team', '--timer'];
+const nonProtocolFlags = ['--verbose', '-v', '--team', '--timer', '--offline'];
 const protocolFlags = args.filter((a, i) => a.startsWith('-') && !consumedIndices.has(i) && !nonProtocolFlags.includes(a));
 const startAll = args.includes('--all') || protocolFlags.length === 0;
 const startApi = args.includes('--api') || startAll;
 const startMcp = args.includes('--mcp') || startAll;
 const startA2a = args.includes('--a2a') || startAll;
 const verbose = args.includes('--verbose') || args.includes('-v');
+
+// --offline: stage/airplane-mode switch. Disables the anonymous usage
+// telemetry post so no OpenA2A cloud service sits in the path. Must run
+// before tele.start() below (these top-level consts evaluate first).
+const offline = args.includes('--offline');
+if (offline) process.env.OPENA2A_TELEMETRY = 'off';
 
 console.log(`
 ╔══════════════════════════════════════════════════════════════╗
@@ -521,6 +528,7 @@ VULNERABLE: System prompt leaked after context overflow displaced safety rules!`
               denialReason: fetchEnforcement.denialReason,
               auditEventId: fetchEnforcement.auditEventId,
               trustScore: fetchEnforcement.trustScore,
+              trustDelta: fetchEnforcement.trustDelta,
             },
           },
         };
@@ -628,6 +636,7 @@ VULNERABLE: System prompt leaked after context overflow displaced safety rules!`
               denialReason: postEnforcement.denialReason,
               auditEventId: postEnforcement.auditEventId,
               trustScore: postEnforcement.trustScore,
+              trustDelta: postEnforcement.trustDelta,
             },
           },
         };
@@ -670,6 +679,7 @@ VULNERABLE: System prompt leaked after context overflow displaced safety rules!`
                 allowed: true,
                 auditEventId: postEnforcement.auditEventId,
                 trustScore: postEnforcement.trustScore,
+                trustDelta: postEnforcement.trustDelta,
               }
             : { enforced: false },
         },
@@ -721,6 +731,7 @@ VULNERABLE: System prompt leaked after context overflow displaced safety rules!`
               denialReason: enforcement.denialReason,
               auditEventId: enforcement.auditEventId,
               trustScore: enforcement.trustScore,
+              trustDelta: enforcement.trustDelta,
             },
           },
         };
@@ -747,6 +758,7 @@ VULNERABLE: System prompt leaked after context overflow displaced safety rules!`
                 allowed: true,
                 auditEventId: enforcement.auditEventId,
                 trustScore: enforcement.trustScore,
+                trustDelta: enforcement.trustDelta,
               }
             : { enforced: false },
         },
@@ -1623,6 +1635,8 @@ async function executeMcpTool(agent, toolName, args) {
 console.log('Starting agents...\n');
 
 // Anonymous tier-1 telemetry — fire-and-forget, no PII. See `dvaa telemetry`.
+// --offline disables it above so no cloud service sits in the demo path.
+if (offline) console.log('Offline mode: anonymous telemetry disabled (no network calls).\n');
 tele.start();
 
 const allAgents = getAllAgents();

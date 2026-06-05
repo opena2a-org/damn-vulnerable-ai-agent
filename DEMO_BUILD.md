@@ -138,6 +138,36 @@ docker compose \
 
 Or `down -v` to also wipe the postgres volume (you'll need to re-seed the admin on next bring-up).
 
+## One-command cloud mode (`--cloud`, hosted dashboard)
+
+The section above is the local docker stack. For the hosted dashboard at `aim.opena2a.org`, `dvaa demo aim-ab --cloud` does the registration + reporting in one step, using the operator's own `aim-sdk login` session — no docker, no admin seeding, no manual env vars.
+
+```bash
+aim-sdk login                 # once: browser OAuth into your AIM account
+dvaa --api --offline          # fleet (offline is fine; the runner posts the event itself)
+dvaa demo aim-ab --cloud      # registers dvaa-ragbot-aim + posts the denied event
+```
+
+What `--cloud` does, in order ([`src/aim-cloud-register.js`](src/aim-cloud-register.js) + [`src/cli/commands/demo.js`](src/cli/commands/demo.js) `prepareCloud`/`postCloud`):
+1. Reads the JWT `aim-sdk login` stored at `~/.aim/sdk_credentials.json`.
+2. Resolves the API backend (`AIM_SERVER_URL` override, else maps the login `aimUrl` frontend host → `api.<host>`; localhost → `:8080`).
+3. `GET /health`; loads RAGBot-AIM's Ed25519 identity from `.dvaa-aim/ragbot-aim/` (the SAME key the fleet enforces with).
+4. `GET /api/v1/agents` (Bearer JWT) to find `dvaa-ragbot-aim`, else `POST /api/v1/agents` `{name, publicKey, capabilities}` → agent UUID. Caches the UUID at `.dvaa-aim/ragbot-aim/cloud-agent.json`.
+5. Runs the local A/B (unchanged, offline-authoritative).
+6. Mirrors **Run B's denied `http:post`** to `/api/v1/sdk-api/verifications`, signed with RAGBot-AIM's private key (the existing [`aim-cloud-reporter.js`](src/aim-cloud-reporter.js) contract — Ed25519 signature IS the auth, no bearer). Prints the dashboard URL.
+
+This registration contract is the hosted mirror of [`docs/demo/setup-aim-local.sh`](docs/demo/setup-aim-local.sh) (same `GET`/`POST /api/v1/agents` shape). The verification post is the same one the in-fleet reporter sends in the local cloud section above; here the runner sends it directly so the fleet can stay offline.
+
+**Offline-safe by omission.** No login / unreachable backend / load failure → `prepareCloud` prints a one-line reason and returns null; the local-only demo runs and PASSES regardless. Nothing about `--cloud` is on the demo's critical path.
+
+**Honest scope (unchanged):** `--cloud` posts a faithful copy of the *locally-enforced* decision. Local enforcement remains authoritative; the dashboard event is a mirror, not a second enforcement. The narrow claim still holds — AIM denied this `http:post` because it is outside the grant.
+
+**Verification status:** the registration + verification wire-format is covered by a mock-backend test ([`test/aim-cloud-register.test.js`](test/aim-cloud-register.test.js)) and exercised end-to-end against a local mock. It has NOT yet been run against the live hosted backend (that needs a real `aim-sdk login`). **Do a real `aim-sdk login` + `--cloud` dry run before the talk** and confirm the event appears in the dashboard.
+
+## Interactive mode (`-i`, follow-along)
+
+`dvaa demo aim-ab -i` (`--interactive`) steps through the A/B with pauses (press Enter) and narration so a live audience can follow each beat and replicate it; it prints the literal commands at the end. Requires a TTY — under `--json` or when piped it falls back to the one-shot view. Combine with `--cloud` (`--cloud -i`) to pause before the dashboard post too.
+
 ## How to run the AgentPwn showcase
 
 Same target URL DVAA documents in its main README; the 15th agent slots into the standard `dvaa browse` enumeration:
@@ -295,7 +325,7 @@ Residual risk: DNS rebinding (a hostname that resolves to a public IP on first l
 Things to verify on the actual stage machine before any live presentation, in priority order:
 
 1. **Re-run `dvaa demo aim-ab` on the stage machine** and confirm exit 0. The runner is deterministic; if it ever fails on a clean install, that is a regression. Capture the output in a screenshot for the backup deck.
-2. **Confirm the trust score number** the demo will display. Out of the box it shows `30/100 (improving)` because `aim-core` weights factors like `secretsManaged`, `configSigned`, `skillsVerified`, etc. that DVAA does not hint as enabled. If you want a higher number, call `setTrustHints()` in [`src/aim-enforcer.js`](src/aim-enforcer.js) after `getCore()` with the hints that are honestly true for your setup. Do not set hints for things that are not actually true. The conservative starting score is consistent with the honest pitch ("AIM gives you a real trust score that reflects real events").
+2. **Confirm the trust score before/after the demo will display.** The base score is `30/100` because `aim-core` weights configuration factors (`secretsManaged`, `configSigned`, `skillsVerified`, etc.) that DVAA does not hint as enabled. On top of that base, DVAA applies a **behavioral penalty** (`src/aim-enforcer.js`): each `denied` out-of-scope attempt in the agent's audit log lowers its current trust by `6` points, floored at `5`. So on a clean audit log the demo shows `30/100 -> 24/100` after Run B's denied `http:post`. This drop is **event-driven and honest** — it traces to the real denied event just written to `.dvaa-aim/ragbot-aim/audit.jsonl`, not to a hard-coded number. **It accumulates:** a second rehearsal without a reset shows `24 -> 18` (two offenses on record). Truncate the audit log to reset to `30` (see Reset in the run script). To raise the *base*, call `setTrustHints()` after `getCore()` with hints that are honestly true — never set hints for things that aren't. The honest pitch holds: "AIM gives you a real trust score that reflects real events," and now a real event visibly moves it.
 3. **Verify the canary timing on stage.** The runner sleeps 50ms between Run A and Run B and 100ms before closing the canary. On a slow laptop these may need to be 200ms/300ms. Re-run on the actual machine and tune if needed.
 
 ## What I could not verify against the AIM or AgentPwn code

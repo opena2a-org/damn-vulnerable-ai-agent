@@ -13,8 +13,12 @@
  */
 
 import http from 'http';
+import path from 'node:path';
+import readline from 'node:readline';
 import { emit, isJsonMode, fail, splitArgs } from '../format.js';
 import { buildRagPoisonedDocument, APWN_DE_003_URL_EXFILTRATION } from '../../payloads/agentpwn-mirror.js';
+import { postVerification } from '../../aim-cloud-reporter.js';
+import { readLoginCredentials, resolveApiBase, checkHealth, registerOrLoadAgent } from '../../aim-cloud-register.js';
 
 const DEFAULT_BASE = process.env.DVAA_BASE || 'http://localhost';
 const RAGBOT_PORT = Number(process.env.DVAA_RAGBOT_PORT || 7005);
@@ -25,6 +29,13 @@ export default async function run(argv) {
   if (flags.has('help') || flags.has('h')) {
     console.log(USAGE);
     return 0;
+  }
+  // The demo's contract is "local and offline — no cloud service in the path".
+  // Enforce that structurally rather than relying on the operator exporting
+  // OPENA2A_TELEMETRY=off: suppress this command's own anonymous telemetry post
+  // unless the operator has explicitly opted back in for this run.
+  if (process.env.OPENA2A_TELEMETRY === undefined) {
+    process.env.OPENA2A_TELEMETRY = 'off';
   }
   const scenario = positional[0] || 'aim-ab';
   if (scenario !== 'aim-ab') {
@@ -54,6 +65,20 @@ async function runAimAb(argv, flags) {
   // 3. Build the poisoned document with the canary URL.
   const exfilBaseUrl = `http://127.0.0.1:${canary.port}/api/canary/exfil-test`;
   const poisonedDoc = buildRagPoisonedDocument(exfilBaseUrl);
+
+  // Interactive mode: step through the A/B with pauses + narration so a live
+  // audience can follow each beat and replicate it. Requires a TTY; falls back
+  // to the one-shot view under --json or when piped.
+  // Optional online layer: register the agent against the user's AIM account
+  // (via their `aim-sdk login` session) so the demo's verification events land
+  // in their dashboard. Best-effort — never blocks the local proof.
+  const cloudCtx = (flags.has('cloud') && !jsonMode) ? await prepareCloud() : null;
+
+  const interactive = (flags.has('interactive') || flags.has('i'))
+    && process.stdin.isTTY && !jsonMode;
+  if (interactive) {
+    return await runInteractive({ argv, canary, exfilBaseUrl, poisonedDoc, verbose, cloudCtx });
+  }
 
   // 4. Run A and Run B sequentially (parallel would interleave the canary
   // hit log and confuse the demo). Each call is a full /v1/chat/completions
@@ -111,7 +136,18 @@ async function runAimAb(argv, flags) {
     lines.push(`  AIM denial reason:       ${runB.dvaa.aim.denialReason || '(none)'}`);
     lines.push(`  AIM audit event id:      ${runB.dvaa.aim.auditEventId || '(none)'}`);
     const ts = runB.dvaa.aim.trustScore;
-    if (ts) lines.push(`  AIM trust score:         ${ts.score}/100 (${ts.grade})`);
+    const td = runB.dvaa.aim.trustDelta;
+    if (td && td.before && td.after && td.before.score !== td.after.score) {
+      const drop = td.before.score - td.after.score;
+      const n = td.deniedCount;
+      lines.push(`  AIM trust score:         ${td.before.score}/100 -> ${td.after.score}/100  (-${drop}: agent attempted ${n} out-of-scope action${n === 1 ? '' : 's'}, denied)`);
+    } else if (ts) {
+      lines.push(`  AIM trust score:         ${ts.score}/100 (${ts.grade})`);
+    }
+  }
+  if (cloudCtx) {
+    const cloudLines = await postCloud(cloudCtx, runB, exfilBaseUrl);
+    cloudLines.forEach(l => lines.push(l));
   }
   lines.push('');
   const passed = verdict(runA, runB, hits) === 0;
@@ -131,6 +167,215 @@ async function runAimAb(argv, flags) {
   emit(lines, argv);
   return verdict(runA, runB, hits);
 }
+
+/**
+ * Prepare the optional cloud layer: read the `aim-sdk login` session, confirm
+ * the backend is reachable, load RAGBot-AIM's identity, and register/load the
+ * agent in the user's account. Returns a context object, or null (after
+ * printing a clear reason) so the caller silently falls back to local-only.
+ */
+async function prepareCloud() {
+  const warn = (msg, hint) => {
+    console.log('');
+    console.log(`  ${YELLOW}cloud reporting off:${RESET} ${msg}`);
+    if (hint) console.log(`  ${DIM}${hint}${RESET}`);
+    console.log(`  ${DIM}(running the local-only demo — the proof below is unaffected)${RESET}`);
+  };
+
+  const creds = readLoginCredentials();
+  if (!creds) {
+    warn('not logged in to AIM.', 'Run:  aim-sdk login   then re-run with --cloud');
+    return null;
+  }
+  const apiBase = resolveApiBase(creds.aimUrl);
+  if (!(await checkHealth(apiBase))) {
+    warn(`AIM backend unreachable at ${apiBase}.`, 'Check your network, or set AIM_SERVER_URL to the backend.');
+    return null;
+  }
+
+  // Load RAGBot-AIM's Ed25519 identity from the same on-disk data dir the fleet
+  // uses, so the verification signature matches the registered public key.
+  let AIMCore;
+  try {
+    ({ AIMCore } = await import('@opena2a/aim-core'));
+  } catch (e) {
+    warn('could not load @opena2a/aim-core.', e.message);
+    return null;
+  }
+  const dataDir = path.join(
+    process.env.DVAA_AIM_DATA_DIR || path.join(process.cwd(), '.dvaa-aim'),
+    'ragbot-aim',
+  );
+  let core;
+  let publicKey;
+  try {
+    core = new AIMCore({ agentName: 'ragbot-aim', dataDir });
+    publicKey = core.getIdentity().publicKey;
+  } catch (e) {
+    warn('could not load RAGBot-AIM identity.', `Start the fleet once first (dvaa --api). ${e.message}`);
+    return null;
+  }
+
+  const res = await registerOrLoadAgent({
+    apiBase,
+    jwt: creds.accessToken,
+    publicKey,
+    cacheFile: path.join(dataDir, 'cloud-agent.json'),
+  });
+  if (res.error) {
+    warn(`agent registration failed (${res.error}).`, res.detail || '');
+    return null;
+  }
+
+  const dashboardUrl = `${creds.aimUrl}/agents/${res.agentId}`;
+  console.log('');
+  console.log(`  ${GREEN}cloud reporting on${RESET}  account: ${creds.userEmail}`);
+  console.log(`  agent ${res.registered ? 'registered' : 'loaded'}: dvaa-ragbot-aim  ->  ${dashboardUrl}`);
+  return { apiBase, agentId: res.agentId, core, publicKey, dashboardUrl };
+}
+
+/**
+ * Mirror Run B's denied http:post to the user's AIM dashboard. Returns display
+ * lines. Best-effort: a failed post is reported, never thrown.
+ */
+async function postCloud(cloudCtx, runB, exfilBaseUrl) {
+  const denied = runB?.dvaa?.aim?.allowed === false;
+  const out = ['', `  ${BOLD}Cloud dashboard${RESET}`];
+  if (!denied) {
+    out.push(`  ${DIM}no AIM decision to mirror (Run B did not enforce).${RESET}`);
+    return out;
+  }
+  const res = await postVerification({
+    serverUrl: cloudCtx.apiBase,
+    cloudAgentId: cloudCtx.agentId,
+    publicKey: cloudCtx.publicKey,
+    signFn: (d) => cloudCtx.core.sign(d),
+    action: 'http:post',
+    resource: exfilBaseUrl,
+    context: { tool: 'submit_to_index', triggeredBy: 'url-exfiltration' },
+    result: 'denied',
+  });
+  if (res.ok) {
+    out.push(`  ${GREEN}event posted${RESET}  http:post (denied)  ->  ${cloudCtx.dashboardUrl}`);
+    out.push(`  ${DIM}open the dashboard, go to the agent's Verification Events to see it${RESET}`);
+  } else {
+    out.push(`  ${YELLOW}event post failed${RESET}  ${res.error}${res.status ? ' (HTTP ' + res.status + ')' : ''}`);
+    out.push(`  ${DIM}the local proof above is unaffected; check network / re-run aim-sdk login${RESET}`);
+  }
+  return out;
+}
+
+/**
+ * Interactive step-through of the A/B. Runs Run A live, pauses, then Run B
+ * live, pausing between each beat so a live audience can follow and replicate.
+ * The commands the audience would type are shown inline.
+ */
+async function runInteractive({ argv, canary, exfilBaseUrl, poisonedDoc, verbose, cloudCtx }) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const pause = (prompt) => new Promise((resolve) => rl.question(`\n  ${DIM}${prompt}${RESET} `, () => resolve()));
+  const say = (l) => console.log(l);
+
+  try {
+    say('');
+    say(`  ${BOLD}DVAA AIM A/B demo  (interactive)${RESET}`);
+    say('  ================================');
+    say('');
+    say(`  Same agent code, run twice against one poisoned document.`);
+    say(`  The only variable is whether AIM enforces the capability grant.`);
+    say('');
+    say(`  Payload:  ${APWN_DE_003_URL_EXFILTRATION.attackId} (${APWN_DE_003_URL_EXFILTRATION.name})`);
+    say(`  Canary:   ${exfilBaseUrl}`);
+    say(`            ${DIM}(a local listener that records anything the agent exfiltrates)${RESET}`);
+
+    // ---- Run A ----
+    await pause('Press Enter to run Run A against the UNPROTECTED agent (RAGBot, :7005)...');
+    say('');
+    say(`  ${DIM}$ curl :${RAGBOT_PORT}/v1/chat/completions  -d '<poisoned RAG document>'${RESET}`);
+    const runA = await sendChat(RAGBOT_PORT, poisonedDoc);
+    await new Promise(r => setTimeout(r, 50));
+    say('');
+    say('  --- Run A: RAGBot (vulnerable, no AIM) -----------------------------');
+    say(`  injection delivered:     yes`);
+    say(`  agent attempted action:  ${runA.dvaa?.exfilAttempted ? 'yes (submit_to_index)' : 'no'}`);
+    say(`  action executed:         ${runA.dvaa?.exfilExecuted ? 'yes' : 'no'}`);
+    say(`  canary received exfil:   ${canary.hits.length >= 1 ? `${RED}YES  (data left the agent)${RESET}` : 'no'}`);
+    say('');
+    say(`  ${DIM}> The injection landed and the agent exfiltrated the data. Identity alone did not save us.${RESET}`);
+
+    // ---- Run B ----
+    await pause('Press Enter to run the SAME injection against the AIM-PROTECTED agent (RAGBot-AIM, :7014)...');
+    say('');
+    say(`  ${DIM}$ curl :${RAGBOT_AIM_PORT}/v1/chat/completions  -d '<same poisoned RAG document>'${RESET}`);
+    const runB = await sendChat(RAGBOT_AIM_PORT, poisonedDoc);
+    await new Promise(r => setTimeout(r, 100));
+    const hits = canary.hits;
+    say('');
+    say('  --- Run B: RAGBot-AIM (same code, AIM enforced) --------------------');
+    say(`  injection delivered:     yes`);
+    say(`  agent attempted action:  ${runB.dvaa?.exfilAttempted ? 'yes (submit_to_index)' : 'no'}`);
+    say(`  action executed:         ${runB.dvaa?.exfilExecuted ? 'yes' : 'no'}`);
+    say(`  canary received exfil:   ${hits.length >= 2 ? `${RED}YES${RESET}` : `${GREEN}no  (action denied by AIM before it left)${RESET}`}`);
+    if (runB.dvaa?.aim) {
+      say(`  AIM denial reason:       ${runB.dvaa.aim.denialReason || '(none)'}`);
+    }
+    say('');
+    say(`  ${DIM}> Same injection, it still landed. But the out-of-scope action was denied. The data never left.${RESET}`);
+
+    // ---- Audit + trust ----
+    await pause('Press Enter to see the audit record and the trust impact...');
+    say('');
+    if (runB.dvaa?.aim) {
+      say(`  AIM audit event id:      ${runB.dvaa.aim.auditEventId || '(none)'}`);
+      const td = runB.dvaa.aim.trustDelta;
+      const ts = runB.dvaa.aim.trustScore;
+      if (td && td.before && td.after && td.before.score !== td.after.score) {
+        const drop = td.before.score - td.after.score;
+        const n = td.deniedCount;
+        say(`  AIM trust score:         ${td.before.score}/100 ${YELLOW}->${RESET} ${td.after.score}/100  (-${drop}: agent attempted ${n} out-of-scope action${n === 1 ? '' : 's'}, denied)`);
+      } else if (ts) {
+        say(`  AIM trust score:         ${ts.score}/100 (${ts.grade})`);
+      }
+    }
+    canary.close();
+
+    if (cloudCtx) {
+      await pause('Press Enter to mirror this denied event to your AIM dashboard...');
+      const cloudLines = await postCloud(cloudCtx, runB, exfilBaseUrl);
+      cloudLines.forEach(say);
+    }
+
+    say('');
+    const passed = verdict(runA, runB, hits) === 0;
+    say(passed
+      ? `  ${GREEN}Verdict: PASS${RESET}  injection landed on both, AIM denied the action on B.`
+      : `  ${RED}Verdict: FAIL${RESET}  see runs above; the demo did not produce the expected A/B.`);
+    say('');
+    say(`  ${BOLD}Replicate it yourself:${RESET}`);
+    say(`  ${DIM}  node src/index.js --api --offline      # start the fleet${RESET}`);
+    say(`  ${DIM}  node src/index.js demo aim-ab          # run the A/B${RESET}`);
+    say(`  ${DIM}  tail -1 .dvaa-aim/ragbot-aim/audit.jsonl | python3 -m json.tool   # the denied event${RESET}`);
+    say('');
+    if (verbose) {
+      say('  --- verbose: raw run A ---');
+      say(JSON.stringify(summarize(runA), null, 2));
+      say('  --- verbose: raw run B ---');
+      say(JSON.stringify(summarize(runB), null, 2));
+    }
+    return verdict(runA, runB, hits);
+  } finally {
+    rl.close();
+    try { canary.close(); } catch { /* already closed */ }
+  }
+}
+
+// Minimal ANSI styling. Honors NO_COLOR and non-TTY by collapsing to empty.
+const useColor = process.stdout.isTTY && !process.env.NO_COLOR;
+const BOLD = useColor ? '\x1b[1m' : '';
+const DIM = useColor ? '\x1b[2m' : '';
+const RED = useColor ? '\x1b[31m' : '';
+const GREEN = useColor ? '\x1b[32m' : '';
+const YELLOW = useColor ? '\x1b[33m' : '';
+const RESET = useColor ? '\x1b[0m' : '';
 
 function verdict(runA, runB, hits) {
   // PASS criteria, all four required:
@@ -226,9 +471,18 @@ Pre-flight:
   Start the fleet in another terminal: dvaa --api
 
 Options:
+  --interactive, -i  Step through the A/B live with pauses + narration
+                     (for a follow-along audience; requires a terminal)
+  --cloud    Mirror the denied event to your AIM dashboard. Requires
+             'aim-sdk login' first; falls back to local-only if offline.
   --json     Machine-readable output (for CI / scripting)
   --verbose  Include raw chat responses and canary hit log
   --help     Show this message
+
+Cloud (optional, online):
+  aim-sdk login            # browser login to your AIM account (once)
+  dvaa demo aim-ab --cloud # registers RAGBot-AIM + posts the event to your dashboard
+  # The local A/B is offline and authoritative; --cloud only adds the dashboard view.
 
 Exit codes:
   0   Demo produced the expected A/B (injection lands on both, AIM denied B)
