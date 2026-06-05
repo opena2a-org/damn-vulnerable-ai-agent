@@ -3,7 +3,7 @@
  *
  * `dvaa demo aim-ab --cloud` uses this to take the JWT a user obtained via
  * `aim-sdk login` (stored at ~/.aim/sdk_credentials.json) and register the
- * RAGBot-AIM agent — with DVAA's OWN Ed25519 public key — against the user's
+ * RAGBot-AIM agent - with DVAA's OWN Ed25519 public key - against the user's
  * AIM account, so the demo's verification events land in *their* dashboard.
  *
  * The registration contract here mirrors the proven one in
@@ -64,11 +64,11 @@ export function resolveApiBase(aimUrl) {
 
 /**
  * Guard the destination the operator's AIM JWT is sent to. The base comes from
- * the login cred file or AIM_SERVER_URL — operator-controlled, but a tampered
+ * the login cred file or AIM_SERVER_URL - operator-controlled, but a tampered
  * cred file / stale env should not be able to ship a real token in plaintext to
  * an arbitrary remote host. Require http(s); require https for any non-loopback
  * host (never send the JWT unencrypted off-box). Residual risk: a hostile HTTPS
- * host written into the cred file is not allow-listed — the destination is
+ * host written into the cred file is not allow-listed - the destination is
  * printed before use so the operator can catch it.
  */
 export function isSafeApiBase(apiBase) {
@@ -164,7 +164,7 @@ export async function registerOrLoadAgent({ apiBase, jwt, publicKey, name = AGEN
   }
 
   const list = await jsonRequest({ method: 'GET', url: `${apiBase}/api/v1/agents`, jwt });
-  if (list.status === 401) return { error: 'unauthorized', detail: 'login token rejected or expired — run: aim-sdk login' };
+  if (list.status === 401) return { error: 'unauthorized', detail: 'login token rejected or expired - run: aim-sdk login' };
   if (list.ok) {
     const found = asAgentArray(list.body).find((a) => a && a.name === name);
     if (found && found.id) {
@@ -183,13 +183,13 @@ export async function registerOrLoadAgent({ apiBase, jwt, publicKey, name = AGEN
     body: {
       name,
       displayName: 'DVAA RAGBot-AIM',
-      description: 'DVAA RAGBot-AIM — AIM A/B capability-containment demo agent',
+      description: 'DVAA RAGBot-AIM - AIM A/B capability-containment demo agent',
       agentType: 'custom',
       publicKey,
       capabilities,
     },
   });
-  if (reg.status === 401) return { error: 'unauthorized', detail: 'login token rejected or expired — run: aim-sdk login' };
+  if (reg.status === 401) return { error: 'unauthorized', detail: 'login token rejected or expired - run: aim-sdk login' };
   const id = reg.body?.id || reg.body?.agentId;
   if (reg.ok && id) {
     saveCache(cacheFile, { agentId: id, publicKey, apiBase });

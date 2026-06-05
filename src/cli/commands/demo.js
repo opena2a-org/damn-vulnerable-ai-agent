@@ -1,5 +1,5 @@
 /**
- * dvaa demo <scenario> — presenter-friendly scripted demos.
+ * dvaa demo <scenario> - presenter-friendly scripted demos.
  *
  * Today the only scenario is `aim-ab`: a deterministic A/B against a fixed
  * poisoned RAG document (AgentPwn APWN-DE-003). Run A targets RAGBot
@@ -30,9 +30,9 @@ export default async function run(argv) {
     console.log(USAGE);
     return 0;
   }
-  // The demo's contract is "local and offline — no cloud service in the path".
+  // The demo's contract is "local and offline - no cloud service in the path".
   // Telemetry suppression for `demo` is applied in src/index.js BEFORE
-  // tele.init() snapshots the opt-out config — setting OPENA2A_TELEMETRY here
+  // tele.init() snapshots the opt-out config - setting OPENA2A_TELEMETRY here
   // would be too late (init already ran), so it is handled at process entry.
   const scenario = positional[0] || 'aim-ab';
   if (scenario !== 'aim-ab') {
@@ -68,7 +68,7 @@ async function runAimAb(argv, flags) {
   // to the one-shot view under --json or when piped.
   // Optional online layer: register the agent against the user's AIM account
   // (via their `aim-sdk login` session) so the demo's verification events land
-  // in their dashboard. Best-effort — never blocks the local proof.
+  // in their dashboard. Best-effort - never blocks the local proof.
   const cloudCtx = (flags.has('cloud') && !jsonMode) ? await prepareCloud() : null;
 
   const interactive = (flags.has('interactive') || flags.has('i'))
@@ -141,7 +141,7 @@ async function runAimAb(argv, flags) {
     } else if (ts) {
       lines.push(`  AIM trust score:         ${ts.score}/100 (${ts.grade})`);
       if (td && td.deniedCount > 0) {
-        lines.push('  (no drop shown — prior denials on record; reset: truncate .dvaa-aim/ragbot-aim/audit.jsonl)');
+        lines.push('  (no drop shown - prior denials on record; reset: truncate .dvaa-aim/ragbot-aim/audit.jsonl)');
       }
     }
   }
@@ -179,7 +179,7 @@ async function prepareCloud() {
     console.log('');
     console.log(`  ${YELLOW}cloud reporting off:${RESET} ${msg}`);
     if (hint) console.log(`  ${DIM}${hint}${RESET}`);
-    console.log(`  ${DIM}(running the local-only demo — the proof below is unaffected)${RESET}`);
+    console.log(`  ${DIM}(running the local-only demo - the proof below is unaffected)${RESET}`);
   };
 
   const creds = readLoginCredentials();
@@ -339,7 +339,7 @@ async function runInteractive({ argv, canary, exfilBaseUrl, poisonedDoc, verbose
       } else if (ts) {
         say(`  AIM trust score:         ${ts.score}/100 (${ts.grade})`);
         if (td && td.deniedCount > 0) {
-          say(`  ${DIM}(no drop shown — prior denials on record; reset: truncate .dvaa-aim/ragbot-aim/audit.jsonl)${RESET}`);
+          say(`  ${DIM}(no drop shown - prior denials on record; reset: truncate .dvaa-aim/ragbot-aim/audit.jsonl)${RESET}`);
         }
       }
     }

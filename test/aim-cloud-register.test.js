@@ -3,7 +3,7 @@
  *
  * Verifies credential parsing, API-base resolution, and the register/load
  * contract (GET then POST /api/v1/agents with a Bearer JWT) against a local
- * mock backend — no live AIM cloud needed.
+ * mock backend - no live AIM cloud needed.
  */
 
 import test from 'node:test';
@@ -82,7 +82,7 @@ test('registerOrLoadAgent registers a new agent, then loads from cache', async (
   assert.equal(received[1].body.agentType, 'custom');
   assert.ok(received[1].body.description, 'description is required by the hosted backend');
 
-  // Second call hits the cache — no new HTTP requests.
+  // Second call hits the cache - no new HTTP requests.
   const before = received.length;
   const second = await registerOrLoadAgent({ apiBase, jwt: 'jwt-abc', publicKey: 'PUBKEY==', cacheFile });
   assert.equal(second.agentId, 'uuid-xyz');

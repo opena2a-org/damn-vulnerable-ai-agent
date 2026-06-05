@@ -22,7 +22,7 @@ import { detectUrlExfiltrationInjection } from './payloads/agentpwn-mirror.js';
 import { maybeEnforce } from './aim-enforcer.js';
 import { webFetch } from './web-fetch.js';
 
-// Resolve our own version once at startup — used by --version and tele.init.
+// Resolve our own version once at startup - used by --version and tele.init.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PKG_VERSION = (() => {
   try {
@@ -33,13 +33,13 @@ const PKG_VERSION = (() => {
 // Tier-1 anonymous usage telemetry. Default ON; opt-out via env or
 // `dvaa telemetry off`. Disclosure surfaces: README §Telemetry,
 // `dvaa --version` line, `dvaa telemetry status`, opena2a.org/telemetry.
-// Disable anonymous telemetry BEFORE tele.init() — init() snapshots the opt-out
+// Disable anonymous telemetry BEFORE tele.init() - init() snapshots the opt-out
 // config (which reads OPENA2A_TELEMETRY) exactly once, right here. Setting the
 // env later (from the --offline flag parsed below, or inside the demo command)
 // is too late: the snapshot is already taken and start()/track() use it.
 //   - --offline (server airplane mode) always wins.
-//   - `demo` is offline-by-default — the A/B demo's contract is "no cloud in
-//     the path" — unless the operator explicitly set OPENA2A_TELEMETRY.
+//   - `demo` is offline-by-default - the A/B demo's contract is "no cloud in
+//     the path" - unless the operator explicitly set OPENA2A_TELEMETRY.
 {
   const preInitArgs = process.argv.slice(2);
   if (preInitArgs.includes('--offline')) {
@@ -62,7 +62,7 @@ const args = process.argv.slice(2);
 //
 // If argv[0] is a non-flag positional that ISN'T a known subcommand (e.g.
 // "dvaa helpr" or "dvaa screen"), reject up-front instead of silently
-// starting the server — server-start happens for flag-only or empty argv.
+// starting the server - server-start happens for flag-only or empty argv.
 if (args.length > 0 && !args[0].startsWith('-')) {
   if (isSubcommand(args[0]) || args[0] === 'browse') {
     if (isSubcommand(args[0])) {
@@ -77,7 +77,7 @@ if (args.length > 0 && !args[0].startsWith('-')) {
   }
 }
 
-// Handle browse command — spawn with argv (not a shell template literal) so
+// Handle browse command - spawn with argv (not a shell template literal) so
 // arguments cannot be shell-interpreted. Template-literal exec was CVE-class
 // command injection: a user running `dvaa browse "; rm -rf ~"` would execute it.
 //
@@ -102,7 +102,7 @@ if (args.includes('--help') || args.includes('-h')) {
   console.log(`Usage: dvaa [options]
        dvaa <command> [args]
 
-Server options (default mode — start DVAA dashboard + agent fleet):
+Server options (default mode - start DVAA dashboard + agent fleet):
   --all          Start all agents (default)
   --api          Start API agents only (ports 7001-7008)
   --mcp          Start MCP servers only (ports 7010-7013)
@@ -129,7 +129,7 @@ Docs:       https://github.com/opena2a-org/damn-vulnerable-ai-agent`);
   process.exit(0);
 }
 
-// Handle --version — uses the shared versionLine helper so the telemetry
+// Handle --version - uses the shared versionLine helper so the telemetry
 // disclosure line is consistent across every opena2a-org CLI.
 if (args.includes('--version')) {
   console.log(versionLine({ tool: 'dvaa', version: PKG_VERSION, telemetry: tele.status() }));
@@ -142,7 +142,7 @@ const teamName = teamIdx >= 0 && args[teamIdx + 1] ? args[teamIdx + 1] : null;
 const timerIdx = args.indexOf('--timer');
 const timerMinutes = timerIdx >= 0 && args[timerIdx + 1] ? parseInt(args[timerIdx + 1]) : null;
 
-// Filter flags — only consider known boolean flags and value-consuming flags
+// Filter flags - only consider known boolean flags and value-consuming flags
 const knownFlags = ['--all', '--api', '--mcp', '--a2a', '--verbose', '-v', '--team', '--timer', '--offline', 'browse'];
 // Build set of indices that are flag values (consumed by --team or --timer)
 const consumedIndices = new Set();
@@ -1649,7 +1649,7 @@ async function executeMcpTool(agent, toolName, args) {
 // Start servers
 console.log('Starting agents...\n');
 
-// Anonymous tier-1 telemetry — fire-and-forget, no PII. See `dvaa telemetry`.
+// Anonymous tier-1 telemetry - fire-and-forget, no PII. See `dvaa telemetry`.
 // --offline disables it above so no cloud service sits in the demo path.
 if (offline) console.log('Offline mode: anonymous telemetry disabled (no network calls).\n');
 tele.start();

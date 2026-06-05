@@ -3,7 +3,7 @@
  *
  * `@opena2a/telemetry` snapshots the opt-out config inside tele.init(), so the
  * OPENA2A_TELEMETRY env var must be set BEFORE init runs (src/index.js, at
- * process entry) — setting it later (a flag parsed after init, or inside the
+ * process entry) - setting it later (a flag parsed after init, or inside the
  * demo command) is too late and telemetry still fires. This test pins that:
  * the demo command and --offline produce ZERO telemetry posts, while a normal
  * trackable command still posts (proving the mock harness actually observes them).

@@ -26,7 +26,7 @@ const ENFORCEMENT_OFF = () => String(process.env.AIM_ENFORCEMENT || '').toLowerC
 // layer: an agent that emits out-of-scope action attempts has demonstrated
 // real, recorded risk. Each `denied` event in the agent's own audit log lowers
 // its *current* trust by a fixed amount, floored so the score never collapses
-// to zero. This is event-driven and honest — the drop traces to actual denied
+// to zero. This is event-driven and honest - the drop traces to actual denied
 // attempts in the log, not to a hard-coded animation. Reset = truncate the
 // agent's audit.jsonl (the drop disappears with the history that caused it).
 const BEHAVIORAL_PENALTY_PER_DENIAL = 6;
