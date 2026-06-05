@@ -62,6 +62,27 @@ export function resolveApiBase(aimUrl) {
   }
 }
 
+/**
+ * Guard the destination the operator's AIM JWT is sent to. The base comes from
+ * the login cred file or AIM_SERVER_URL — operator-controlled, but a tampered
+ * cred file / stale env should not be able to ship a real token in plaintext to
+ * an arbitrary remote host. Require http(s); require https for any non-loopback
+ * host (never send the JWT unencrypted off-box). Residual risk: a hostile HTTPS
+ * host written into the cred file is not allow-listed — the destination is
+ * printed before use so the operator can catch it.
+ */
+export function isSafeApiBase(apiBase) {
+  try {
+    const u = new URL(apiBase);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+    const isLoopback = u.hostname === 'localhost' || u.hostname === '127.0.0.1' || u.hostname === '::1';
+    if (u.protocol === 'http:' && !isLoopback) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function jsonRequest({ method, url, jwt, body, timeoutMs = 10000 }) {
   return new Promise((resolve) => {
     let u;

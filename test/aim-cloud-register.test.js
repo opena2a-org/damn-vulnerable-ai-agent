@@ -13,8 +13,19 @@ import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 
-const { readLoginCredentials, resolveApiBase, registerOrLoadAgent } =
+const { readLoginCredentials, resolveApiBase, registerOrLoadAgent, isSafeApiBase } =
   await import('../src/aim-cloud-register.js');
+
+test('isSafeApiBase rejects plaintext to a remote host and bad schemes', () => {
+  assert.equal(isSafeApiBase('https://api.aim.opena2a.org'), true);
+  assert.equal(isSafeApiBase('http://localhost:8080'), true);
+  assert.equal(isSafeApiBase('http://127.0.0.1:8080'), true);
+  assert.equal(isSafeApiBase('http://api.aim.opena2a.org'), false); // plaintext to remote -> refuse
+  assert.equal(isSafeApiBase('http://evil.example.com'), false);
+  assert.equal(isSafeApiBase('file:///etc/passwd'), false);
+  assert.equal(isSafeApiBase('ftp://host'), false);
+  assert.equal(isSafeApiBase('not a url'), false);
+});
 
 test('readLoginCredentials parses the aim-sdk login file', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aim-cred-'));

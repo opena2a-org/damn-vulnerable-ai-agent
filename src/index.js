@@ -33,6 +33,22 @@ const PKG_VERSION = (() => {
 // Tier-1 anonymous usage telemetry. Default ON; opt-out via env or
 // `dvaa telemetry off`. Disclosure surfaces: README §Telemetry,
 // `dvaa --version` line, `dvaa telemetry status`, opena2a.org/telemetry.
+// Disable anonymous telemetry BEFORE tele.init() — init() snapshots the opt-out
+// config (which reads OPENA2A_TELEMETRY) exactly once, right here. Setting the
+// env later (from the --offline flag parsed below, or inside the demo command)
+// is too late: the snapshot is already taken and start()/track() use it.
+//   - --offline (server airplane mode) always wins.
+//   - `demo` is offline-by-default — the A/B demo's contract is "no cloud in
+//     the path" — unless the operator explicitly set OPENA2A_TELEMETRY.
+{
+  const preInitArgs = process.argv.slice(2);
+  if (preInitArgs.includes('--offline')) {
+    process.env.OPENA2A_TELEMETRY = 'off';
+  } else if (preInitArgs[0] === 'demo' && process.env.OPENA2A_TELEMETRY === undefined) {
+    process.env.OPENA2A_TELEMETRY = 'off';
+  }
+}
+
 // init() loads opt-out config + persists install_id; never throws.
 await tele.init({ tool: 'dvaa', version: PKG_VERSION });
 
@@ -149,11 +165,10 @@ const startMcp = args.includes('--mcp') || startAll;
 const startA2a = args.includes('--a2a') || startAll;
 const verbose = args.includes('--verbose') || args.includes('-v');
 
-// --offline: stage/airplane-mode switch. Disables the anonymous usage
-// telemetry post so no OpenA2A cloud service sits in the path. Must run
-// before tele.start() below (these top-level consts evaluate first).
+// --offline: stage/airplane-mode switch. The telemetry opt-out it implies is
+// applied BEFORE tele.init() above (init snapshots the config once); this flag
+// is read here only to print the confirmation banner at startup.
 const offline = args.includes('--offline');
-if (offline) process.env.OPENA2A_TELEMETRY = 'off';
 
 console.log(`
 ╔══════════════════════════════════════════════════════════════╗

@@ -5,7 +5,8 @@
 ### Added — SVCC live-demo support for `dvaa demo aim-ab`
 
 - **Behavioral trust score now drops on a denied action.** The A/B demo previously showed a static `30/100`. RAGBot-AIM's current trust is now lowered by each `denied` out-of-scope attempt recorded in its audit log (`-6` per denial, floored at `5`), so Run B shows `30/100 -> 24/100`. The drop is event-driven and traces to the real denied event — not a hard-coded animation. Reset by truncating the agent's `audit.jsonl`. Logic in `src/aim-enforcer.js` (`trustDelta`); the static base from `@opena2a/aim-core` is unchanged.
-- **`--offline` flag on the fleet** (`dvaa --api --offline`) disables anonymous telemetry so no cloud service sits in the path; prints a confirmation banner. `dvaa demo aim-ab` also self-disables its own telemetry post (offline by default for the demo).
+- **`--offline` flag on the fleet** (`dvaa --api --offline`) disables anonymous telemetry so no cloud service sits in the path; prints a confirmation banner. `dvaa demo aim-ab` is also offline-by-default. The opt-out is applied at process entry, before `tele.init()` snapshots the telemetry config (setting it later does not suppress the post) — covered by `test/telemetry-offline.test.js`.
+- **`--cloud` token-destination guard** (`isSafeApiBase`): refuses to send the operator's AIM JWT to a non-`https` remote backend (plaintext only allowed for localhost), so a tampered cred file / stale `AIM_SERVER_URL` cannot ship the token in the clear.
 - **`-i` / `--interactive`** steps through the A/B live with pauses + narration and prints the commands to replicate it (for a follow-along audience). Falls back to the one-shot view under `--json` or when piped.
 - **`--cloud`** mirrors Run B's denied `http:post` to a hosted AIM dashboard using the operator's `aim-sdk login` session: reads `~/.aim/sdk_credentials.json`, registers `dvaa-ragbot-aim` (with DVAA's own Ed25519 key) via `GET`/`POST /api/v1/agents`, and posts a signed verification. Best-effort and offline-safe — not logged in or backend unreachable falls back to the local-only demo. New `src/aim-cloud-register.js`.
 - **Run script** `docs/demo/RUN_SCRIPT_SVCC2026.md`: operator runbook (pre-flight, beat-by-beat narration, reset, timing, failure fallbacks, teardown, optional cloud follow-on).
@@ -13,7 +14,8 @@
 ### Tests
 
 - `test/aim-trust-behavioral.test.js` (NEW): denied action drops trust, allowed action does not, score is floored.
-- `test/aim-cloud-register.test.js` (NEW): credential parsing, API-base resolution, register/load-from-cache contract, 401 handling — against a mock backend.
+- `test/aim-cloud-register.test.js` (NEW): credential parsing, API-base resolution, register/load-from-cache contract, 401 handling, and the `isSafeApiBase` token-destination guard — against a mock backend.
+- `test/telemetry-offline.test.js` (NEW): the demo and `--offline` produce zero telemetry posts (verified against a mock endpoint), while a normal command still posts and an explicit opt-in re-enables it.
 
 ## 0.9.1
 

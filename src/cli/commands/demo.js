@@ -18,7 +18,7 @@ import readline from 'node:readline';
 import { emit, isJsonMode, fail, splitArgs } from '../format.js';
 import { buildRagPoisonedDocument, APWN_DE_003_URL_EXFILTRATION } from '../../payloads/agentpwn-mirror.js';
 import { postVerification } from '../../aim-cloud-reporter.js';
-import { readLoginCredentials, resolveApiBase, checkHealth, registerOrLoadAgent } from '../../aim-cloud-register.js';
+import { readLoginCredentials, resolveApiBase, checkHealth, registerOrLoadAgent, isSafeApiBase } from '../../aim-cloud-register.js';
 
 const DEFAULT_BASE = process.env.DVAA_BASE || 'http://localhost';
 const RAGBOT_PORT = Number(process.env.DVAA_RAGBOT_PORT || 7005);
@@ -31,12 +31,9 @@ export default async function run(argv) {
     return 0;
   }
   // The demo's contract is "local and offline — no cloud service in the path".
-  // Enforce that structurally rather than relying on the operator exporting
-  // OPENA2A_TELEMETRY=off: suppress this command's own anonymous telemetry post
-  // unless the operator has explicitly opted back in for this run.
-  if (process.env.OPENA2A_TELEMETRY === undefined) {
-    process.env.OPENA2A_TELEMETRY = 'off';
-  }
+  // Telemetry suppression for `demo` is applied in src/index.js BEFORE
+  // tele.init() snapshots the opt-out config — setting OPENA2A_TELEMETRY here
+  // would be too late (init already ran), so it is handled at process entry.
   const scenario = positional[0] || 'aim-ab';
   if (scenario !== 'aim-ab') {
     fail(`Unknown demo scenario: ${scenario}\nRun: dvaa demo --help`);
@@ -143,6 +140,9 @@ async function runAimAb(argv, flags) {
       lines.push(`  AIM trust score:         ${td.before.score}/100 -> ${td.after.score}/100  (-${drop}: agent attempted ${n} out-of-scope action${n === 1 ? '' : 's'}, denied)`);
     } else if (ts) {
       lines.push(`  AIM trust score:         ${ts.score}/100 (${ts.grade})`);
+      if (td && td.deniedCount > 0) {
+        lines.push('  (no drop shown — prior denials on record; reset: truncate .dvaa-aim/ragbot-aim/audit.jsonl)');
+      }
     }
   }
   if (cloudCtx) {
@@ -188,6 +188,10 @@ async function prepareCloud() {
     return null;
   }
   const apiBase = resolveApiBase(creds.aimUrl);
+  if (!isSafeApiBase(apiBase)) {
+    warn(`refusing to send your AIM token to an insecure backend (${apiBase}).`, 'Use an https URL (or localhost), e.g. AIM_SERVER_URL=https://api.aim.opena2a.org');
+    return null;
+  }
   if (!(await checkHealth(apiBase))) {
     warn(`AIM backend unreachable at ${apiBase}.`, 'Check your network, or set AIM_SERVER_URL to the backend.');
     return null;
@@ -334,6 +338,9 @@ async function runInteractive({ argv, canary, exfilBaseUrl, poisonedDoc, verbose
         say(`  AIM trust score:         ${td.before.score}/100 ${YELLOW}->${RESET} ${td.after.score}/100  (-${drop}: agent attempted ${n} out-of-scope action${n === 1 ? '' : 's'}, denied)`);
       } else if (ts) {
         say(`  AIM trust score:         ${ts.score}/100 (${ts.grade})`);
+        if (td && td.deniedCount > 0) {
+          say(`  ${DIM}(no drop shown — prior denials on record; reset: truncate .dvaa-aim/ragbot-aim/audit.jsonl)${RESET}`);
+        }
       }
     }
     canary.close();
