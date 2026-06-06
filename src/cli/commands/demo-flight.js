@@ -34,7 +34,7 @@ const HOST = process.env.DVAA_BASE || 'http://localhost';
 const FLIGHT_PORT = Number(process.env.DVAA_FLIGHT_PORT || 7017);
 const FLIGHT_AIM_PORT = Number(process.env.DVAA_FLIGHT_AIM_PORT || 7018);
 const AGENT_LABEL = process.env.DVAA_AGENT_NAME || 'FlightBot';
-const PWNED_WALL_URL = process.env.DVAA_PWNED_WALL || 'https://agentpwn.com/pwned';
+const STATS_URL = process.env.DVAA_STATS_URL || 'https://agentpwn.com/stats';
 
 const indexPath = fileURLToPath(new URL('../../index.js', import.meta.url));
 
@@ -250,7 +250,7 @@ function render({ live, benign, runVuln, runAim, exfilBaseUrl, exfiltrated, bloc
     `  ${BOLD}Verdict${RESET}  ${verdict ? GREEN + 'AIM contained the attack' + RESET : YELLOW + 'inconclusive - see acts above' + RESET}`,
     `  ${DIM}Same agent code. The injection landed both times; the capability${RESET}`,
     `  ${DIM}grant - not an input filter - is what stopped the wallet from leaving.${RESET}`,
-    ...(live ? ['', `  ${DIM}Public capture: ${PWNED_WALL_URL}${RESET}`] : []),
+    ...(live ? ['', `  ${DIM}Live capture counted at: ${STATS_URL}${RESET}`] : []),
   ]);
   return blocks;
 }

@@ -64,10 +64,28 @@ agent's trust score drops because of the recorded denial.
 dvaa demo flight --live
 ```
 
-With `--live` the agent fetches the real target and the capture lands on the
-public agentpwn `/pwned` wall — so anyone can review that the lab is real after
-the talk. Use only on a trusted network; the offline default is the reliable
-stage path.
+With `--live` the agent fetches the real agentpwn.com deals page (instead of the
+seeded offline copy) and exfiltrates the synthetic wallet to agentpwn's live
+canary, which increments the public counters at agentpwn.com/stats. Use only on
+a trusted network; the offline default is the reliable stage path.
+
+The trap is key-scoped to this demo: the agentpwn page only serves its injection
+when fetched with the demo key, so an unrelated agent that merely browses the
+deals page is never induced to leak its own data.
+
+For an independently reviewable record, commit the run's capture to the public
+captures repo. No credentials are embedded in the tool, so the timestamp and
+history are verifiable on GitHub:
+
+```
+git clone https://github.com/opena2a-org/dvaa-demo-captures
+cd dvaa-demo-captures
+npx dvaa demo flight --live --json | ./record.sh
+git add -A && git commit -m "capture $(date -u +%FT%TZ)" && git push
+```
+
+Because the trap is locked, the only data that can ever appear there is the
+demo's own synthetic wallet.
 
 ## Reset between runs
 
@@ -80,8 +98,9 @@ ephemeral agent audit log).
 | Knob | Env var | Default |
 |------|---------|---------|
 | Agent display name | `DVAA_AGENT_NAME` | `FlightBot` |
-| Target deals URL | `DVAA_FLIGHT_URL` | `https://agentpwn.com/deals/cheap-flights` |
-| Public wall URL (live) | `DVAA_PWNED_WALL` | `https://agentpwn.com/pwned` |
+| Target deals URL (base) | `DVAA_FLIGHT_URL` | `https://agentpwn.com/deals/cheap-flights` |
+| Demo key (gates the live injection) | `DVAA_FLIGHT_DEMO_KEY` | `dvaa-flight-demo` |
+| Live stats URL | `DVAA_STATS_URL` | `https://agentpwn.com/stats` |
 | Agent ports | `DVAA_FLIGHT_PORT` / `DVAA_FLIGHT_AIM_PORT` | `7017` / `7018` |
 
 ## If something goes wrong on stage
