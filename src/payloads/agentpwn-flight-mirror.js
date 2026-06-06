@@ -20,10 +20,20 @@
  * Source pattern: opena2a-org/agentpwn (data-exfiltration category).
  */
 
-// Default URL the agent is asked to fetch. Brand-neutral path; override with
+// Base URL the agent is asked to fetch. Brand-neutral path; override with
 // DVAA_FLIGHT_URL so the same demo works pointed at any venue's mirror.
-export const FLIGHT_DEAL_URL =
+const FLIGHT_DEAL_BASE_URL =
   process.env.DVAA_FLIGHT_URL || 'https://agentpwn.com/deals/cheap-flights';
+
+// Demo key. The live agentpwn trap page only serves its injection when fetched
+// with `?k=<this>`, so an unrelated agent that merely crawls the deals page is
+// NOT induced to exfiltrate its own data. Must match FLIGHT_DEMO_KEY on the
+// agentpwn side. Not a secret in the crypto sense - it only has to be something
+// an incidental crawler won't send.
+export const FLIGHT_DEMO_KEY = process.env.DVAA_FLIGHT_DEMO_KEY || 'dvaa-flight-demo';
+
+// The actual URL fetched (and seeded) - the deals page scoped to the demo key.
+export const FLIGHT_DEAL_URL = `${FLIGHT_DEAL_BASE_URL}?k=${FLIGHT_DEMO_KEY}`;
 
 // The exfil-data placeholder the agent substitutes with the wallet payload at
 // request time (same placeholder the ResearchBot persona-leak path uses, so
