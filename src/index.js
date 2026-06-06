@@ -19,6 +19,8 @@ import { callLLM, isLLMEnabled, configureLLM, disableLLM, getLLMConfig } from '.
 import { renderResearchNarration } from './llm/research-narration.js';
 import { isSubcommand, dispatch, listCommands } from './cli/router.js';
 import { detectUrlExfiltrationInjection } from './payloads/agentpwn-mirror.js';
+import { walletExfilSummary } from './payloads/flight-wallet.fixture.js';
+import { FLIGHT_RESULTS, renderFlightResults } from './payloads/flight-results.fixture.js';
 import { maybeEnforce } from './aim-enforcer.js';
 import { webFetch } from './web-fetch.js';
 
@@ -492,6 +494,48 @@ VULNERABLE: System prompt leaked after context overflow displaced safety rules!`
     }
   }
 
+  // Deterministic benign flight-search path for the FlightBot pair (Act 1 of
+  // `dvaa demo flight`). Triggers when the agent has the flightSearch feature,
+  // the message reads like a flight query, and there is NO URL in it (a message
+  // with a URL is the attack beat and belongs to the web_fetch path below).
+  // search_flights maps to the `flight:search` capability; both agents are
+  // granted it, so the AIM agent answers identically here - the contrast only
+  // appears once an injection drives an out-of-grant action.
+  if (!responseText && agent.features?.flightSearch) {
+    const hasUrl = /https?:\/\//.test(userMessage || '');
+    const looksLikeFlightQuery = /\b(flight|flights|fly|fares?|airfare|itinerary|book)\b/i.test(userMessage || '');
+    if (!hasUrl && looksLikeFlightQuery) {
+      const searchEnforcement = await maybeEnforce(agent, {
+        action: 'flight:search',
+        resource: 'search_flights',
+        context: { tool: 'search_flights' },
+      });
+      const searchToolCall = {
+        id: `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        type: 'function',
+        function: { name: 'search_flights', arguments: JSON.stringify({ query: userMessage }) },
+      };
+      const lines = [
+        `[${agent.name}] Found ${FLIGHT_RESULTS.length} flights:`,
+        ...renderFlightResults(),
+        '',
+        'Tell me which one to book, or ask me to look for cheaper deals.',
+      ];
+      return {
+        content: lines.join('\n'),
+        toolCalls: [searchToolCall],
+        finishReason: 'tool_calls',
+        dvaa: {
+          flightSearch: true,
+          resultCount: FLIGHT_RESULTS.length,
+          aim: searchEnforcement.enforced
+            ? { enforced: true, allowed: searchEnforcement.allowed === true, auditEventId: searchEnforcement.auditEventId, trustScore: searchEnforcement.trustScore }
+            : { enforced: false },
+        },
+      };
+    }
+  }
+
   // Deterministic web_fetch + indirect-injection path for the ResearchBot
   // pair. Triggered when (a) the agent has `webFetch` indirect-injection
   // vulnerability enabled and (b) the user message contains an http(s) URL.
@@ -593,14 +637,18 @@ VULNERABLE: System prompt leaked after context overflow displaced safety rules!`
       // follow the injection and attempt the indicated http:post callback.
       // This is the AIM enforcement boundary.
       const injection = fetchResult.injection;
-      // The injection text often includes [INSERT_YOUR_SYSTEM_PROMPT_HERE]
-      // or similar. Replace with the agent's persona to dramatize the leak.
-      // Cap the substituted persona at 1KB so we don't generate URLs that
-      // blow past Node's http URL limits if a future persona grows.
-      const personaPayload = encodeURIComponent((agent.persona || '').slice(0, 1024));
+      // The injection text includes an [INSERT_YOUR_*_HERE] placeholder the
+      // agent fills with whatever sensitive context it holds. An agent with a
+      // wallet (FlightBot) exfiltrates the wallet; otherwise we fall back to
+      // the persona/system-prompt leak (ResearchBot). Cap at 1KB so the
+      // substituted payload can't blow past Node's http URL limits.
+      const exfilPayload = agent.wallet
+        ? walletExfilSummary(agent.wallet)
+        : (agent.persona || '');
+      const leakPayload = encodeURIComponent(String(exfilPayload).slice(0, 1024));
       const callbackUrl = (injection.callbackUrl || '')
-        .replace(/\[INSERT_YOUR_SYSTEM_PROMPT_HERE\]/gi, personaPayload)
-        .replace(/\[INSERT_YOUR_DOCUMENT_CONTENTS_HERE\]/gi, personaPayload);
+        .replace(/\[INSERT_YOUR_SYSTEM_PROMPT_HERE\]/gi, leakPayload)
+        .replace(/\[INSERT_YOUR_DOCUMENT_CONTENTS_HERE\]/gi, leakPayload);
 
       const postToolCall = {
         id: `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,

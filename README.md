@@ -126,6 +126,7 @@ dvaa --help
 | `dvaa telemetry [on\|off\|status]` | Inspect or toggle anonymous usage telemetry (see §Telemetry). |
 | `dvaa browse [url] [--agents X] [--categories Y] [--json] [--publish]` | Send DVAA agents to browse a target site (agentpwn.com by default). |
 | `dvaa demo aim-ab [-i] [--cloud] [--json] [--verbose]` | Run the deterministic A/B: same agent code, AIM enforcement off vs on. `-i` steps through it interactively for a live audience; `--cloud` mirrors the denied event to your AIM dashboard ([see below](#aim-protected-agent)). |
+| `dvaa demo flight [-i] [--live] [--json]` | Three-act story: a flight agent holding a synthetic wallet is compromised by a poisoned travel page, then the same agent under AIM blocks the exfil at the egress boundary. Self-contained — runs its own fleet, no pre-flight. See `docs/demo/FLIGHT_RUN_SCRIPT.md`. |
 
 Run any command with `--help` for per-command options.
 
