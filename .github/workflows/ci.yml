@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Deterministic, key-free. Runs on every push and PR. This is the regression
+  # guard for the provider request contracts (issue #55) — it cannot reach a
+  # real API, but it fails the moment we send the wrong body.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  # Live provider smoke — makes a REAL call through the actual callLLM path
+  # against a current model, the way a user does. Only a real request catches a
+  # provider changing its API on us (issue #55). Gated to main-push and manual
+  # dispatch to bound API cost; external-fork PRs have no secret and would skip
+  # anyway. The smoke script SKIPs providers whose key is absent, so a missing
+  # secret is a clean pass, never a hard failure.
+  smoke-llm:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Live LLM smoke
+        env:
+          # Add these as repo secrets (Settings -> Secrets -> Actions) to enable.
+          # Default OpenAI model is a newer model class on purpose — see the script.
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npm run smoke:llm
