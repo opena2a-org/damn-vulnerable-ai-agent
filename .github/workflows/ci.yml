@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+# Opt the v4-line JavaScript actions into Node 24 (forced default 2026-06-16);
+# silences the Node 20 deprecation warning. Mirrors release.yml.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # Deterministic, key-free. Runs on every push and PR. This is the regression
   # guard for the provider request contracts (issue #55) — it cannot reach a
