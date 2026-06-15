@@ -63,6 +63,7 @@ async function main() {
       assert.equal(req.url, 'https://api.openai.com/v1/chat/completions');
       assert.equal(req.body.max_completion_tokens, 512, 'max_completion_tokens missing/incorrect');
       assert.ok(!('max_tokens' in req.body), 'deprecated max_tokens must NOT be present (breaks o-series/GPT-5)');
+      assert.ok(!('temperature' in req.body), 'temperature must be omitted (o-series/GPT-5 reject non-default values)');
       assert.equal(req.body.model, 'gpt-5', 'model not forwarded');
       assert.ok(Array.isArray(req.body.messages), 'messages must be an array');
       assert.equal(req.body.messages[0].role, 'system', 'system prompt must be first message');
@@ -81,6 +82,7 @@ async function main() {
       const req = get();
       assert.equal(req.body.max_completion_tokens, 256, 'older model must also use max_completion_tokens');
       assert.ok(!('max_tokens' in req.body), 'no max_tokens for older model either');
+      assert.ok(!('temperature' in req.body), 'temperature omitted for OpenAI across all models');
     } finally {
       globalThis.fetch = originalFetch;
       disableLLM();
@@ -101,6 +103,8 @@ async function main() {
       // Anthropic's Messages API DOES use max_tokens — do not "flat swap" it too.
       assert.equal(req.body.max_tokens, 333, 'Anthropic still requires max_tokens');
       assert.ok(!('max_completion_tokens' in req.body), 'Anthropic must not get the OpenAI field');
+      // Anthropic accepts an explicit temperature — only OpenAI omits it.
+      assert.ok('temperature' in req.body, 'Anthropic body should still carry temperature');
       assert.equal(req.body.system, 'sys-prompt', 'system prompt must be a top-level field, not a message');
       assert.equal(req.init.headers['x-api-key'], 'a-key', 'x-api-key header wrong');
       assert.ok(req.init.headers['anthropic-version'], 'anthropic-version header missing');

@@ -66,7 +66,7 @@ export async function callLLM(systemPrompt, messages, options = {}) {
 
   try {
     if (llmConfig.provider === 'openai') {
-      return await callOpenAI(systemPrompt, messages, maxTokens, temperature);
+      return await callOpenAI(systemPrompt, messages, maxTokens);
     } else if (llmConfig.provider === 'anthropic') {
       return await callAnthropic(systemPrompt, messages, maxTokens, temperature);
     }
@@ -77,7 +77,7 @@ export async function callLLM(systemPrompt, messages, options = {}) {
   }
 }
 
-async function callOpenAI(systemPrompt, messages, maxTokens, temperature) {
+async function callOpenAI(systemPrompt, messages, maxTokens) {
   const apiMessages = [
     { role: 'system', content: systemPrompt },
     ...messages.map(m => ({ role: m.role, content: m.content })),
@@ -95,7 +95,10 @@ async function callOpenAI(systemPrompt, messages, maxTokens, temperature) {
       // Newer OpenAI models (o-series / GPT-5.x) reject max_tokens and require
       // max_completion_tokens. Older models accept both, so this works everywhere.
       max_completion_tokens: maxTokens,
-      temperature,
+      // temperature is intentionally omitted: o-series / GPT-5.x reasoning
+      // models only accept the default (1) and 400 on any explicit value;
+      // older models accept the default too, so omitting it works on every
+      // OpenAI model without maintaining a model-family allowlist.
     }),
     signal: AbortSignal.timeout(30000),
   });
