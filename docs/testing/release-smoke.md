@@ -74,15 +74,37 @@ After step 2.3 above:
 
 ## 4. LLM mode (3 min)
 
-Only run if you have an Anthropic or OpenAI key available for testing.
+**4.0 — Live provider smoke (run first, before the UI steps).** This makes a
+real request through the actual `callLLM` path against current models, the way a
+user does. It is the only check that catches a provider changing its API on us
+(issue #55: newer OpenAI models started rejecting `max_tokens`). Mocked unit
+tests pin what we *send*; this pins that it still *works*.
+
+```bash
+# Smokes whichever provider keys are set; missing keys SKIP (don't fail).
+# OpenAI defaults to a NEWER model (gpt-5) on purpose — older models accept the
+# deprecated max_tokens, so smoking only gpt-4o-mini would miss issue #55.
+OPENAI_API_KEY=sk-... ANTHROPIC_API_KEY=sk-ant-... npm run smoke:llm
+# Override the OpenAI model to whatever is current if gpt-5 isn't available:
+SMOKE_OPENAI_MODEL=o4-mini OPENAI_API_KEY=sk-... npm run smoke:llm
+```
+
+Fail the release if any provider with a key set returns `FAIL (no completion)`.
+A `400` printed as `[LLM] Error: OpenAI API error 400` means the request body
+drifted from what the model accepts — exactly the issue-#55 failure mode.
+
+Then the UI steps (only run if you have a key available):
 
 | # | Step | Expected |
 |---|---|---|
 | 4.1 | `/#settings` → Provider: Anthropic → paste key → Enable LLM Mode | Status becomes `Active: anthropic (claude-sonnet-4-6)`. Not a retired model ID. |
 | 4.2 | Return to `/#attack-lab` → send an attack | Tutor response is rich prose (not the rule-based fallback). Tutor panel auto-scrolls. |
-| 4.3 | `/#settings` → Disable | Status reverts to `Offline mode`. |
+| 4.3 | `/#settings` → Provider: OpenAI → set Model to a current model (e.g. `gpt-5` / an o-series model) → paste key → Enable → send an attack | Tutor responds (no `400`). This is the user flow that surfaced issue #55. |
+| 4.4 | `/#settings` → Disable | Status reverts to `Offline mode`. |
 
 If the default model is any Claude build older than the current Sonnet, fail.
+If an OpenAI request errors with `max_tokens` / `max_completion_tokens` in the
+body, fail — see issue #55.
 
 ## 5. CLI (3 min)
 
@@ -172,5 +194,11 @@ Bugs this checklist would have caught:
   would catch it; `.dispatchEvent(...)` bypasses it.
 - **Section 4.1 (default model)** — shipped with `claude-sonnet-4-20250514`
   (retired). A real key would 404. API mock tests never caught it.
+- **Section 4.0 (live provider smoke)** — issue #55: the OpenAI request sent the
+  deprecated `max_tokens`, which newer models (o-series / GPT-5.x) reject with a
+  400, so every OpenAI call on a current model failed. We only had a mocked
+  Anthropic test and never asserted the OpenAI body, so it shipped to a user.
+  `npm run smoke:llm` (real call, newer model) plus the
+  `llm-provider-contract.test.js` body-shape assertions close that gap.
 - **Section 5 (`dvaa not-a-real-command`)** — previously silently started
   the server on any unknown arg. Only noticed when a user typo'd.

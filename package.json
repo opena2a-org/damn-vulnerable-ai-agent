@@ -9,6 +9,7 @@
   },
   "scripts": {
     "test": "node --test",
+    "smoke:llm": "node scripts/smoke-llm.mjs",
     "start": "node src/index.js",
     "start:all": "node src/index.js --all",
     "start:api": "node src/index.js --api",
