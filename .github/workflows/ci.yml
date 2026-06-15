@@ -44,5 +44,5 @@ jobs:
           # Add these as repo secrets (Settings -> Secrets -> Actions) to enable.
           # Default OpenAI model is a newer model class on purpose — see the script.
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY_DVAA }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_DVAA }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: npm run smoke:llm
