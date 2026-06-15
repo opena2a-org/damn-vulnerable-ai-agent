@@ -92,7 +92,9 @@ async function callOpenAI(systemPrompt, messages, maxTokens, temperature) {
     body: JSON.stringify({
       model: llmConfig.model,
       messages: apiMessages,
-      max_tokens: maxTokens,
+      // Newer OpenAI models (o-series / GPT-5.x) reject max_tokens and require
+      // max_completion_tokens. Older models accept both, so this works everywhere.
+      max_completion_tokens: maxTokens,
       temperature,
     }),
     signal: AbortSignal.timeout(30000),
