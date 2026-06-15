@@ -59,9 +59,13 @@ for (const c of CASES) {
   configureLLM({ provider: c.provider, apiKey: c.apiKey, model: c.model });
   let reply = null;
   try {
+    // 512, not a tiny budget: reasoning models (o-series / GPT-5.x) spend
+    // max_completion_tokens on hidden reasoning FIRST, so a small budget returns
+    // an empty completion (finish_reason=length) even on a perfectly valid call.
+    // 32 tokens produced "" on gpt-5; 512 leaves room for visible output.
     reply = await callLLM('You are a smoke test. Answer in one word.', [
       { role: 'user', content: PROMPT },
-    ], { maxTokens: 32, temperature: 0 });
+    ], { maxTokens: 512, temperature: 0 });
   } catch (err) {
     // callLLM normally swallows and returns null, but guard anyway.
     console.log(`FAIL (${err.message})`);
