@@ -1,11 +1,11 @@
 /**
- * dvaa attack <agent|url> — run HackMyAgent attack suite.
+ * dvaa attack <agent|url> - run HackMyAgent attack suite.
  *
  * Resolves a DVAA agent name to its URL, then shells out to
  * `hackmyagent attack <url> --api-format openai`. Passes through
  * --intensity, --verbose.
  *
- * Bare `dvaa attack` with no target is rejected — users get confused with
+ * Bare `dvaa attack` with no target is rejected - users get confused with
  * fleet mode vs single agent. Use --all to opt into fleet scan.
  */
 
@@ -46,7 +46,7 @@ export default async function run(argv) {
     fail(`Unknown agent "${input}". Run: dvaa agents`);
   }
   if (target.protocol === 'mcp' || target.protocol === 'a2a') {
-    process.stderr.write(`Warning: ${target.name} speaks ${target.protocol.toUpperCase()}, not OpenAI API. HMA attack may not apply cleanly — consider: dvaa hma attack ${target.url}\n`);
+    process.stderr.write(`Warning: ${target.name} speaks ${target.protocol.toUpperCase()}, not OpenAI API. HMA attack may not apply cleanly - consider: dvaa hma attack ${target.url}\n`);
   }
   return attackOne(target.url, intensity, verbose);
 }
@@ -63,7 +63,7 @@ const USAGE = `Usage: dvaa attack <agent|url> [--intensity passive|active|aggres
 Run HackMyAgent attacks against a DVAA agent.
 
 Target can be:
-  - An agent name (e.g. "helperbot", "legacybot") — resolved via dvaa agents
+  - An agent name (e.g. "helperbot", "legacybot") - resolved via dvaa agents
   - A full URL (e.g. http://localhost:7003/v1/chat/completions)
 
 Options:

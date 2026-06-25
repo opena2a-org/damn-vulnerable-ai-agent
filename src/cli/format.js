@@ -14,7 +14,7 @@ export function emit(data, argv) {
     process.stdout.write(JSON.stringify(data, null, 2) + '\n');
     return;
   }
-  // Human-readable — callers pass a string or an array of lines.
+  // Human-readable - callers pass a string or an array of lines.
   if (Array.isArray(data)) {
     process.stdout.write(data.join('\n') + '\n');
   } else if (typeof data === 'string') {

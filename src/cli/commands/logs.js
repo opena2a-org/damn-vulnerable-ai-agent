@@ -1,5 +1,5 @@
 /**
- * dvaa logs — show attack log entries from /api/attack-log.
+ * dvaa logs - show attack log entries from /api/attack-log.
  * --follow polls every 2s and streams new entries.
  */
 
@@ -69,10 +69,10 @@ function renderBatch(entries, argv) {
     return;
   }
   const lines = entries.map(e => {
-    const ts = e.timestamp ? new Date(e.timestamp).toISOString().replace('T', ' ').slice(0, 19) : '—';
-    const agent = e.agent || e.agentId || '—';
-    const category = e.category || e.attackType || '—';
-    const detected = e.detected === true ? 'detected' : e.detected === false ? 'passed' : '—';
+    const ts = e.timestamp ? new Date(e.timestamp).toISOString().replace('T', ' ').slice(0, 19) : '-';
+    const agent = e.agent || e.agentId || '-';
+    const category = e.category || e.attackType || '-';
+    const detected = e.detected === true ? 'detected' : e.detected === false ? 'passed' : '-';
     return `${ts}  ${agent.padEnd(14)}  ${category.padEnd(24)}  ${detected}`;
   });
   emit(lines, argv);

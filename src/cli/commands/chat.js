@@ -1,5 +1,5 @@
 /**
- * dvaa chat <agent> — interactive REPL against a running DVAA agent.
+ * dvaa chat <agent> - interactive REPL against a running DVAA agent.
  *
  * Per-turn flow:
  *   1. Read a line from stdin (or use --message "<text>" for one-shot mode)
@@ -26,7 +26,7 @@ const DEFAULT_HOST = process.env.DVAA_BASE_HOST || 'localhost';
 const USAGE = `dvaa chat <agent> [options]
 
 Interactive chat against a running DVAA agent. Default agent is researchbot-aim
-(the AIM-enforced research agent — the conversion-funnel demo target).
+(the AIM-enforced research agent - the conversion-funnel demo target).
 
 Arguments:
   <agent>               Agent id (e.g. researchbot, researchbot-aim) or 'list'
@@ -88,7 +88,7 @@ export default async function run(argv) {
     fail(`Unknown agent id: ${agentId}\nRun: dvaa chat list  (to see available agents)`);
   }
   if (agent.protocol !== 'api') {
-    fail(`Agent ${agent.id} uses protocol "${agent.protocol}" — chat REPL only supports api agents.`);
+    fail(`Agent ${agent.id} uses protocol "${agent.protocol}" - chat REPL only supports api agents.`);
   }
 
   const host = values.host || DEFAULT_HOST;
@@ -145,7 +145,7 @@ async function runRepl(baseUrl, agent, argv) {
   if (!isJsonMode(argv)) {
     process.stdout.write([
       '',
-      `  dvaa chat — ${agent.name} (${agent.id}) at ${baseUrl}`,
+      `  dvaa chat - ${agent.name} (${agent.id}) at ${baseUrl}`,
       `  AIM enforced: ${agent.aimEnforced ? 'yes (' + (agent.aimCapabilities || []).join(', ') + ')' : 'no'}`,
       `  Type a message and press enter. Ctrl+C or "exit" to quit.`,
       '',

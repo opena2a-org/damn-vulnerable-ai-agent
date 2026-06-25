@@ -1,5 +1,5 @@
 /**
- * dvaa agents — list all DVAA agents with port, protocol, and security level.
+ * dvaa agents - list all DVAA agents with port, protocol, and security level.
  */
 
 import { listAgents } from '../agents.js';

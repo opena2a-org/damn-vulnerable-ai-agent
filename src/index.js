@@ -122,7 +122,7 @@ ${cmdLines.join('\n')}
 Run any command with --help for command-specific options.
 
 Agents:
-  API (OpenAI-compatible)  SecureBot, HelperBot, LegacyBot, CodeBot, RAGBot, RAGBot-AIM, VisionBot, MemoryBot, LongwindBot
+  API (OpenAI-compatible)  SecureBot, HelperBot, LegacyBot, CodeBot, RAGBot, RAGBot-AIM, ResearchBot, ResearchBot-AIM, FlightBot, FlightBot-AIM, VisionBot, MemoryBot, LongwindBot
   MCP (JSON-RPC 2.0)       ToolBot, DataBot, PluginBot, ProxyBot
   A2A (Agent-to-Agent)     Orchestrator, Worker
 
@@ -1637,8 +1637,8 @@ async function executeMcpTool(agent, toolName, args) {
 
       // Model classic path traversal: an attacker uses enough `../` to reach
       // the filesystem root, then a known path (e.g. `../../../etc/passwd`).
-      // We treat sandbox.root as that root, so any depth of `../` — and an
-      // absolute path — both resolve to the planted fake files. The traversal
+      // We treat sandbox.root as that root, so any depth of `../` - and an
+      // absolute path - both resolve to the planted fake files. The traversal
       // is demonstrated, but the read stays confined to the sandbox.
       let resolved;
       if (reqPath.startsWith('/')) {

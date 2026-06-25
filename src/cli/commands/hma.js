@@ -1,5 +1,5 @@
 /**
- * dvaa hma [args...] — pass-through to the bundled HackMyAgent CLI.
+ * dvaa hma [args...] - pass-through to the bundled HackMyAgent CLI.
  *
  * Escape hatch for anything not covered by the curated subcommands above.
  * Uses the exact same binary the dashboard scanner uses, so version parity
