@@ -1633,9 +1633,25 @@ async function executeMcpTool(agent, toolName, args) {
     // ── PluginBot: fetch_data - path traversal / SSRF ──
     if (toolName === 'fetch_data') {
       const reqPath = args.path || args.url || '';
-      const resolved = reqPath.startsWith('/')
-        ? path.join(sandbox.root, reqPath)
-        : path.resolve(sandbox.home, reqPath);
+      const traversed = reqPath.includes('../');
+
+      // Model classic path traversal: an attacker uses enough `../` to reach
+      // the filesystem root, then a known path (e.g. `../../../etc/passwd`).
+      // We treat sandbox.root as that root, so any depth of `../` — and an
+      // absolute path — both resolve to the planted fake files. The traversal
+      // is demonstrated, but the read stays confined to the sandbox.
+      let resolved;
+      if (reqPath.startsWith('/')) {
+        resolved = path.join(sandbox.root, reqPath);
+      } else if (traversed) {
+        // Collapse the `..`/`.` segments and re-anchor the remainder at the
+        // sandbox root, so the depth of the traversal no longer matters.
+        const stripped = reqPath.split('/').filter(seg => seg && seg !== '..' && seg !== '.').join('/');
+        resolved = path.join(sandbox.root, stripped);
+      } else {
+        resolved = path.resolve(sandbox.home, reqPath);
+      }
+      resolved = path.resolve(resolved);
 
       if (resolved.startsWith(sandbox.root)) {
         try {
