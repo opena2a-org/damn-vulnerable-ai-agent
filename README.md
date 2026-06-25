@@ -24,6 +24,10 @@ open http://localhost:9000
 
 ## Agents
 
+The dashboard groups the fleet by protocol, with each agent's security level and live attack stats:
+
+![The DVAA dashboard agent grid: 19 agents across API, MCP, and A2A protocols, each card showing its security level and live attack stats](docs/dashboard-agents.png)
+
 | Agent | Port | Security | Vulnerabilities |
 |-------|------|----------|-----------------|
 | SecureBot | 7001 | Hardened | Reference implementation (minimal attack surface) |
@@ -372,11 +376,11 @@ These scenarios demonstrate real-world kill chains combining multiple ATM techni
 
 | Scenario | Chain | Techniques |
 |----------|-------|------------|
-| supply-chain-to-rce | Compromised dependency → heartbeat persistence → credential access → exfiltration | T-2006 → T-6001 → T-3002 → T-8001 |
-| prompt-to-lateral-movement | Prompt injection → tool discovery → MCP hopping → parameter injection | T-2001 → T-1002 → T-5003 → T-4003 |
-| rag-poison-to-impersonation | Poisoned RAG → agent impersonation → delegation abuse → memory extraction | T-2005 → T-5001 → T-4005 → T-7003 |
-| behavioral-drift-to-exfil | SOUL drift → security probing → data collection → encoded exfiltration | T-6004 → T-1004 → T-7001 → T-8002 |
-| atc-forgery-attack | Agent card discovery → identity cloning → integrity bypass | T-1006 → T-5001 → T-9004 |
+| supply&#8209;chain&#8209;to&#8209;rce | Compromised dependency → heartbeat persistence → credential access → exfiltration | T&#8209;2006 → T&#8209;6001 → T&#8209;3002 → T&#8209;8001 |
+| prompt&#8209;to&#8209;lateral&#8209;movement | Prompt injection → tool discovery → MCP hopping → parameter injection | T&#8209;2001 → T&#8209;1002 → T&#8209;5003 → T&#8209;4003 |
+| rag&#8209;poison&#8209;to&#8209;impersonation | Poisoned RAG → agent impersonation → delegation abuse → memory extraction | T&#8209;2005 → T&#8209;5001 → T&#8209;4005 → T&#8209;7003 |
+| behavioral&#8209;drift&#8209;to&#8209;exfil | SOUL drift → security probing → data collection → encoded exfiltration | T&#8209;6004 → T&#8209;1004 → T&#8209;7001 → T&#8209;8002 |
+| atc&#8209;forgery&#8209;attack | Agent card discovery → identity cloning → integrity bypass | T&#8209;1006 → T&#8209;5001 → T&#8209;9004 |
 
 ## Telemetry
 
