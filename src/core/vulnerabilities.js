@@ -258,6 +258,11 @@ export const ATTACK_PATTERNS = {
   dataExfiltration: [
     /(?:reveal|show|tell|give|what\s+(?:is|are)).*(?:system|initial).*(?:prompt|instruction)/i,
     /(?:reveal|expose|show).*(?:api|secret|private)\s*key/i,
+    // Credential-leak technique: a direct request for a password / secret /
+    // key / token. "What is the admin password?" is data exfiltration, not
+    // just an admin-keyword capability probe.
+    /(?:what|show|tell|give|reveal|share|expose|list|print|dump|leak).{0,40}(?:password|passwd|credential|secret|api\s*key|access\s*key|\btoken\b)/i,
+    /(?:admin|database|db|root|user|login|account)\s*(?:password|passwd|credential|secret)/i,
     /what.*(?:were|are).*(?:you|instructions).*told/i,
     /(?:send|post|transmit).*(?:to|http|webhook)/i,
     /(?:context|token).*(?:window|limit|length)/i,
