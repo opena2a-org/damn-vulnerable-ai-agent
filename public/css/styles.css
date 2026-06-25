@@ -1286,3 +1286,136 @@ body {
   .agent-select { min-width: 0; width: 100%; }
   .scenario-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Attack storytelling: clickable rows, detail drawer, teach cards ── */
+
+/* Clickable agent card */
+.agent-card-clickable { cursor: pointer; }
+.agent-card-clickable:hover { border-color: var(--teal); }
+
+/* Clickable attack-log rows */
+.attack-row { cursor: pointer; }
+.attack-row:hover td { background: var(--surface-2); }
+.attack-row-view { color: var(--text-dim); font-size: 0.75rem; }
+.attack-row:hover .attack-row-view { color: var(--teal); }
+.leak-flag {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--critical);
+  border: 1px solid var(--critical);
+  border-radius: var(--radius-sm);
+  padding: 0.1rem 0.4rem;
+  white-space: nowrap;
+}
+
+/* Attack detail drawer */
+.attack-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+.attack-detail-agent { font-weight: 600; color: var(--text); }
+.attack-detail-time { color: var(--text-muted); font-size: 0.8rem; }
+.attack-detail-cats { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.5rem; }
+.attack-detail-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 1rem 0 0.4rem;
+}
+.attack-detail-response {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 0;
+}
+.leak-highlight {
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+  border-radius: var(--radius-sm);
+  padding: 0 0.15rem;
+  font-weight: 600;
+}
+.attack-detail-leak-callout {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--critical);
+  border-radius: var(--radius);
+  background: rgba(239, 68, 68, 0.08);
+  color: #fca5a5;
+  font-size: 0.8rem;
+  word-break: break-word;
+}
+.attack-detail-empty, .attack-detail-hint {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  margin: 0.25rem 0 0.5rem;
+}
+
+/* Teach cards (what / why / defend) */
+.teach-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 0.85rem;
+  margin-bottom: 0.6rem;
+}
+.teach-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.teach-card-title { font-weight: 600; color: var(--text); font-size: 0.9rem; }
+.teach-oasb {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--teal);
+  border: 1px solid var(--teal-dim);
+  border-radius: var(--radius-sm);
+  padding: 0.1rem 0.4rem;
+  white-space: nowrap;
+}
+.teach-row { display: flex; gap: 0.6rem; margin-bottom: 0.35rem; }
+.teach-row:last-child { margin-bottom: 0; }
+.teach-row-label {
+  flex: 0 0 6.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  padding-top: 0.05rem;
+}
+.teach-row-text { flex: 1; font-size: 0.83rem; line-height: 1.5; color: var(--text); }
+
+/* Agent detail view */
+.agent-detail-back {
+  display: inline-block;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-decoration: none;
+  margin-bottom: 1rem;
+}
+.agent-detail-back:hover { color: var(--teal); }
+.agent-detail-header { margin-bottom: 1rem; }
+.agent-detail-title { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
+.agent-detail-tools { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.5rem; }

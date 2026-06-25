@@ -5,6 +5,7 @@
 import { fetchHealth, fetchStats, fetchAgents, fetchChallenges, fetchAttackLog, fetchScenarios } from './api.js';
 import { closeModal } from './components.js';
 import { renderAgents } from './views/agents.js';
+import { renderAgentDetail } from './views/agent-detail.js';
 import { renderChallenges } from './views/challenges.js';
 import { renderAttackLog } from './views/attack-log.js';
 import { renderStats } from './views/stats.js';
@@ -59,19 +60,33 @@ const views = {
   'attack-lab': renderAttackLab,
   scenarios: renderScenarios,
   settings: renderSettings,
+  'agent-detail': renderAgentDetail,
 };
 
 /**
- * Route to a view based on hash
+ * Route to a view based on hash.
+ * Supports `#agents/<id>` for the per-agent detail view; the nav link for
+ * "agents" stays highlighted while viewing a detail.
  */
 function route() {
   const hash = location.hash.slice(1) || 'agents';
-  const view = views[hash] ? hash : 'agents';
+  const [base, param] = hash.split('/');
+
+  let view = 'agents';
+  let navView = 'agents';
+  if (base === 'agents' && param) {
+    view = 'agent-detail';
+    navView = 'agents';
+    state.detailAgentId = param;
+  } else {
+    view = views[hash] ? hash : 'agents';
+    navView = view;
+  }
   state.currentView = view;
 
   // Update nav active state
   document.querySelectorAll('.nav-link').forEach(link => {
-    link.classList.toggle('active', link.dataset.view === view);
+    link.classList.toggle('active', link.dataset.view === navView);
   });
 
   render();

@@ -57,7 +57,11 @@ function buildTestModal(agent) {
  * Build a single agent card
  */
 function agentCard(agent) {
-  const card = el('div', { className: 'agent-card' });
+  const card = el('div', {
+    className: 'agent-card agent-card-clickable',
+    title: `View ${agent.name} details`,
+    onClick: () => { location.hash = `agents/${agent.id}`; },
+  });
 
   // Header
   const header = el('div', { className: 'agent-card-header' });
@@ -91,7 +95,7 @@ function agentCard(agent) {
   const toolCount = agent.tools?.length || 0;
   footer.appendChild(el('span', { className: 'port', style: { fontSize: '0.75rem' } },
     `${toolCount} tool${toolCount !== 1 ? 's' : ''} | ${agent.vulnerabilities?.length || 0} vuln${(agent.vulnerabilities?.length || 0) !== 1 ? 's' : ''}`));
-  const testBtn = el('button', { className: 'btn btn-primary btn-sm', onClick: () => openModal(`Test ${agent.name}`, buildTestModal(agent)) }, 'Test');
+  const testBtn = el('button', { className: 'btn btn-primary btn-sm', onClick: (e) => { e.stopPropagation(); openModal(`Test ${agent.name}`, buildTestModal(agent)); } }, 'Test');
   footer.appendChild(testBtn);
   card.appendChild(footer);
 
