@@ -8,7 +8,7 @@
 An intentionally vulnerable AI agent platform for security training, red-teaming, and validating security tools. 19 agents, 12 vulnerability categories, 3 protocols. The [DVWA](https://dvwa.co.uk/) of AI agents.
 
 ```bash
-docker run -p 9000:9000 -p 7001-7008:7001-7008 -p 7010-7016:7010-7016 -p 7020-7021:7020-7021 opena2a/dvaa:0.9.1
+docker run -p 9000:9000 -p 7001-7008:7001-7008 -p 7010-7018:7010-7018 -p 7020-7021:7020-7021 opena2a/dvaa:0.9.1
 open http://localhost:9000
 ```
 
