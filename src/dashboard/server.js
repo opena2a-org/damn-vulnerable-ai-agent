@@ -481,6 +481,39 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
       return;
     }
 
+    // Proxy a chat message to an agent through the dashboard port. This lets the
+    // Attack Lab drive agents with only :9000 published, so the getting-started
+    // command does not have to map every agent port. Scoped to known agent ids
+    // (resolved from the registry) so the dashboard is not a general open proxy;
+    // agents listen on the container loopback at their internal port.
+    if (req.method === 'POST' && pathname.startsWith('/api/agents/') && pathname.endsWith('/chat')) {
+      const agentId = pathname.split('/')[3]; // /api/agents/:id/chat
+      const agent = agents.find(a => a.id === agentId);
+      if (!agent) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Agent not found' }));
+        return;
+      }
+      try {
+        const body = await parseBody(req);
+        const messages = Array.isArray(body.messages)
+          ? body.messages
+          : [{ role: 'user', content: body.message || '' }];
+        const upstream = await fetch(`http://127.0.0.1:${agent.port}/v1/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'dvaa', messages }),
+        });
+        const data = await upstream.json();
+        res.writeHead(upstream.status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(data));
+      } catch (err) {
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Agent request failed', detail: err.message }));
+      }
+      return;
+    }
+
     // Tracks list
     if (req.method === 'GET' && pathname === '/api/tracks') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
