@@ -1,5 +1,5 @@
 /**
- * Main app — router, polling, global state
+ * Main app - router, polling, global state
  */
 
 import { fetchHealth, fetchStats, fetchAgents, fetchChallenges, fetchAttackLog, fetchScenarios } from './api.js';
@@ -93,7 +93,7 @@ function route() {
 }
 
 // Views that own their own interactive state (textarea content, dropdown selection,
-// in-flight chat). Auto-poll must not re-render these — it would clobber user input.
+// in-flight chat). Auto-poll must not re-render these - it would clobber user input.
 // They re-render only on explicit navigation (hashchange).
 const INTERACTIVE_VIEWS = new Set(['attack-lab', 'settings', 'scenarios']);
 

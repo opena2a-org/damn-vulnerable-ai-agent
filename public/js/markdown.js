@@ -3,7 +3,7 @@
  *
  * Built for LLM-generated content (tutor panels, agent chat, AI
  * recommendations). Returns an array of DOM nodes you can append. Does NOT
- * touch innerHTML — every piece of text goes through createTextNode via the
+ * touch innerHTML - every piece of text goes through createTextNode via the
  * el() helper, so inline HTML / script tags in LLM output render as literal
  * text rather than executing.
  *
@@ -19,7 +19,7 @@
  *   [text](url)       external link
  *
  * NOT supported (yet): tables, blockquotes, nested lists, images, footnotes.
- * If the LLM emits these, they render as literal text — acceptable until
+ * If the LLM emits these, they render as literal text - acceptable until
  * someone ships a use case that needs them.
  */
 
@@ -136,7 +136,7 @@ function renderTextBlock(text) {
 
 /**
  * Inline renderer. Text with **bold**, *italic*, `code`, [text](url).
- * Returns an array of text nodes and elements — safe for appendChild via el().
+ * Returns an array of text nodes and elements - safe for appendChild via el().
  * All text hits createTextNode via the el() machinery, so no HTML injection.
  */
 function renderInline(text) {

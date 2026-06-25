@@ -1,5 +1,5 @@
 /**
- * Attack Lab — Interactive agent hacking with AI tutor guidance
+ * Attack Lab - Interactive agent hacking with AI tutor guidance
  */
 
 import { el } from '../utils.js';

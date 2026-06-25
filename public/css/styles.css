@@ -898,7 +898,7 @@ body {
 }
 .md-body .md-link:hover { border-bottom-style: solid; }
 
-/* User-side chat bubbles get dark-on-teal text — adjust markdown colors */
+/* User-side chat bubbles get dark-on-teal text - adjust markdown colors */
 .chat-msg-user .md-body strong { color: inherit; }
 .chat-msg-user .md-body .md-inline-code { background: rgba(0, 0, 0, 0.15); color: #0a0e17; }
 .chat-msg-user .md-body .md-link { color: inherit; border-bottom-color: rgba(0, 0, 0, 0.3); }
@@ -972,7 +972,7 @@ body {
   border-color: rgba(6, 182, 212, 0.4);
 }
 
-/* Grid — max 3 columns at any viewport */
+/* Grid - max 3 columns at any viewport */
 .scenario-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));

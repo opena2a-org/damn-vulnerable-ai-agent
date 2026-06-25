@@ -1,5 +1,5 @@
 /**
- * Settings view — LLM API key configuration
+ * Settings view - LLM API key configuration
  */
 
 import { el } from '../utils.js';
