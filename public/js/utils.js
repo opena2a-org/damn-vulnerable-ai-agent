@@ -1,5 +1,5 @@
 /**
- * Utility functions — formatters, color mappings, helpers
+ * Utility functions - formatters, color mappings, helpers
  */
 
 export const SECURITY_COLORS = {
@@ -113,7 +113,7 @@ export function el(tag, attrs = {}, ...children) {
     else if (key === 'style' && typeof val === 'object') Object.assign(elem.style, val);
     else if (key.startsWith('on')) elem.addEventListener(key.slice(2).toLowerCase(), val);
     else if (key === 'textContent') elem.textContent = val;
-    else if (key === 'innerHTML') { /* skip — use textContent for safety */ }
+    else if (key === 'innerHTML') { /* skip - use textContent for safety */ }
     else if (BOOLEAN_ATTRS.has(key)) {
       if (val) elem.setAttribute(key, '');
       // falsy → don't set the attribute at all

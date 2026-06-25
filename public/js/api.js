@@ -1,5 +1,5 @@
 /**
- * API client — fetch wrapper for all dashboard endpoints
+ * API client - fetch wrapper for all dashboard endpoints
  */
 
 const BASE = '';

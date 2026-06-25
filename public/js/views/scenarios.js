@@ -1,5 +1,5 @@
 /**
- * Scenarios view — Scenarios v2
+ * Scenarios view: Scenarios v2
  *
  * Dashboard-initiated HMA scans. Each card owns its own scan/fix state, and
  * the view is registered as an interactive view (see app.js) so the 2s data
@@ -199,7 +199,7 @@ function scenarioCard(scenario, state) {
   card.appendChild(meta);
 
   // Action row. Scenarios without expected-checks.json can't be verified, so
-  // the scan button would just error — show Details only in that case.
+  // the scan button would just error: show Details only in that case.
   const hasExpected = scenario.expectedChecks && scenario.expectedChecks.length > 0;
   const actions = el('div', { className: 'scenario-actions' });
   const scanBtn = hasExpected ? el('button', { className: 'btn btn-primary btn-sm' }, 'Scan scenario') : null;
@@ -278,7 +278,7 @@ function renderPanel(scenario, { result, error, fix }, ctx) {
 
   const panel = el('div', { className: 'scenario-result' });
 
-  // Remediation celebration banner — user just ran --fix and everything that
+  // Remediation celebration banner: user just ran --fix and everything that
   // was broken is now passing. Explicit, green, separate from the scan line.
   const resolvedCount = result.expectedDetail.filter(d => d.status === 'fixed').length;
   if (fix && result.fired.length === 0 && resolvedCount > 0) {
@@ -369,7 +369,7 @@ function renderFindingRow(d) {
     body.appendChild(el('div', { className: 'scenario-finding-guidance' },
       'Was firing before the fix, now passes.'));
   } else {
-    // Missing. Surface whatever we can — HMA registry metadata (description +
+    // Missing. Surface whatever we can: HMA registry metadata (description +
     // severity) plus the family-based diagnostic hint.
     if (d.severity || d.category) {
       const meta = el('div', { className: 'scenario-finding-file' });
@@ -384,7 +384,7 @@ function renderFindingRow(d) {
       d.diagnostic || 'This check was expected but did not fire.'));
     if (!d.inRegistry) {
       body.appendChild(el('div', { className: 'scenario-finding-guidance scenario-finding-diag' },
-        `${d.checkId} isn't in this HMA version's check-metadata output — the check may have been renamed or removed upstream.`));
+        `${d.checkId} isn't in this HMA version's check-metadata output: the check may have been renamed or removed upstream.`));
     }
   }
   row.appendChild(body);
@@ -559,7 +559,7 @@ function formatBytes(n) {
 
 /**
  * Force a re-render by manually re-running the view fn. We do this because
- * Scenarios is in INTERACTIVE_VIEWS — the 2s data poll skips it.
+ * Scenarios is in INTERACTIVE_VIEWS: the 2s data poll skips it.
  */
 function rerender(state) {
   const app = document.getElementById('app');

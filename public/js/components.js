@@ -95,7 +95,7 @@ export function codeBlock(text) {
 }
 
 /**
- * Challenge completion icon — checkmark or dash
+ * Challenge completion icon - checkmark or dash
  */
 export function challengeStatusIcon(completed) {
   if (completed && completed.completedAt) {
