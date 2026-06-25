@@ -17,7 +17,10 @@ let killChainProgress = [];
  * Send a message to the selected agent
  */
 async function sendMessage(agentId, port, message) {
-  const resp = await fetch(`http://localhost:${port}/v1/chat/completions`, {
+  // Route through the dashboard so the Attack Lab works with only :9000
+  // published. The server resolves the agent by id and forwards to its
+  // in-container port; no need to map every agent port to the host.
+  const resp = await fetch(`/api/agents/${encodeURIComponent(agentId)}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
