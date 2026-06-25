@@ -25,4 +25,4 @@ jobs:
           password: ${{ secrets.DOCKERHUB_PAT }}
           repository: opena2a/dvaa
           readme-filepath: ./DOCKER_README.md
-          short-description: "Damn Vulnerable AI Agent — intentionally vulnerable AI agents for security testing and red-teaming"
+          short-description: "Damn Vulnerable AI Agent: intentionally vulnerable AI agents for security testing and red-teaming"
