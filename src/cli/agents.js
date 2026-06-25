@@ -2,7 +2,7 @@
  * Agent name resolver for the dvaa CLI.
  *
  * Maps user-friendly names (helperbot, legacybot) to port + endpoint URL.
- * The source of truth is src/core/agents.js — we just expose a lookup.
+ * The source of truth is src/core/agents.js - we just expose a lookup.
  */
 
 import { getAllAgents } from '../core/agents.js';

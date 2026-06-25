@@ -3,7 +3,7 @@
  *
  * Resolves hackmyagent across npm install layouts (nested, hoisted, global,
  * workspaces) so dvaa's HMA-delegating subcommands work in real npm consumer
- * installs — pre-fix every layout but the dvaa-repo-local one reported
+ * installs - pre-fix every layout but the dvaa-repo-local one reported
  * "HackMyAgent not installed" (release-test 2026-05-12 P1).
  *
  * Spawn is argv-only (shell:false). Never pass user input through a shell.
@@ -83,7 +83,7 @@ let _cachedHmaBin = null;
  *     workspaces, and any exotic layout the resolver supports).
  *  3. PATH lookup (covers `npm i -g hackmyagent`).
  *
- * Cached for the process lifetime — the binary path doesn't move mid-run.
+ * Cached for the process lifetime - the binary path doesn't move mid-run.
  */
 export function getHmaBinPath() {
   if (_cachedHmaBin) return _cachedHmaBin;
@@ -98,7 +98,7 @@ export function hmaIsInstalled() {
   return getHmaBinPath() !== null;
 }
 
-// Test seam — reset cache between unit tests so process-lifetime caching
+// Test seam - reset cache between unit tests so process-lifetime caching
 // doesn't bleed across cases. Not part of the public CLI surface.
 export function _resetHmaBinCacheForTests() {
   _cachedHmaBin = null;

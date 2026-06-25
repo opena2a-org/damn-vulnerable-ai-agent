@@ -1,5 +1,5 @@
 /**
- * dvaa benchmark — run OASB-1 compliance benchmark against a target.
+ * dvaa benchmark - run OASB-1 compliance benchmark against a target.
  *
  * Default target: the caller's current directory. Pass --agent <name> to
  * resolve against a DVAA fleet member's code path, or --url <url> to scan a

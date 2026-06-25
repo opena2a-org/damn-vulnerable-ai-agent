@@ -1,5 +1,5 @@
 /**
- * dvaa scan <scenario> — reuse dashboard scanner.js logic to run HMA against
+ * dvaa scan <scenario> - reuse dashboard scanner.js logic to run HMA against
  * scenarios/<name>/vulnerable/, print expected/fired/missing diff.
  *
  * --fix: run with HMA auto-fix + baseline diff (same flow as dashboard /fix).

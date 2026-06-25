@@ -47,7 +47,7 @@ export async function dispatch(argv) {
   const cmd = COMMANDS[name];
   if (!cmd || !cmd.run) return false;
 
-  // The telemetry subcommand inspects/toggles itself — don't track it
+  // The telemetry subcommand inspects/toggles itself - don't track it
   // (would create awkward feedback like "command: telemetry, success: true"
   // on every status check).
   const trackable = name !== 'telemetry';
@@ -72,7 +72,7 @@ export async function dispatch(argv) {
     // process.exit() does NOT trigger Node's beforeExit hook, so the SDK's
     // natural drain doesn't fire here. Flush explicitly so the in-flight
     // POST has time to land. flush() is bounded by the SDK's 2s per-event
-    // timeout — never hangs the CLI longer than that.
+    // timeout - never hangs the CLI longer than that.
     await tele.flush();
   }
   process.exit(exitCode ?? 0);

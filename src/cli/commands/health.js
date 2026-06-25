@@ -1,5 +1,5 @@
 /**
- * dvaa health — check the dashboard is reachable and report fleet status.
+ * dvaa health - check the dashboard is reachable and report fleet status.
  * Exit 0 if healthy, 1 if unreachable.
  */
 
