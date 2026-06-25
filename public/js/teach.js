@@ -1,5 +1,5 @@
 /**
- * Teach layer — per-category explainers.
+ * Teach layer: per-category explainers.
  *
  * Turns an attack category into a short, accurate security lesson:
  * what it is, why it matters, and how a real agent defends against it.
@@ -17,19 +17,19 @@ export const CATEGORY_TEACH = {
   },
   jailbreak: {
     oasb: '3.3',
-    what: 'Crafted prompts — roleplay, hypotheticals, "DAN" personas — coax the agent past its safety guardrails.',
+    what: 'Crafted prompts (roleplay, hypotheticals, "DAN" personas) coax the agent past its safety guardrails.',
     why: 'The agent produces content or takes actions its policy forbids.',
     defend: 'Enforce policy at the output boundary, not just the prompt. Refuse persona or roleplay framings that dissolve restrictions.',
   },
   dataExfiltration: {
     oasb: '4.3',
-    what: 'The agent discloses sensitive data — system prompt, credentials, API keys, PII — in its response.',
+    what: 'The agent discloses sensitive data (system prompt, credentials, API keys, PII) in its response.',
     why: 'Leaked secrets enable account takeover, lateral movement, and privacy breaches.',
     defend: 'Never place real secrets in the model context. Scrub responses for credential and PII patterns before returning them.',
   },
   capabilityAbuse: {
     oasb: '2.2',
-    what: 'The agent invokes tools or privileges beyond what the user is authorized for — command execution, file access, privilege escalation.',
+    what: 'The agent invokes tools or privileges beyond what the user is authorized for: command execution, file access, privilege escalation.',
     why: 'A chat interface becomes a foothold on the host.',
     defend: 'Gate every tool call behind an explicit, least-privilege capability grant. Deny by default.',
   },
@@ -41,7 +41,7 @@ export const CATEGORY_TEACH = {
   },
   mcpExploitation: {
     oasb: '2.3',
-    what: 'MCP tool inputs are abused — path traversal, SSRF, command injection — because the tool trusts its arguments.',
+    what: 'MCP tool inputs are abused (path traversal, SSRF, command injection) because the tool trusts its arguments.',
     why: 'Reads or writes outside the sandbox, reaches internal services, or runs commands.',
     defend: 'Validate and canonicalize every tool argument. Sandbox filesystem and network access.',
   },
@@ -72,7 +72,7 @@ export const CATEGORY_TEACH = {
   toolRegistryPoisoning: {
     oasb: '6.2',
     what: 'The agent registers or loads a tool from an unverified source without signature checks.',
-    why: 'A malicious tool runs on every future invocation — a supply-chain backdoor.',
+    why: 'A malicious tool runs on every future invocation: a supply-chain backdoor.',
     defend: 'Require signed tool manifests from a trusted registry. Pin versions and deny dynamic registration.',
   },
   toolMitm: {
