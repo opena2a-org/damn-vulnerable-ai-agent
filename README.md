@@ -24,6 +24,10 @@ open http://localhost:9000
 
 ## Agents
 
+The dashboard groups the fleet by protocol, with each agent's security level and live attack stats:
+
+![The DVAA dashboard agent grid: 19 agents across API, MCP, and A2A protocols, each card showing its security level and live attack stats](docs/dashboard-agents.png)
+
 | Agent | Port | Security | Vulnerabilities |
 |-------|------|----------|-----------------|
 | SecureBot | 7001 | Hardened | Reference implementation (minimal attack surface) |
