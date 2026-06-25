@@ -5,7 +5,7 @@
 [![Docker Hub](https://img.shields.io/docker/pulls/opena2a/dvaa)](https://hub.docker.com/r/opena2a/dvaa)
 [![OASB Compatible](https://img.shields.io/badge/OASB-1.0-teal)](https://oasb.ai)
 
-An intentionally vulnerable AI agent platform for security training, red-teaming, and validating security tools. 17 agents, 12 vulnerability categories, 3 protocols. The [DVWA](https://dvwa.co.uk/) of AI agents.
+An intentionally vulnerable AI agent platform for security training, red-teaming, and validating security tools. 19 agents, 12 vulnerability categories, 3 protocols. The [DVWA](https://dvwa.co.uk/) of AI agents.
 
 ```bash
 docker run -p 9000:9000 -p 7001-7008:7001-7008 -p 7010-7016:7010-7016 -p 7020-7021:7020-7021 opena2a/dvaa:0.9.1
@@ -32,6 +32,8 @@ open http://localhost:9000
 | RAGBot-AIM | 7014 | AIM-protected | Same code as RAGBot, capability grant enforced by AIM |
 | ResearchBot | 7015 | Weak | Web-content prompt injection during research/browsing |
 | ResearchBot-AIM | 7016 | AIM-protected | Same code as ResearchBot, outbound tool calls gated by AIM |
+| FlightBot | 7017 | Weak | Indirect injection via web fetch, wallet exfiltration |
+| FlightBot-AIM | 7018 | AIM-protected | Same code as FlightBot, egress gated by AIM capability grant |
 | VisionBot | 7006 | Weak | Image-based prompt injection |
 | MemoryBot | 7007 | Vulnerable | Memory injection, cross-session persistence |
 | LongwindBot | 7008 | Weak | Context overflow, safety displacement |
@@ -116,7 +118,7 @@ dvaa --help
 | Command | What it does |
 |---|---|
 | `dvaa` | Start the dashboard and full agent fleet (same as `npm start`). |
-| `dvaa agents [--json]` | List all 17 agents with port, protocol, security level, URL. |
+| `dvaa agents [--json]` | List all 19 agents with port, protocol, security level, URL. |
 | `dvaa health [--json]` | Ping the dashboard at `:9000`. Exit 1 if unreachable. |
 | `dvaa attack <agent\|url> [--intensity passive\|active\|aggressive] [--verbose]` | Run HMA attacks against a DVAA agent. `--all` runs the full fleet. |
 | `dvaa logs [--limit N] [--follow] [--json]` | Show or tail the attack log. |
