@@ -65,14 +65,14 @@ Based on [OASB-1](https://oasb.ai) (Open Agent Security Benchmark):
 
 ## From attack to defense
 
-DVAA shows you how agents break. Each attack class maps to an OpenA2A control that stops it in your own agents. Every command below is real and runnable — break it here, then defend it for real.
+DVAA shows you how agents break. Each attack class maps to an OpenA2A control that stops it in your own agents. Every command below is real and runnable: break it here, then defend it for real.
 
 | Attack you just ran | OpenA2A control | Get started |
 |---------------------|-----------------|-------------|
-| Prompt injection, jailbreak, context manipulation/overflow, MCP exploitation, tool poisoning/MITM | **[HackMyAgent](https://github.com/opena2a-org/hackmyagent)** — scan an agent setup and harden it | `npx hackmyagent secure` |
-| Capability abuse, outbound data exfiltration, A2A trust abuse | **[AIM](https://github.com/opena2a-org/agent-identity-management)** — cryptographic identity + capability grants enforced at the tool-call boundary | `dvaa demo aim-ab` ([see below](#aim-protected-agent)) |
-| Credential and secret leaks | **[Secretless](https://github.com/opena2a-org/secretless-ai)** — keep secrets out of agent and LLM context | `npx secretless-ai init` |
-| Browser-session agent takeover | **[BrowserGuard](https://github.com/opena2a-org/ai-browserguard)** — block agent takeover inside the browser | [Install from Chrome Web Store](https://chromewebstore.google.com/detail/ojphpdmabflmcjhglfogmkdgchkncikf) |
+| Prompt injection, jailbreak, context manipulation/overflow, MCP exploitation, tool poisoning/MITM | **[HackMyAgent](https://github.com/opena2a-org/hackmyagent)**: scan an agent setup and harden it | `npx hackmyagent secure` |
+| Capability abuse, outbound data exfiltration, A2A trust abuse | **[AIM](https://github.com/opena2a-org/agent-identity-management)**: cryptographic identity + capability grants enforced at the tool-call boundary | `dvaa demo aim-ab` ([see below](#aim-protected-agent)) |
+| Credential and secret leaks | **[Secretless](https://github.com/opena2a-org/secretless-ai)**: keep secrets out of agent and LLM context | `npx secretless-ai init` |
+| Browser-session agent takeover | **[BrowserGuard](https://github.com/opena2a-org/ai-browserguard)**: block agent takeover inside the browser | [Install from Chrome Web Store](https://chromewebstore.google.com/detail/ojphpdmabflmcjhglfogmkdgchkncikf) |
 
 The RAGBot-AIM A/B below is the shortest end-to-end proof: same agent code, the same injection landing on both, AIM denying the outbound action on the protected one.
 
@@ -104,7 +104,19 @@ curl -X POST http://localhost:7020/a2a/message \
 
 ## Attack Lab
 
-The Attack Lab view in the dashboard (`http://localhost:9000` → Attack Lab) walks through multi-step kill chains interactively. **LLM mode is required for live kill-chain progression:** open Settings, paste an OpenAI or Anthropic API key, and the server will stream real progression through the reconnaissance → exploitation → exfiltration stages. Offline mode (default, no key) shows static stages for each scenario — useful for previewing the narrative but not for live exploitation.
+The Attack Lab view in the dashboard (`http://localhost:9000` → Attack Lab) walks through multi-step kill chains interactively. **LLM mode is required for live kill-chain progression:** open Settings, paste an OpenAI or Anthropic API key, and the server will stream real progression through the reconnaissance → exploitation → exfiltration stages. Offline mode (default, no key) shows static stages for each scenario, useful for previewing the narrative but not for live exploitation.
+
+## Reading attacks in the dashboard
+
+The dashboard turns every attack into a complete story, not just a red badge.
+
+**Attack log.** Click any row to open the full detail: the exact payload sent, the agent's response with leaked secrets highlighted, the OASB control each detected category maps to (what it is, why it matters, how to defend), and a runnable "same payload vs SecureBot" command so you can watch the hardened agent block what the vulnerable one leaked.
+
+![Attack detail: payload, the response with leaked secrets highlighted, and how to defend](docs/dashboard-attack-detail.png)
+
+**Agents.** Click any agent card to drill into its tools, each declared vulnerability explained with a try-it payload, and that agent's own attack history.
+
+![Agent detail: tools, explained vulnerabilities, and attack history](docs/dashboard-agent-detail.png)
 
 ## CLI
 
@@ -128,7 +140,7 @@ dvaa --help
 | `dvaa telemetry [on\|off\|status]` | Inspect or toggle anonymous usage telemetry (see §Telemetry). |
 | `dvaa browse [url] [--agents X] [--categories Y] [--json] [--publish]` | Send DVAA agents to browse a target site (agentpwn.com by default). |
 | `dvaa demo aim-ab [-i] [--cloud] [--json] [--verbose]` | Run the deterministic A/B: same agent code, AIM enforcement off vs on. `-i` steps through it interactively for a live audience; `--cloud` mirrors the denied event to your AIM dashboard ([see below](#aim-protected-agent)). |
-| `dvaa demo flight [-i] [--live] [--json]` | Three-act story: a flight agent holding a synthetic wallet is compromised by a poisoned travel page, then the same agent under AIM blocks the exfil at the egress boundary. Self-contained — runs its own fleet, no pre-flight. See `docs/demo/FLIGHT_RUN_SCRIPT.md`. |
+| `dvaa demo flight [-i] [--live] [--json]` | Three-act story: a flight agent holding a synthetic wallet is compromised by a poisoned travel page, then the same agent under AIM blocks the exfil at the egress boundary. Self-contained: runs its own fleet, no pre-flight. See `docs/demo/FLIGHT_RUN_SCRIPT.md`. |
 
 Run any command with `--help` for per-command options.
 
@@ -188,7 +200,7 @@ The AIM-protected agent, **RAGBot-AIM** (port 7014), runs the same code as RAGBo
 The deterministic A/B against a single AgentPwn payload (`APWN-DE-003`, RAG-poisoned URL exfiltration):
 
 ```bash
-# Terminal 1 — run the fleet on the host (NOT via docker; see note below)
+# Terminal 1: run the fleet on the host (NOT via docker; see note below)
 dvaa --api
 
 # Terminal 2
@@ -222,7 +234,7 @@ The trust score drops because the agent attempted an action outside its grant an
 
 The runner stands up its own one-shot canary HTTP listener on a random free port so you can see the exfil actually leave the agent in Run A and actually NOT leave in Run B. No external network required.
 
-**Scope of enforcement** (read before drawing broader conclusions): AIM enforces the `submit_to_index` outbound tool call. In-chat text leaks via other `dataExfiltration` paths on RAGBot-AIM are NOT blocked by this build. The honest claim is "AIM denied this specific outbound action because `http:post` is outside the agent's declared capability grant" — not "AIM secures the agent." See [DEMO_BUILD.md](DEMO_BUILD.md) for the full breakdown.
+**Scope of enforcement** (read before drawing broader conclusions): AIM enforces the `submit_to_index` outbound tool call. In-chat text leaks via other `dataExfiltration` paths on RAGBot-AIM are NOT blocked by this build. The honest claim is "AIM denied this specific outbound action because `http:post` is outside the agent's declared capability grant", not "AIM secures the agent." See [DEMO_BUILD.md](DEMO_BUILD.md) for the full breakdown.
 
 **Same agent, one variable.** Run B reproduces Run A's behavior byte-for-byte with `AIM_ENFORCEMENT=off` set on the DVAA fleet:
 
@@ -328,7 +340,7 @@ VERBOSE=true            # Detailed logging
 
 ## Troubleshooting
 
-**Port 7001 (or similar) already in use.** Something else on your machine is bound to that port. First stop the conflicting service — that's the simplest fix. If you can't stop it, use `HOST_PORT_OFFSET` to shift every port by a fixed amount:
+**Port 7001 (or similar) already in use.** Something else on your machine is bound to that port. First stop the conflicting service. That's the simplest fix. If you can't stop it, use `HOST_PORT_OFFSET` to shift every port by a fixed amount:
 
 ```bash
 # Remap host ports 7001-7021 → 7501-7521. Container-internal ports stay unchanged.
@@ -338,7 +350,7 @@ docker run -d -e HOST_PORT_OFFSET=500 \
   opena2a/dvaa:0.9.1
 ```
 
-`HOST_PORT_OFFSET` only affects what the dashboard **displays** (e.g. test commands, agent URLs). The container still binds internally to `7001-7021`. You are responsible for the matching `-p` mappings — naive `-p 8001:7001` without the env var means the dashboard will keep telling users to hit `7001` when the agent is actually on `8001`.
+`HOST_PORT_OFFSET` only affects what the dashboard **displays** (e.g. test commands, agent URLs). The container still binds internally to `7001-7021`. You are responsible for the matching `-p` mappings. A naive `-p 8001:7001` without the env var means the dashboard will keep telling users to hit `7001` when the agent is actually on `8001`.
 
 **Dashboard shows stale data after upgrade.** Hard-reload (Cmd+Shift+R / Ctrl+Shift+R). The frontend is cached aggressively.
 
@@ -366,13 +378,13 @@ These scenarios demonstrate real-world kill chains combining multiple ATM techni
 
 ## Telemetry
 
-DVAA sends anonymous usage data to the OpenA2A Registry: tool name (`dvaa`), version, command name (`scan`, `attack`, etc.), success, duration, platform, Node major version, and a stable per-machine `install_id`. **No content is collected** — no scanned files, no attack payloads, no prompts, no responses, no env vars, no IPs (the Registry derives country code from the inbound `CF-IPCountry` header at ingest and discards the IP).
+DVAA sends anonymous usage data to the OpenA2A Registry: tool name (`dvaa`), version, command name (`scan`, `attack`, etc.), success, duration, platform, Node major version, and a stable per-machine `install_id`. **No content is collected:** no scanned files, no attack payloads, no prompts, no responses, no env vars, no IPs (the Registry derives country code from the inbound `CF-IPCountry` header at ingest and discards the IP).
 
 Disclosure surfaces and opt-out:
 
-- **Policy page:** [opena2a.org/telemetry](https://opena2a.org/telemetry) — full schema, retention, and the `DELETE` endpoint to wipe your install_id.
-- **`dvaa --version`** — shows current state and the one-line opt-out hint.
-- **`dvaa telemetry status`** — prints state, install_id, config path, policy URL.
+- **Policy page:** [opena2a.org/telemetry](https://opena2a.org/telemetry) covers the full schema, retention, and the `DELETE` endpoint to wipe your install_id.
+- **`dvaa --version`** shows current state and the one-line opt-out hint.
+- **`dvaa telemetry status`** prints state, install_id, config path, policy URL.
 - **Disable per-invocation:** `OPENA2A_TELEMETRY=off dvaa <anything>` (also accepts `0`, `false`, `no`).
 - **Disable persistently:** `dvaa telemetry off` (writes to `~/.config/opena2a/telemetry.json`).
 - **Audit every payload:** `OPENA2A_TELEMETRY_DEBUG=print dvaa <anything>` echoes each event to stderr in JSON before sending.
@@ -385,7 +397,7 @@ Contributions are welcome: new vulnerability scenarios, agent personas, challeng
 
 ## License
 
-Apache-2.0 -- For educational and authorized security testing only.
+Apache-2.0. For educational and authorized security testing only.
 
 DVAA is provided for educational purposes. The authors are not responsible for misuse. Always obtain proper authorization before testing systems you do not own.
 

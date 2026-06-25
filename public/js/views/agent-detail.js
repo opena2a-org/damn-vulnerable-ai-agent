@@ -1,5 +1,5 @@
 /**
- * Agent Detail view — drill into a single agent: tools, declared
+ * Agent Detail view: drill into a single agent: tools, declared
  * vulnerabilities (each explained), and that agent's attack history.
  */
 
@@ -117,7 +117,7 @@ export function renderAgentDetail(state) {
   } else {
     wrap.appendChild(el('div', { className: 'section-header' }, 'Vulnerabilities'));
     wrap.appendChild(el('p', { className: 'attack-detail-hint' },
-      'Hardened reference agent — no vulnerabilities enabled. Attacks are blocked.'));
+      'Hardened reference agent: no vulnerabilities enabled. Attacks are blocked.'));
   }
 
   // This agent's attack history
@@ -131,7 +131,7 @@ export function renderAgentDetail(state) {
     const tbody = el('tbody');
     for (const entry of history.slice(0, 50)) {
       const row = el('tr', { className: 'attack-row', title: 'Click for full payload, response, and how to defend' });
-      row.addEventListener('click', () => openModal(`Attack detail — ${entry.agentName}`, attackDetailModal(entry)));
+      row.addEventListener('click', () => openModal(`Attack detail: ${entry.agentName}`, attackDetailModal(entry)));
       row.appendChild(el('td', { style: { whiteSpace: 'nowrap', color: 'var(--text-muted)', fontSize: '0.75rem' } }, relativeTime(entry.timestamp)));
       const catCell = el('td');
       for (const cat of entry.categories) { catCell.appendChild(categoryBadge(cat)); catCell.appendChild(document.createTextNode(' ')); }

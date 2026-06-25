@@ -30,7 +30,7 @@ function inputKind(entry) {
 function defendedComparison(entry) {
   if (inputKind(entry) !== 'api') return null;
   const body = JSON.stringify({ messages: [{ role: 'user', content: entry.input || entry.inputPreview }] });
-  return `# Same payload against SecureBot (hardened) — blocked, not leaked\n` +
+  return `# Same payload against SecureBot (hardened): blocked, not leaked\n` +
     `curl -X POST http://localhost:7001/v1/chat/completions \\\n` +
     `  -H "Content-Type: application/json" \\\n` +
     `  -d '${body.replace(/'/g, `'\\''`)}'`;
@@ -100,7 +100,7 @@ export function attackDetailModal(entry) {
     }
   } else {
     body.appendChild(el('p', { className: 'attack-detail-empty' },
-      entry.successful ? 'No response recorded for this event.' : 'Blocked — no sensitive data returned.'));
+      entry.successful ? 'No response recorded for this event.' : 'Blocked: no sensitive data returned.'));
   }
 
   // Teach: what each category is, why it matters, how to defend
@@ -234,7 +234,7 @@ export function renderAttackLog(state) {
   const tbody = el('tbody');
   for (const entry of filtered) {
     const row = el('tr', { className: 'attack-row', title: 'Click for full payload, response, and how to defend' });
-    row.addEventListener('click', () => openModal(`Attack detail — ${entry.agentName}`, attackDetailModal(entry)));
+    row.addEventListener('click', () => openModal(`Attack detail: ${entry.agentName}`, attackDetailModal(entry)));
 
     row.appendChild(el('td', { style: { whiteSpace: 'nowrap', color: 'var(--text-muted)', fontSize: '0.75rem' } }, relativeTime(entry.timestamp)));
     row.appendChild(el('td', { style: { fontWeight: '500' } }, entry.agentName));
