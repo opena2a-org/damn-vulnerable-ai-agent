@@ -8,7 +8,8 @@
 
 ### Tests
 
-- `test/attack-log-attribution.test.js` (NEW): two concurrent invocations reproduce the log-then-await interleaving and assert each reply lands on its own entry. A companion assertion proves the old head-of-list read mis-attributes under the same interleaving (so the test genuinely exercises the race), plus an out-of-scope no-op check for the a2a/mcp handlers.
+- `test/attack-log-attribution.test.js` (NEW): drives the real attribution primitives (`recordAttackEntry`, `runWithAttribution`, `attributeResponse`), logging *after* an await to exercise context propagation across the await boundary. Two concurrent invocations reproduce the log-then-await interleaving and assert each reply lands on its own entry; a companion assertion proves the old head-of-list read mis-attributes under the same interleaving. Verified to fail if `recordAttackEntry` is disconnected.
+- `test/fleet-smoke.test.js`: added a live check that fires concurrent same-agent requests over the real HTTP wiring, each with a distinct URL the ResearchBot narration echoes, and asserts each attack-log entry captures its own response (no dropped or cross-attributed replies). Skips when no fleet is running.
 
 ## 0.9.2 (2026-06-25)
 

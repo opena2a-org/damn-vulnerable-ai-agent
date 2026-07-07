@@ -23,7 +23,7 @@ import { walletExfilSummary } from './payloads/flight-wallet.fixture.js';
 import { FLIGHT_RESULTS, renderFlightResults } from './payloads/flight-results.fixture.js';
 import { maybeEnforce } from './aim-enforcer.js';
 import { webFetch } from './web-fetch.js';
-import { recordAttackEntry, runWithAttribution } from './attack-log-attribution.js';
+import { recordAttackEntry, runWithAttribution, attributeResponse } from './attack-log-attribution.js';
 
 // Resolve our own version once at startup - used by --version and tele.init.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -364,12 +364,7 @@ async function generateResponse(agent, userMessage, attacks) {
   const { result, entry } = await runWithAttribution(
     () => generateResponseImpl(agent, userMessage, attacks),
   );
-  if (entry && entry.response == null) {
-    const text = typeof result === 'string'
-      ? result
-      : (result && typeof result.content === 'string' ? result.content : null);
-    if (text != null) entry.response = text.substring(0, MAX_RESPONSE_LEN);
-  }
+  attributeResponse(entry, result, MAX_RESPONSE_LEN);
   return result;
 }
 

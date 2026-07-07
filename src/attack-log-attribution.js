@@ -43,3 +43,21 @@ export async function runWithAttribution(impl) {
   const result = await attackLogContext.run(ctx, impl);
   return { result, entry: ctx.entry ?? null };
 }
+
+/**
+ * Attach a generateResponse result to the attack-log entry that invocation
+ * logged. The result is either a plain string (canned/LLM paths) or an object
+ * carrying `content` (the deterministic web-fetch/RAG/flight paths). Entries
+ * that were already attributed, or invocations that logged nothing, are left
+ * untouched.
+ * @param {object|null} entry - the entry from runWithAttribution()
+ * @param {any} result - the generateResponse return value
+ * @param {number} maxLen - truncation cap for the stored response
+ */
+export function attributeResponse(entry, result, maxLen) {
+  if (!entry || entry.response != null) return;
+  const text = typeof result === 'string'
+    ? result
+    : (result && typeof result.content === 'string' ? result.content : null);
+  if (text != null) entry.response = text.substring(0, maxLen);
+}
