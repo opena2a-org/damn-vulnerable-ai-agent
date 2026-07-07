@@ -89,11 +89,16 @@ test('attack log captures input + response for every live agent', async (t) => {
 });
 
 // ---- issue #58: concurrent same-agent attribution over the real HTTP wiring ----
-// The unit test in attack-log-attribution.test.js covers the primitives; this
-// exercises the real index.js call sites (logAttack -> recordAttackEntry, and
-// the generateResponse wrapper -> runWithAttribution/attributeResponse) end to
-// end. Each request carries a distinct URL, and the ResearchBot fetch narration
-// echoes that URL, so a mis-attributed or dropped response is directly visible.
+// This guards the real index.js call sites (logAttack -> recordAttackEntry, and
+// the generateResponse wrapper -> runWithAttribution/attributeResponse): under
+// concurrent same-agent load every entry must still capture its OWN response.
+// Each request carries a distinct URL the ResearchBot narration echoes, so a
+// dropped (null) or cross-attributed response is visible. Note this is a wiring
+// / drop guard, not a race reproduction -- the #58 race is a latent structural
+// one that is hard to trigger through normal HTTP concurrency; the deterministic
+// reproduction lives in attack-log-attribution.test.js, which forces the racy
+// log-after-await interleaving directly. (Verified: this test fails if
+// recordAttackEntry is disconnected -- responses come back null.)
 test('#58: concurrent same-agent requests each capture their own response', async (t) => {
   if (!(await isUp(`${DASH}/health`))) {
     t.skip('DVAA fleet not running on :9000 (start it with `npm run start:all`)');
