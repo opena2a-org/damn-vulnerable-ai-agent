@@ -1,5 +1,15 @@
 # Changelog - damn-vulnerable-ai-agent
 
+## 0.9.3 (2026-07-07)
+
+### Fixed
+
+- Attack-log response attribution race (#58). The deterministic RAG / research / flight paths call `logAttack()` and then `await` (`renderResearchNarration`, `executeSubmitToIndex`) before returning their reply. Under concurrent requests to the same agent, a sibling request could log during that await window and become the list head, so attaching the reply to `attackLog[0]` mis-attributed it to the sibling's entry. Attribution now runs through an `AsyncLocalStorage` context scoped to each `generateResponse()` invocation: `logAttack()` records the entry it creates into the active store, and the wrapper attaches the reply to exactly that invocation's entry, immune to interleaving. Display-only fix; no security control, crash, or data path was affected. New `src/attack-log-attribution.js`.
+
+### Tests
+
+- `test/attack-log-attribution.test.js` (NEW): two concurrent invocations reproduce the log-then-await interleaving and assert each reply lands on its own entry. A companion assertion proves the old head-of-list read mis-attributes under the same interleaving (so the test genuinely exercises the race), plus an out-of-scope no-op check for the a2a/mcp handlers.
+
 ## 0.9.2 (2026-06-25)
 
 ### Added: one-port quickstart

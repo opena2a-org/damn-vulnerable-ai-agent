@@ -23,6 +23,7 @@ import { walletExfilSummary } from './payloads/flight-wallet.fixture.js';
 import { FLIGHT_RESULTS, renderFlightResults } from './payloads/flight-results.fixture.js';
 import { maybeEnforce } from './aim-enforcer.js';
 import { webFetch } from './web-fetch.js';
+import { recordAttackEntry, runWithAttribution } from './attack-log-attribution.js';
 
 // Resolve our own version once at startup - used by --version and tele.init.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -279,6 +280,10 @@ function logAttack(agent, categories, successful, input, response = null) {
   if (attackLog.length > ATTACK_LOG_MAX) {
     attackLog.length = ATTACK_LOG_MAX;
   }
+  // Record this entry for the enclosing generateResponse() invocation, if any,
+  // so the wrapper attaches the reply to it directly. Calls made outside a
+  // generateResponse() run (a2a/mcp handlers) have no active store and skip this.
+  recordAttackEntry(entry);
   return entry;
 }
 
@@ -343,15 +348,23 @@ function trackCategorySuccessful(categories) {
 /**
  * Generate a response and attach the full assistant reply to the attack-log
  * entry that generateResponseImpl creates (so the attack-log detail drawer can
- * show input -> outcome). Reading attackLog[0] synchronously immediately after
- * the await resolves is race-free under Node's single-threaded model: no other
- * synchronous code interleaves between the await settling and the next line.
+ * show input -> outcome).
+ *
+ * Attribution runs through an AsyncLocalStorage context rather than reading
+ * attackLog[0] after the await. The deterministic RAG/research/flight paths
+ * logAttack() and then await (renderResearchNarration, executeSubmitToIndex)
+ * before returning; a concurrent request to the *same* agent could log in that
+ * window and become the list head, so the old attackLog[0] read could attach
+ * this reply to the sibling's entry. logAttack() now records the entry it
+ * created into the per-invocation store, so we attach to exactly this call's
+ * entry regardless of interleaving. Paths that log nothing leave ctx.entry unset
+ * and get no attribution (correct: no attack, nothing to show).
  */
 async function generateResponse(agent, userMessage, attacks) {
-  const before = attackLog[0];
-  const result = await generateResponseImpl(agent, userMessage, attacks);
-  const entry = attackLog[0];
-  if (entry && entry !== before && entry.agentId === agent.id && entry.response == null) {
+  const { result, entry } = await runWithAttribution(
+    () => generateResponseImpl(agent, userMessage, attacks),
+  );
+  if (entry && entry.response == null) {
     const text = typeof result === 'string'
       ? result
       : (result && typeof result.content === 'string' ? result.content : null);
