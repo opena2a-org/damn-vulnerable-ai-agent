@@ -87,3 +87,54 @@ test('attack log captures input + response for every live agent', async (t) => {
     assert.ok(entry.response != null, `${a.name}: attack-log entry missing captured response`);
   }
 });
+
+// ---- issue #58: concurrent same-agent attribution over the real HTTP wiring ----
+// This guards the real index.js call sites (logAttack -> recordAttackEntry, and
+// the generateResponse wrapper -> runWithAttribution/attributeResponse): under
+// concurrent same-agent load every entry must still capture its OWN response.
+// Each request carries a distinct URL the ResearchBot narration echoes, so a
+// dropped (null) or cross-attributed response is visible. Note this is a wiring
+// / drop guard, not a race reproduction -- the #58 race is a latent structural
+// one that is hard to trigger through normal HTTP concurrency; the deterministic
+// reproduction lives in attack-log-attribution.test.js, which forces the racy
+// log-after-await interleaving directly. (Verified: this test fails if
+// recordAttackEntry is disconnected -- responses come back null.)
+test('#58: concurrent same-agent requests each capture their own response', async (t) => {
+  if (!(await isUp(`${DASH}/health`))) {
+    t.skip('DVAA fleet not running on :9000 (start it with `npm run start:all`)');
+    return;
+  }
+
+  const research = getAllAgents().find(a => a.id === 'researchbot');
+  assert.ok(research, 'researchbot must exist in the registry');
+
+  await postJson(`${DASH}/api/reset`, {});
+
+  // Fire N concurrent requests to the SAME agent, each with a unique marker in
+  // its URL. Unresolvable .invalid hosts fail fast and deterministically offline.
+  const N = 6;
+  const marker = (i) => `dvaa-58-${i}`;
+  await Promise.all(
+    Array.from({ length: N }, (_, i) =>
+      postJson(`http://localhost:${research.port}/v1/chat/completions`, {
+        messages: [{ role: 'user', content: `research http://${marker(i)}.invalid/p for me` }],
+      }),
+    ),
+  );
+
+  await delay(800);
+  const log = await getJson(`${DASH}/api/attack-log`);
+  const burst = log.filter(e => e.agentName === research.name && /dvaa-58-\d+/.test(e.input || ''));
+
+  assert.strictEqual(burst.length, N, `expected ${N} attack-log entries for this burst, got ${burst.length}`);
+  for (const e of burst) {
+    const inMark = (e.input.match(/dvaa-58-\d+/) || [])[0];
+    assert.ok(e.response != null, `entry ${inMark}: response was dropped (attribution lost)`);
+    // The response must echo THIS entry's own marker, not a sibling's -- that is
+    // exactly what the pre-fix attackLog[0] head-read could get wrong.
+    assert.ok(
+      e.response.includes(inMark),
+      `entry ${inMark}: response is attributed to a different request (${e.response.slice(0, 80)})`,
+    );
+  }
+});

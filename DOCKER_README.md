@@ -17,7 +17,7 @@
 docker run -d --name dvaa \
   -p 9000:9000 \
   -p 7001-7021:7001-7021 \
-  opena2a/dvaa:0.9.2
+  opena2a/dvaa:0.9.3
 ```
 
 Open the dashboard at [http://localhost:9000](http://localhost:9000).
@@ -176,7 +176,7 @@ The image's default `CMD` starts every agent and the dashboard together; no `dva
 docker run -d -e HOST_PORT_OFFSET=500 \
   -p 9000:9000 \
   -p 7501-7521:7001-7021 \
-  opena2a/dvaa:0.9.2
+  opena2a/dvaa:0.9.3
 ```
 
 `HOST_PORT_OFFSET` affects only what the dashboard **displays** (test commands, agent URLs). The container still binds internally to `7001-7021`. Remapping with `-p 8001:7001` without setting the env var will leave the dashboard telling users to hit `7001` while the agent is actually on `8001`.

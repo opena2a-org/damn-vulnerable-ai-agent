@@ -8,7 +8,7 @@
 An intentionally vulnerable AI agent platform for security training, red-teaming, and validating security tools. 19 agents, 12 vulnerability categories, 3 protocols. The [DVWA](https://dvwa.co.uk/) of AI agents.
 
 ```bash
-docker run -p 9000:9000 -p 7001-7021:7001-7021 opena2a/dvaa:0.9.2
+docker run -p 9000:9000 -p 7001-7021:7001-7021 opena2a/dvaa:0.9.3
 open http://localhost:9000
 ```
 
@@ -353,7 +353,7 @@ VERBOSE=true            # Detailed logging
 docker run -d -e HOST_PORT_OFFSET=500 \
   -p 9000:9000 \
   -p 7501-7521:7001-7021 \
-  opena2a/dvaa:0.9.2
+  opena2a/dvaa:0.9.3
 ```
 
 `HOST_PORT_OFFSET` only affects what the dashboard **displays** (e.g. test commands, agent URLs). The container still binds internally to `7001-7021`. You are responsible for the matching `-p` mappings. A naive `-p 8001:7001` without the env var means the dashboard will keep telling users to hit `7001` when the agent is actually on `8001`.
