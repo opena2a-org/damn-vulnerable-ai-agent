@@ -1,5 +1,38 @@
 # Changelog - damn-vulnerable-ai-agent
 
+## Unreleased
+
+### Fixed
+
+- **The server path reported no usage at all.** dvaa's documented happy path is `docker run` (README §Quick start), whose `CMD` passes no subcommand (`Dockerfile:23`). That takes the server path, which reaches `tele.start()` (`src/index.js:1806`) and nothing else — the only `tele.track()` call lives in the CLI dispatcher (`src/cli/router.js:63`), which `process.exit()`s and is unreachable from the server. So the majority of installs emitted exactly one `start` event, on their boot day, and never a `command`.
+
+  The Registry's `engaged` metric requires an install to be active on **≥ 2 distinct UTC days AND** to have emitted **≥ 1 `command` event**. A docker install could satisfy neither. dvaa reported **177 monthly actives against 1 engaged user** (0.6%) while every other OpenA2A CLI converted at 45–86%. The lab was being used; it simply never said so.
+
+  **This fixes the `command` half only — read the result accordingly.** `install_id` still churns across container recreation (see Known gaps), so a user who runs `docker run` on Monday and again on Tuesday is two install_ids of one day each and is *still* not engaged. After this change, `engaged` becomes reachable for someone who keeps one container alive across ≥ 2 UTC days (compose's `restart: unless-stopped`) and acts on both — not for the README's hero `docker run` flow. The 177 denominator is inflated by that same churn. Expect the number to move off 1; do **not** read it as a rate comparable to the other CLIs' 45–86%. It is a floor until identity churn is fixed too.
+
+  Deliberate user actions on the dashboard are now reported as `command` events: firing a payload (`POST /api/agents/:id/chat`), a CTF solve attempt (`/api/challenges/:id/verify`), scan/fix, asking the tutor, enabling a real LLM, and resetting the lab. New `src/telemetry/actions.js` holds the allowlist.
+
+  Three constraints, each of which exists to stop this becoming fabrication rather than measurement:
+
+  - **`/health` and `/stats` are never tracked.** The container's own `HEALTHCHECK` polls `/stats` every 30 seconds (`Dockerfile:21-22`). Tracking it would mint a flawless engagement record for a container nobody has ever opened — a number that looks excellent and means nothing.
+  - **No heartbeat, deliberately.** A periodic ping would make an idle container look like an active user, which is the same fabrication by a different route. Real actions fire on the days people actually use the lab, so an unused lab reporting nothing is the correct answer, not a gap.
+  - **Allowlist, never a denylist.** A new route is untracked until someone decides it represents a human doing something. Backwards, and the next polling endpoint silently starts manufacturing engagement.
+
+  Throttled to one event per action per **UTC day** — the unit `engaged` actually counts. A rolling window would be subtly wrong: with a one-hour throttle, a user acting at 23:59 and again at 00:30 is genuinely active on two UTC days, but the second event is suppressed and they report one — the throttle hiding precisely the users this exists to count. Day-keying still collapses a 100-payload burst into a single event, and bounds the throttle map by the allowlist size.
+
+  Fire-and-forget and wrapped: telemetry cannot affect a response. No content, ids or paths reach the event name — only a stable label like `lab-chat`. `OPENA2A_TELEMETRY=off` is verified to suppress the server path end-to-end with the real SDK; `--offline` and `dvaa telemetry off` funnel through the same `session.enabled` check in `buildEvent` and are correct by construction (verified by reading, not by test).
+
+  Note the event fires before route validation, so `POST /api/agents/nonexistent/chat` reports `lab-chat` and then 404s. It measures *attempted*, not *succeeded* — a human firing at a wrong id is still a human using the lab. The dashboard is unauthenticated, so a scanner pointed at it could mint events; bounded to one per action per day, and dvaa is normally localhost.
+
+### Known gaps (not fixed here)
+
+- **`install_id` still churns across container recreation.** There is no volume for `/home/node/.config/opena2a`, so a `docker run` or a `compose` recreate mints a new id (a plain `restart` keeps it). A named volume there would be created root-owned unless the image pre-creates the directory as `node` — the Dockerfile only chowns `/app` — and getting that wrong silently keeps the churn while risking the container for every user. It needs verifying against a live Docker daemon, so it is not in this change. Note that fixing it *alone* would have moved nothing: durable ids still emit one `start` and zero `command`s.
+
+### Tests
+
+- `test/telemetry-actions.test.js` (NEW): the allowlist. Asserts the HEALTHCHECK endpoints are never tracked, that reads are never tracked, that a burst of 100 payloads throttles to one event while usage on two different days emits on each (which is exactly what `engaged` measures), that no id or content reaches the event name, and that a throwing or rejecting `track` never surfaces on a request path.
+- `test/telemetry-server-path.test.js` (NEW): drives the **real** dashboard server over HTTP, because the bug was never in a helper — it was that the server path had no telemetry wired to it at all. Asserts a docker-shaped user firing a payload emits `lab-chat`, that hammering `/stats` and `/health` emits nothing, that a query string cannot smuggle a match past the allowlist, and that the lab serves normally even when telemetry throws.
+
 ## 0.9.3 (2026-07-07)
 
 ### Fixed
