@@ -18,6 +18,8 @@ import { configureLLM, disableLLM, getLLMConfig } from '../llm/provider.js';
 import { getTutorGuidance, askTutor, resetSession } from '../llm/tutor.js';
 import { detectAttacks } from '../core/vulnerabilities.js';
 import { runScan } from './scanner.js';
+import * as tele from '@opena2a/telemetry';
+import { createActionTracker } from '../telemetry/actions.js';
 
 const SCORES_DIR = path.join(process.cwd(), '.dvaa');
 
@@ -382,8 +384,14 @@ function serveStaticFile(publicDir, reqPath, res) {
  * @param {Function} ctx.logAttack - Attack logging function from main server
  * @param {object}   ctx.sandbox - Sandbox filesystem context
  */
-export function createDashboardServer({ stats, attackLog, challengeState, agents, logAttack, sandbox, teamName, timerMinutes }) {
+export function createDashboardServer({ stats, attackLog, challengeState, agents, logAttack, sandbox, teamName, timerMinutes, track = tele.track }) {
   const publicDir = path.resolve(__dirname, '../../public');
+
+  // Per-server so throttle state can't leak between instances in a test run.
+  // `track` is injectable for the same reason; it defaults to the real SDK,
+  // which is itself a no-op until tele.init() runs and is fully suppressed by
+  // the user's opt-out.
+  const trackUserAction = createActionTracker({ track });
 
   // HOST_PORT_OFFSET lets users remap container ports (e.g. -p 8001:7001) and have the
   // dashboard reflect the real host port. Container-internal binding stays on agent.port;
@@ -440,6 +448,18 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
 
     const url = new URL(req.url, `http://${req.headers.host}`);
     const pathname = url.pathname;
+
+    // Record deliberate user actions. This is the ONLY telemetry the docker
+    // majority ever emits: the CLI dispatcher's tele.track (src/cli/router.js)
+    // is unreachable from the server path, so without this an install reports a
+    // single `start` on its boot day and can never satisfy the Registry's
+    // `engaged` bar (>= 2 active days AND >= 1 command event).
+    //
+    // Allowlisted in src/telemetry/actions.js and deliberately excluding
+    // /health and /stats — the container's own HEALTHCHECK polls /stats every
+    // 30s and would manufacture engagement for a lab nobody has opened.
+    // Fire-and-forget and throttled; it must never affect the response.
+    trackUserAction(req.method, pathname);
 
     // --- API Routes ---
 
