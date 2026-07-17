@@ -10,9 +10,22 @@
  *
  * The Registry's `engaged` metric requires an install to be active on >= 2
  * distinct UTC days AND to have emitted >= 1 `command` event. Docker users could
- * satisfy neither, which is why dvaa reported 177 monthly actives against 1
- * engaged user while every other tool converted at 45-86%. The lab was being
- * used; it just never said so.
+ * satisfy neither. dvaa reported 177 monthly actives against 1 engaged user
+ * while every other tool converted at 45-86%. The lab was being used; it just
+ * never said so.
+ *
+ * This fixes the COMMAND half only, and that is worth being precise about.
+ * install_id still churns across container recreation (no volume for
+ * /home/node/.config/opena2a), so a user who runs `docker run` on Monday and
+ * again on Tuesday is two install_ids of one day each and STILL is not engaged.
+ * After this change, engaged becomes reachable for someone who keeps a single
+ * container alive across >= 2 UTC days (compose's `restart: unless-stopped`) and
+ * acts on both — not for the README's hero `docker run` flow. The 177 denominator
+ * is inflated by that same churn.
+ *
+ * So expect this to move the number off 1, but do NOT read the result as a rate
+ * comparable to the other CLIs' 45-86%. It is a floor until the identity churn
+ * is fixed too.
  *
  * Two rules govern what goes in this list, and both matter more than coverage:
  *
@@ -53,8 +66,10 @@ const USER_ACTIONS = [
   { method: 'POST', pattern: /^\/api\/reset$/, name: 'lab-reset' },
 ];
 
-/** At most one event per action name per hour. */
-const DEFAULT_THROTTLE_MS = 60 * 60 * 1000;
+/** UTC day stamp, matching how the Registry buckets activity. */
+function utcDay(ms) {
+  return new Date(ms).toISOString().slice(0, 10);
+}
 
 /**
  * The action name for a request, or null if it isn't a tracked user action.
@@ -72,10 +87,19 @@ export function actionFor(method, pathname) {
 /**
  * Build the per-request tracker.
  *
- * Throttled per action name: a user firing 100 payloads in a minute is one
- * engaged human, not 100 events. An hour is coarse enough to keep volume
- * trivial and fine enough that someone using the lab on two different days
- * produces an event on each — which is exactly what `engaged` measures.
+ * Throttled to one event per action per UTC DAY — not per rolling hour.
+ *
+ * The day is not an arbitrary choice; it is the unit `engaged` actually counts
+ * (`COUNT(DISTINCT date_trunc('day', received_at)) >= 2`). A rolling window is
+ * subtly wrong here: with a one-hour throttle, a user acting at 23:59 and again
+ * at 00:30 is genuinely active on two UTC days, but the second event is
+ * suppressed and they report one. The throttle would hide precisely the users
+ * this change exists to count. Keying on the UTC day cannot drop a day the
+ * metric would have counted, and it still collapses a 100-payload burst into a
+ * single event.
+ *
+ * The map is bounded by the allowlist size (one key per action), because the
+ * value is the day rather than the key.
  *
  * Note there is deliberately NO heartbeat or timer anywhere. A periodic ping
  * would make an idle container look like an active user, which is the same
@@ -85,22 +109,21 @@ export function actionFor(method, pathname) {
  * @param {object} o
  * @param {(name: string, fields?: object) => unknown} o.track usually tele.track
  * @param {() => number} [o.now] injectable for tests
- * @param {number} [o.throttleMs]
  * @returns {(method: string, pathname: string) => string|null} the action name
- *   if an event was emitted, else null (returned for tests/callers; the caller
- *   ignores it)
+ *   if an event was ATTEMPTED, else null. Attempted, not delivered: the SDK
+ *   drops events under its own debounce/in-flight caps, and that is deliberately
+ *   not surfaced here — telemetry must never become a thing the lab waits on.
  */
-export function createActionTracker({ track, now = Date.now, throttleMs = DEFAULT_THROTTLE_MS }) {
-  const lastSent = new Map();
+export function createActionTracker({ track, now = Date.now }) {
+  const lastDay = new Map();
 
   return function trackUserAction(method, pathname) {
     const name = actionFor(method, pathname);
     if (!name) return null;
 
-    const at = now();
-    const previous = lastSent.get(name);
-    if (previous !== undefined && at - previous < throttleMs) return null;
-    lastSent.set(name, at);
+    const day = utcDay(now());
+    if (lastDay.get(name) === day) return null;
+    lastDay.set(name, day);
 
     try {
       // Fire-and-forget, exactly like the CLI path. Telemetry must never break
@@ -115,4 +138,4 @@ export function createActionTracker({ track, now = Date.now, throttleMs = DEFAUL
   };
 }
 
-export { DEFAULT_THROTTLE_MS, USER_ACTIONS };
+export { USER_ACTIONS };

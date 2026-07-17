@@ -20,7 +20,17 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
 
-const HARNESS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'server-telemetry-harness.mjs');
+// Lives OUTSIDE test/ on purpose. Node's default glob is
+// `**/test/**/*.?(c|m)js`, so a harness under test/ is executed as a test file —
+// which ran it with its production defaults and posted a fabricated `command`
+// event to the real Registry on every `npm test`, from CI and from laptops.
+// See the guard at the top of the harness itself.
+const HARNESS = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  'test-support',
+  'server-telemetry-harness.mjs'
+);
 
 /**
  * Boot the real dashboard in a child process (so tele.init's one-shot config

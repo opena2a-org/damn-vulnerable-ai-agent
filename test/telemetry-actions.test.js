@@ -81,44 +81,84 @@ test('bad input is not a match', () => {
 
 test('a tracked action emits exactly one event', () => {
   const sent = [];
-  const t = createActionTracker({ track: (n) => sent.push(n), now: () => 0 });
+  const t = createActionTracker({ track: (n) => sent.push(n), now: () => Date.parse('2026-07-16T10:00:00Z') });
   t('POST', '/api/agents/x/chat');
   assert.deepEqual(sent, ['lab-chat']);
 });
 
 test('an untracked request emits nothing', () => {
   const sent = [];
-  const t = createActionTracker({ track: (n) => sent.push(n), now: () => 0 });
+  const t = createActionTracker({ track: (n) => sent.push(n), now: () => Date.parse('2026-07-16T10:00:00Z') });
   t('GET', '/stats');
   t('GET', '/health');
   t('GET', '/api/attack-log');
   assert.deepEqual(sent, []);
 });
 
+const at = (iso) => Date.parse(iso);
+
 test('a burst of payloads is one engaged human, not a hundred events', () => {
   const sent = [];
-  let clock = 0;
+  let clock = at('2026-07-16T10:00:00Z');
   const t = createActionTracker({ track: (n) => sent.push(n), now: () => clock });
   for (let i = 0; i < 100; i++) {
     clock += 1000; // 100 requests over ~100 seconds
     t('POST', '/api/agents/x/chat');
   }
-  assert.equal(sent.length, 1, 'throttled to one event per action per hour');
+  assert.equal(sent.length, 1, 'one event per action per UTC day');
 });
 
 test('using the lab on two different days emits on each — this is what engaged measures', () => {
   const sent = [];
-  let clock = 0;
+  let clock = at('2026-07-16T10:00:00Z');
   const t = createActionTracker({ track: (n) => sent.push(n), now: () => clock });
   t('POST', '/api/agents/x/chat');
-  clock += 26 * 60 * 60 * 1000; // next day
+  clock = at('2026-07-17T10:00:00Z');
   t('POST', '/api/agents/x/chat');
   assert.equal(sent.length, 2);
 });
 
+test('a user active either side of UTC midnight reports BOTH days', () => {
+  // Regression guard. A rolling one-hour throttle suppressed the second event
+  // here, so a genuinely 2-day-active user reported one day and could never be
+  // engaged — the throttle hiding exactly the users this exists to count.
+  // `engaged` buckets by UTC day, so the throttle must too.
+  const sent = [];
+  let clock = at('2026-07-16T23:59:00Z');
+  const t = createActionTracker({ track: (n) => sent.push(n), now: () => clock });
+  t('POST', '/api/agents/x/chat');
+  clock = at('2026-07-17T00:30:00Z'); // 31 minutes later, but a different UTC day
+  t('POST', '/api/agents/x/chat');
+  assert.equal(sent.length, 2, 'a new UTC day must always emit, however close in wall-clock time');
+});
+
+test('two actions within the same UTC day but hours apart still emit once', () => {
+  const sent = [];
+  let clock = at('2026-07-16T00:05:00Z');
+  const t = createActionTracker({ track: (n) => sent.push(n), now: () => clock });
+  t('POST', '/api/agents/x/chat');
+  clock = at('2026-07-16T23:55:00Z'); // ~24h later, same UTC day
+  t('POST', '/api/agents/x/chat');
+  assert.equal(sent.length, 1, 'the same day is the same day, however far apart');
+});
+
+test('the throttle map is bounded by the allowlist, not by time', () => {
+  // The day is the VALUE, not part of the key, so a long-lived container cannot
+  // grow this without bound.
+  const sent = [];
+  let clock = at('2026-07-16T10:00:00Z');
+  const t = createActionTracker({ track: (n) => sent.push(n), now: () => clock });
+  for (let d = 0; d < 400; d++) {
+    clock += 24 * 60 * 60 * 1000;
+    t('POST', '/api/agents/x/chat');
+    t('POST', '/api/agents/other-agent/chat'); // same action name
+  }
+  assert.equal(sent.length, 400, 'one per day');
+});
+
 test('different actions have independent throttles', () => {
   const sent = [];
-  const t = createActionTracker({ track: (n) => sent.push(n), now: () => 0 });
+  const t = createActionTracker({ track: (n) => sent.push(n), now: () => at('2026-07-16T10:00:00Z') });
   t('POST', '/api/agents/x/chat');
   t('POST', '/api/challenges/c/verify');
   assert.deepEqual(sent, ['lab-chat', 'lab-challenge-verify']);
@@ -130,7 +170,7 @@ test('telemetry never breaks the lab', () => {
     track: () => {
       throw new Error('registry down');
     },
-    now: () => 0,
+    now: () => Date.parse('2026-07-16T10:00:00Z'),
   });
   assert.doesNotThrow(() => throwing('POST', '/api/agents/x/chat'));
 
@@ -140,7 +180,7 @@ test('telemetry never breaks the lab', () => {
 
 test('no content, ids or paths reach the event name', () => {
   const sent = [];
-  const t = createActionTracker({ track: (n) => sent.push(n), now: () => 0 });
+  const t = createActionTracker({ track: (n) => sent.push(n), now: () => Date.parse('2026-07-16T10:00:00Z') });
   t('POST', '/api/agents/super-secret-agent-name/chat');
   assert.deepEqual(sent, ['lab-chat']);
   assert.ok(!sent[0].includes('secret'));

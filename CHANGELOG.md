@@ -6,7 +6,9 @@
 
 - **The server path reported no usage at all.** dvaa's documented happy path is `docker run` (README §Quick start), whose `CMD` passes no subcommand (`Dockerfile:23`). That takes the server path, which reaches `tele.start()` (`src/index.js:1806`) and nothing else — the only `tele.track()` call lives in the CLI dispatcher (`src/cli/router.js:63`), which `process.exit()`s and is unreachable from the server. So the majority of installs emitted exactly one `start` event, on their boot day, and never a `command`.
 
-  The Registry's `engaged` metric requires an install to be active on **≥ 2 distinct UTC days AND** to have emitted **≥ 1 `command` event**. A docker install could satisfy neither, which is why dvaa reported **177 monthly actives against 1 engaged user** (0.6%) while every other OpenA2A CLI converted at 45–86%. The lab was being used; it simply never said so.
+  The Registry's `engaged` metric requires an install to be active on **≥ 2 distinct UTC days AND** to have emitted **≥ 1 `command` event**. A docker install could satisfy neither. dvaa reported **177 monthly actives against 1 engaged user** (0.6%) while every other OpenA2A CLI converted at 45–86%. The lab was being used; it simply never said so.
+
+  **This fixes the `command` half only — read the result accordingly.** `install_id` still churns across container recreation (see Known gaps), so a user who runs `docker run` on Monday and again on Tuesday is two install_ids of one day each and is *still* not engaged. After this change, `engaged` becomes reachable for someone who keeps one container alive across ≥ 2 UTC days (compose's `restart: unless-stopped`) and acts on both — not for the README's hero `docker run` flow. The 177 denominator is inflated by that same churn. Expect the number to move off 1; do **not** read it as a rate comparable to the other CLIs' 45–86%. It is a floor until identity churn is fixed too.
 
   Deliberate user actions on the dashboard are now reported as `command` events: firing a payload (`POST /api/agents/:id/chat`), a CTF solve attempt (`/api/challenges/:id/verify`), scan/fix, asking the tutor, enabling a real LLM, and resetting the lab. New `src/telemetry/actions.js` holds the allowlist.
 
@@ -16,7 +18,11 @@
   - **No heartbeat, deliberately.** A periodic ping would make an idle container look like an active user, which is the same fabrication by a different route. Real actions fire on the days people actually use the lab, so an unused lab reporting nothing is the correct answer, not a gap.
   - **Allowlist, never a denylist.** A new route is untracked until someone decides it represents a human doing something. Backwards, and the next polling endpoint silently starts manufacturing engagement.
 
-  Throttled to one event per action per hour, so a user firing 100 payloads is one engaged human rather than 100 events. Fire-and-forget and wrapped: telemetry cannot affect a response. No content, ids or paths reach the event name — only a stable label like `lab-chat`. The existing opt-outs (`--offline`, `OPENA2A_TELEMETRY=off`, `dvaa telemetry off`) all still suppress it, unchanged.
+  Throttled to one event per action per **UTC day** — the unit `engaged` actually counts. A rolling window would be subtly wrong: with a one-hour throttle, a user acting at 23:59 and again at 00:30 is genuinely active on two UTC days, but the second event is suppressed and they report one — the throttle hiding precisely the users this exists to count. Day-keying still collapses a 100-payload burst into a single event, and bounds the throttle map by the allowlist size.
+
+  Fire-and-forget and wrapped: telemetry cannot affect a response. No content, ids or paths reach the event name — only a stable label like `lab-chat`. `OPENA2A_TELEMETRY=off` is verified to suppress the server path end-to-end with the real SDK; `--offline` and `dvaa telemetry off` funnel through the same `session.enabled` check in `buildEvent` and are correct by construction (verified by reading, not by test).
+
+  Note the event fires before route validation, so `POST /api/agents/nonexistent/chat` reports `lab-chat` and then 404s. It measures *attempted*, not *succeeded* — a human firing at a wrong id is still a human using the lab. The dashboard is unauthenticated, so a scanner pointed at it could mint events; bounded to one per action per day, and dvaa is normally localhost.
 
 ### Known gaps (not fixed here)
 
