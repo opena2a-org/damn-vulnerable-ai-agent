@@ -132,7 +132,11 @@ async function ensureFleet(dataDir, { cache }) {
     OPENA2A_TELEMETRY: 'off',
     ...(cache ? { DVAA_RESEARCH_CACHE: 'on' } : { DVAA_RESEARCH_CACHE: 'off' }),
   };
-  const child = spawn(process.execPath, [indexPath, '--api'], { env, stdio: 'ignore' });
+  // Scoped fleet: exactly the two agents this demo drives, and no dashboard.
+  // Starting the whole fleet meant any port in 7001-7021 or 9000 being held by
+  // another fleet killed the spawned process, and the only symptom the runner
+  // could report was "the flight agents did not come up within the timeout".
+  const child = spawn(process.execPath, [indexPath, '--api', '--only', 'flightbot,flightbot-aim'], { env, stdio: 'ignore' });
   child.unref();
   const ok = await waitForHealth(FLIGHT_PORT, 15000) && await waitForHealth(FLIGHT_AIM_PORT, 5000);
   if (!ok) {
