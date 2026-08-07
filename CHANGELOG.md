@@ -32,10 +32,10 @@ is read by that agent as instructions addressed to itself.
 - **New agents** `RepoBot` (7022) and `RepoBot-AIM` (7023), same code and same
   vulnerability profile, differing only in enforcement.
 - **Payload** is the hackmyagent#435 reproduction, kept recognizable against the
-  regression fixture in that repo's `agent-instruction-routing.test.ts`. Both
-  currently released scanners miss it: hackmyagent 0.26.1 scores the fixture
-  98/100 and 0.11.15 scores it 85/100, neither reading `AGENTS.md` at all. The
-  routing fix for that is committed but unreleased as of 2026-08-07.
+  regression fixture in that repo's `agent-instruction-routing.test.ts`. That
+  open issue tracks the routing question this fixture exercises — analyzer
+  routing keyed on filename rather than on artifact role. Scan the fixture and
+  read the current result rather than quoting a score from here.
 - **Run script** `docs/demo/REPO_RUN_SCRIPT.md`: presenter runbook, beat-by-beat
   narration, the honest-scope line (demonstrated capability, not a measured
   in-the-wild rate), the measured scanner table, reset, failure fallbacks.

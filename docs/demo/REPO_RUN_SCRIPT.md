@@ -93,36 +93,26 @@ agent's own summary, is how an operator finds out.
 
 The demo prints this in its own verdict block. Do not remove it from the slide.
 
-## Our own scanner missed it (hackmyagent#435)
+## Why a scanner can miss this (hackmyagent#435)
 
-This is worth a slide because it is a measurement of our own tool, on this
-demo's exact fixture.
+The routing question this fixture exercises is tracked in the open issue
+[hackmyagent#435][435]: analyzer routing keyed on the *filename* rather than on
+the artifact's *role*, so identical malicious content scores very differently
+depending only on what the file is called. The two names that fare worst are
+among the most common in the wild.
+
+Scan the fixture yourself and read the result off the screen:
 
 ```
-npx hackmyagent@0.26.1 secure <the cloned fixture> --ci
+npx hackmyagent secure <the cloned fixture> --ci
 ```
 
-Measured 2026-08-07 on the fixture this demo builds:
+**Read the number on the day, do not quote one from this file.** Scores move
+with every release, and a stale figure on a slide is the kind of claim this talk
+is about. Check #435 for the current state of the routing work before you say
+anything about what is or is not detected.
 
-| Scanner | Score | Findings on `AGENTS.md` |
-|---|---|---|
-| hackmyagent 0.26.1 (current npm release) | **98/100** | none |
-| hackmyagent 0.11.15 (bundled in this repo) | 85/100 | none |
-
-Both report only an incomplete `.gitignore`. Neither one reads `AGENTS.md` at
-all — the scan output even lists `governance` and `skill` among its *unexamined*
-categories.
-
-The cause is hackmyagent#435: analyzer routing keyed on the *filename* rather
-than on the artifact's *role*, so identical malicious content scored 33/100 as
-`SKILL.md` and 98/100 as `AGENTS.md`. The two that detected worst were the two
-most common in the wild. The routing fix is committed on
-`fix/hma-435-agent-instruction-routing`; per that issue's own measured table it
-takes `AGENTS.md` from 98 with zero findings to 43 with five criticals.
-
-**As of 2026-08-07 that fix is not released.** If you show this slide, say
-"fixed, shipping" and not "fixed" — or re-run the command above against
-whatever is current on the day and read the real number off the screen.
+[435]: https://github.com/opena2a-org/hackmyagent/issues/435
 
 ## Reset between runs
 
