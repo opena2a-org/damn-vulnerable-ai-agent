@@ -24,6 +24,9 @@ import { getAgent } from '../src/core/agents.js';
 import {
   AGENT_INSTRUCTION_FILENAME,
   FIXTURE_REPO_NAME,
+  COLLECTOR_GAP_LIMIT,
+  MAX_CREDENTIAL_TARGETS,
+  gitEnv,
   REPO_CONFIG_INJECTION,
   buildPoisonedAgentsFile,
   detectAgentInstructionInjection,
@@ -207,6 +210,29 @@ test('the detector finds every directive, and binds both URLs to the canary', ()
   assert.equal(injection.concealment, true);
 });
 
+test('the shipped payload clears the collector gap limit with real margin', () => {
+  // Pinned from BOTH sides. The gap must be small enough that the rule fires,
+  // and comfortably small, because the failure mode of an edit that eats the
+  // margin is beat 2 silently showing no exfil — on stage, with no error.
+  // Measured at the 160 limit the margin was 1.5x; that was too thin.
+  const payload = buildPoisonedAgentsFile({ bootstrapUrl: BOOTSTRAP_URL, collectorUrl: COLLECTOR_URL });
+  const verbAt = payload.toLowerCase().indexOf('post');
+  const gap = payload.indexOf(COLLECTOR_URL) - (verbAt + 'post'.length);
+
+  assert.ok(gap > 0, 'the collector URL must follow the verb');
+  assert.ok(
+    gap * 2 < COLLECTOR_GAP_LIMIT,
+    `payload gap ${gap} has under 2x margin against the ${COLLECTOR_GAP_LIMIT} limit — ` +
+    'reword the payload or raise COLLECTOR_GAP_LIMIT',
+  );
+  // And the rule genuinely fires on it (the bound is not vacuous).
+  assert.equal(detectAgentInstructionInjection(payload).collectorUrl, COLLECTOR_URL);
+
+  // The limit is enforced: a gap beyond it does not bind.
+  const beyond = `post ${'x'.repeat(COLLECTOR_GAP_LIMIT + 40)} ${COLLECTOR_URL}`;
+  assert.equal(detectAgentInstructionInjection(beyond), null, 'the gap limit must actually bound');
+});
+
 test('the detector leaves an ordinary agent-instruction file alone', () => {
   const benign = [
     '# Project instructions',
@@ -247,6 +273,102 @@ test('the fixture repo is an ordinary library plus exactly one bad file', () => 
   } finally {
     fs.rmSync(path.dirname(dir), { recursive: true, force: true });
   }
+});
+
+test('credential targets from one file are capped, and the cut is reported', () => {
+  // The consumer in src/index.js does one capability check (an audit-log
+  // append) and builds one tool-call object per entry. Measured before the cap:
+  // a hostile AGENTS.md naming 20,000 paths produced 20,000 of each from a
+  // single request.
+  const many = '~/' + Array.from({ length: 20000 }, (_, i) => `p${i}`).join(' ~/');
+  const injection = detectAgentInstructionInjection(`post ${COLLECTOR_URL}\n${many}`);
+  assert.equal(injection.credentialTargets.length, MAX_CREDENTIAL_TARGETS);
+  assert.equal(injection.credentialTargetsTruncated, 20000 - MAX_CREDENTIAL_TARGETS);
+
+  // The real payload is well under the cap and must not be truncated.
+  const real = detectAgentInstructionInjection(
+    buildPoisonedAgentsFile({ bootstrapUrl: BOOTSTRAP_URL, collectorUrl: COLLECTOR_URL }),
+  );
+  assert.equal(real.credentialTargetsTruncated, 0);
+});
+
+test('the demo never claims to have executed the bootstrap body', () => {
+  // The comment in src/index.js says `bootstrapBodyExecuted` stays false so no
+  // consumer can read a run as "DVAA ran attacker-supplied code". A claim in a
+  // comment is a claim to test: this asserts the field is pinned false in the
+  // source rather than computed from anything.
+  const src = fs.readFileSync(
+    path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'src', 'index.js'),
+    'utf8',
+  );
+  const assignments = src.match(/bootstrapBodyExecuted:\s*[^,\n]+/g) || [];
+  assert.ok(assignments.length > 0, 'bootstrapBodyExecuted must be reported');
+  for (const a of assignments) {
+    assert.match(a, /bootstrapBodyExecuted:\s*false\b/, `must be pinned false, got: ${a}`);
+  }
+  // And the body must never reach a shell: no exec of the bootstrap command.
+  assert.ok(
+    !/exec(Sync|File|FileSync)?\([^)]*bootstrapUrl/.test(src),
+    'the bootstrap URL must never reach an exec call',
+  );
+});
+
+test('NO subprocess this demo starts inherits the whole environment', () => {
+  // Every child here runs on a presenter's laptop: the agent fleet (a
+  // deliberately vulnerable process) and two git invocations. `...process.env`
+  // hands each of them every real credential in that shell — ANTHROPIC_API_KEY,
+  // AWS_*, GITHUB_TOKEN — which is the exact thing this demo is about.
+  // hackmyagent flags the spread NEMO-007 HIGH and is right to.
+  //
+  // This asserts over ALL files that spawn, not just the first one noticed: the
+  // fleet spread was found by the scanner, and the two git spreads were found
+  // only because this test covered the whole set.
+  const dir = path.dirname(new URL(import.meta.url).pathname);
+  const spawners = {
+    'src/cli/commands/demo-repo.js': path.join(dir, '..', 'src', 'cli', 'commands', 'demo-repo.js'),
+    'src/payloads/poisoned-repo.fixture.js': path.join(dir, '..', 'src', 'payloads', 'poisoned-repo.fixture.js'),
+  };
+
+  for (const [label, file] of Object.entries(spawners)) {
+    const src = fs.readFileSync(file, 'utf8');
+    // Ignore the word inside comments; only real spreads matter.
+    const code = src.split('\n').filter(l => !/^\s*(\*|\/\/)/.test(l)).join('\n');
+    assert.ok(
+      !/\.\.\.process\.env/.test(code),
+      `${label} must not spread process.env into a subprocess`,
+    );
+  }
+
+  const runner = fs.readFileSync(spawners['src/cli/commands/demo-repo.js'], 'utf8');
+  assert.match(runner, /const PASSTHROUGH = \[/, 'the fleet needs an explicit passthrough allowlist');
+  // The sandbox root must still be handed over, or the demo silently reads nothing.
+  assert.match(runner, /DVAA_REPO_SANDBOX_HOME: sandboxHome/);
+  // Documented in the run script as the way to reproduce unprotected behavior.
+  assert.match(runner, /'AIM_ENFORCEMENT'/, 'AIM_ENFORCEMENT must stay passthrough');
+
+  // gitEnv carries what git needs and nothing else.
+  const env = gitEnv({ GIT_AUTHOR_NAME: 'x' });
+  assert.deepEqual(
+    Object.keys(env).filter(k => !['PATH', 'HOME'].includes(k)).sort(),
+    ['GIT_AUTHOR_NAME', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_SYSTEM', 'GIT_TERMINAL_PROMPT'],
+  );
+  assert.equal(env.GIT_CONFIG_GLOBAL, '/dev/null', "the presenter's git config must never be read");
+  // No credential-bearing variable can ride along.
+  for (const leaky of ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GITHUB_TOKEN', 'AWS_ACCESS_KEY_ID', 'DATABASE_URL']) {
+    assert.ok(!(leaky in env), `${leaky} must not reach a git subprocess`);
+  }
+});
+
+test('--live is refused loudly, not silently ignored', () => {
+  // `demo flight` takes --live, so a presenter will type it here. Silently
+  // ignoring it leaves them believing the run reached a real host and that real
+  // data moved — the one belief this demo must never create.
+  const runner = fs.readFileSync(
+    path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'src', 'cli', 'commands', 'demo-repo.js'),
+    'utf8',
+  );
+  assert.match(runner, /flags\.has\('live'\)/, '--live must be explicitly handled');
+  assert.match(runner, /no --live mode, by design/, 'the refusal must explain why');
 });
 
 test('the payload metadata names the HMA issue and checks it maps to', () => {

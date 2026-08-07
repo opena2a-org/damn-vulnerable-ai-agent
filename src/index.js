@@ -408,12 +408,20 @@ function safeListDir(dir) {
  * Read one named file from inside `dir`. `name` is a constant supplied by DVAA,
  * never by the payload, and the resolved path is re-checked against the root so
  * this cannot be walked outward.
+ *
+ * Capped at 1 MB. The file is attacker-controlled (it comes from whatever
+ * directory the user named), an agent-instruction file has no legitimate reason
+ * to be larger, and an uncapped read pulls an arbitrary file fully into memory
+ * before anything looks at it.
  */
+const MAX_AGENT_INSTRUCTION_BYTES = 1024 * 1024;
+
 function safeReadRepoFile(dir, name) {
   const root = path.resolve(dir);
   const resolved = path.resolve(root, name);
   if (!resolved.startsWith(root + path.sep)) return null;
   try {
+    if (fs.statSync(resolved).size > MAX_AGENT_INSTRUCTION_BYTES) return null;
     return fs.readFileSync(resolved, 'utf8');
   } catch {
     return null;

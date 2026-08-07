@@ -36,6 +36,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { emit, isJsonMode, fail } from '../format.js';
 import {
+  gitEnv,
   materializePoisonedRepo,
   readmeText,
   AGENT_INSTRUCTION_FILENAME,
@@ -64,6 +65,22 @@ export default async function runRepo(argv, flags) {
   const verbose = flags.has('verbose') || flags.has('v');
   const interactive = (flags.has('interactive') || flags.has('i')) && process.stdin.isTTY && !jsonMode;
 
+  // `demo flight` takes --live, so the muscle memory exists. Silently ignoring
+  // it here would leave a presenter believing the run reached a real host and
+  // that real data moved. Refuse loudly instead: on this scenario the absence
+  // of a live mode is the safety property, not an unimplemented feature.
+  if (flags.has('live')) {
+    fail(
+      'The repo scenario has no --live mode, by design.\n' +
+      'Its payload tells the agent to read credentials and post them somewhere. The\n' +
+      "bootstrap and collector URLs resolve to this run's own 127.0.0.1 canary and the\n" +
+      'credentials are FAKE values in a sandbox home, so nothing can leave the machine.\n' +
+      'A live target would make this demo a working exfiltration endpoint.\n\n' +
+      'Run it without --live:  dvaa demo repo\n' +
+      '(--live exists on the flight scenario: dvaa demo flight --live)',
+    );
+  }
+
   // One ephemeral root for everything this run creates: the fixture repo, the
   // clone the agents review, the sandbox developer machine, and the agents' AIM
   // identities. Removed on exit; nothing is written into the user's tree.
@@ -75,9 +92,17 @@ export default async function runRepo(argv, flags) {
   // which is precisely what must not survive a demo that did not run - not
   // least because the next agent pointed at that machine may well read it.
   const removeRoot = () => { try { fs.rmSync(root, { recursive: true, force: true }); } catch {} };
+  // Set once ensureFleet returns. A presenter pressing Ctrl-C mid-run must not
+  // leave the scoped fleet holding 7022/7023 - the next run would trip the port
+  // guard and the recovery is not obvious on stage.
+  let fleetRef = null;
   process.on('exit', removeRoot);
   for (const signal of ['SIGINT', 'SIGTERM']) {
-    process.on(signal, () => { removeRoot(); process.exit(130); });
+    process.on(signal, () => {
+      try { fleetRef?.stop(); } catch {}
+      removeRoot();
+      process.exit(130);
+    });
   }
 
   const dataDir = path.join(root, 'aim');
@@ -94,6 +119,7 @@ export default async function runRepo(argv, flags) {
   const clone = cloneFixture(originDir, workDir, built.git);
 
   const fleet = await ensureFleet(dataDir, sandboxHome);
+  fleetRef = fleet;
 
   const cleanup = () => {
     try { canary.close(); } catch {}
@@ -191,7 +217,7 @@ function cloneFixture(originDir, workDir, hasGit) {
     try {
       execFileSync('git', ['clone', '--quiet', originDir, dest], {
         stdio: 'ignore',
-        env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null', GIT_TERMINAL_PROMPT: '0' },
+        env: gitEnv(),
       });
       return { dir: dest, cloned: true, command: `git clone https://github.com/example/${FIXTURE_REPO_NAME}` };
     } catch { /* fall through to the copy path */ }
@@ -208,8 +234,19 @@ async function ensureFleet(dataDir, sandboxHome) {
     fail(`Ports ${REPO_PORT}/${REPO_AIM_PORT} are already in use by a running DVAA fleet.\n` +
       `The repo demo manages its own fleet. Stop the other one first (the demo is self-contained).`);
   }
-  const env = {
-    ...process.env,
+  // Explicit allowlist, NOT `...process.env`. The child is a deliberately
+  // vulnerable agent fleet running on a presenter's laptop; spreading the whole
+  // environment hands it every real credential in that shell - ANTHROPIC_API_KEY,
+  // AWS_*, GITHUB_TOKEN - which is the exact thing this demo is about. Our own
+  // scanner flags the spread as NEMO-007 HIGH, and it is right to.
+  //
+  // AIM_ENFORCEMENT is passed through deliberately: the run script documents
+  // toggling it to reproduce the unprotected behavior on the same agent.
+  const PASSTHROUGH = ['PATH', 'HOME', 'TMPDIR', 'NODE_ENV', 'LANG', 'LC_ALL', 'AIM_ENFORCEMENT'];
+  const env = Object.fromEntries(
+    PASSTHROUGH.filter(k => process.env[k] !== undefined).map(k => [k, process.env[k]]),
+  );
+  Object.assign(env, {
     DVAA_AIM_DATA_DIR: dataDir,
     // The ONLY root the agents' credential reads resolve against. Without it,
     // readSandboxCredential() returns null for every path - it never falls back
@@ -217,7 +254,7 @@ async function ensureFleet(dataDir, sandboxHome) {
     DVAA_REPO_SANDBOX_HOME: sandboxHome,
     DVAA_RESEARCH_CACHE: 'off',
     OPENA2A_TELEMETRY: 'off',
-  };
+  });
   // Scoped fleet: exactly the two agents this demo drives, and no dashboard, so
   // the demo runs beside an existing fleet (developer, docker-compose) instead
   // of dying on the first port either of them already holds.

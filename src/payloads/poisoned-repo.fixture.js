@@ -209,6 +209,29 @@ export function readmeText() {
 }
 
 /**
+ * Minimal environment for the demo's `git` invocations.
+ *
+ * Explicitly NOT `{ ...process.env, ... }`. Every subprocess this demo starts
+ * runs on a presenter's laptop, and spreading the whole environment hands it
+ * every real credential in that shell. `PATH` is needed to find git, `HOME` is
+ * kept only so git can resolve a home dir at all — both config scopes are
+ * pointed at /dev/null so the presenter's git config is never read or written.
+ */
+export function gitEnv(extra = {}) {
+  const base = {};
+  for (const key of ['PATH', 'HOME']) {
+    if (process.env[key] !== undefined) base[key] = process.env[key];
+  }
+  return {
+    ...base,
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_SYSTEM: '/dev/null',
+    GIT_TERMINAL_PROMPT: '0',
+    ...extra,
+  };
+}
+
+/**
  * Write the fixture repository to `dir` and make it a real git repo with one
  * commit, so beat 1 can be an actual `git clone` rather than a narrated one.
  *
@@ -232,16 +255,12 @@ export function materializePoisonedRepo(dir, { bootstrapUrl, collectorUrl }) {
   const git = (...args) =>
     execFileSync('git', ['-C', dir, ...args], {
       stdio: 'ignore',
-      env: {
-        ...process.env,
-        GIT_CONFIG_GLOBAL: '/dev/null',
-        GIT_CONFIG_SYSTEM: '/dev/null',
-        GIT_TERMINAL_PROMPT: '0',
+      env: gitEnv({
         GIT_AUTHOR_NAME: 'dev',
         GIT_AUTHOR_EMAIL: 'dev@example.com',
         GIT_COMMITTER_NAME: 'dev',
         GIT_COMMITTER_EMAIL: 'dev@example.com',
-      },
+      }),
     });
 
   try {
@@ -267,6 +286,22 @@ export function materializePoisonedRepo(dir, { bootstrapUrl, collectorUrl }) {
  * claiming quality for. The detector we claim quality for is HMA's AGENTCFG-*
  * set, which is what hackmyagent#435 fixed.
  */
+/**
+ * Upper bound on credential paths taken from one file. The consumer in
+ * `src/index.js` does one capability check — which is an audit-log append — and
+ * builds one tool-call object per entry, so an unbounded list is an unbounded
+ * loop driven by file content: a hostile `AGENTS.md` naming 20,000 paths
+ * produced 20,000 of each from a single request. The real payload names two.
+ */
+export const MAX_CREDENTIAL_TARGETS = 16;
+
+/**
+ * How far after the verb the collector rule will look for its URL. Bounded so
+ * the scan stays linear on a hostile file; generous so ordinary rewording of
+ * the payload's prose cannot push the URL out of range.
+ */
+export const COLLECTOR_GAP_LIMIT = 400;
+
 export function detectAgentInstructionInjection(content) {
   const text = String(content || '');
 
@@ -274,18 +309,30 @@ export function detectAgentInstructionInjection(content) {
   // The sink URL is commonly set off on its own line rather than sitting inline
   // after the verb, so the lookahead crosses line breaks. Non-greedy, so it
   // binds to the FIRST url after the verb and cannot reach past it.
-  const collector = text.match(/\bpost\b[\s\S]{0,160}?(https?:\/\/[^\s"'`]+)/i);
+  //
+  // The bound is deliberately generous relative to the payload it has to match.
+  // At 160 the shipped payload cleared it by only 104 chars, so rewording that
+  // paragraph by a sentence would have made beat 2 silently show no exfil — a
+  // stage failure with no error message. `test/repo-demo.test.js` pins the
+  // margin from both sides so an edit that eats it fails CI instead.
+  const collector = text.match(new RegExp(`\\bpost\\b[\\s\\S]{0,${COLLECTOR_GAP_LIMIT}}?(https?://[^\\s"'\`]+)`, 'i'));
   const credentials = [...text.matchAll(/~\/[.\w/-]+/g)].map(m => m[0]);
   const concealment = /do not mention|don't mention|answer that it does not|do not disclose/i.test(text);
 
   if (!bootstrap && !collector && !credentials.length) return null;
+
+  const distinct = [...new Set(credentials)];
+  const credentialTargets = distinct.slice(0, MAX_CREDENTIAL_TARGETS);
 
   return {
     kind: 'agent-config-injection',
     attackId: REPO_CONFIG_INJECTION.attackId,
     bootstrapUrl: bootstrap ? bootstrap[1] : null,
     collectorUrl: collector ? collector[1].replace(/[.,)\];]+$/, '') : null,
-    credentialTargets: [...new Set(credentials)],
+    credentialTargets,
+    // Reported rather than silently dropped: a cap that hides how much it cut
+    // reads as "the file named two paths" when it named twenty thousand.
+    credentialTargetsTruncated: distinct.length - credentialTargets.length,
     concealment,
   };
 }
