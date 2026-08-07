@@ -5,14 +5,14 @@
 [![Docker Hub](https://img.shields.io/docker/pulls/opena2a/dvaa)](https://hub.docker.com/r/opena2a/dvaa)
 [![OASB Compatible](https://img.shields.io/badge/OASB-1.0-teal)](https://oasb.ai)
 
-An intentionally vulnerable AI agent platform for security training, red-teaming, and validating security tools. 19 agents, 12 vulnerability categories, 3 protocols. The [DVWA](https://dvwa.co.uk/) of AI agents.
+An intentionally vulnerable AI agent platform for security training, red-teaming, and validating security tools. 21 agents, 12 vulnerability categories, 3 protocols. The [DVWA](https://dvwa.co.uk/) of AI agents.
 
 ```bash
-docker run -p 9000:9000 -p 7001-7021:7001-7021 opena2a/dvaa:0.9.3
+docker run -p 9000:9000 -p 7001-7023:7001-7023 opena2a/dvaa:0.9.3
 open http://localhost:9000
 ```
 
-> This maps every port: the dashboard on `:9000` and all 19 agents on `7001-7021`, so the dashboard, `curl`, and HackMyAgent all work. Docker does not publish ports without `-p`, so a bare `docker run` reaches nothing. (Only want the dashboard? `-p 9000:9000` alone is enough; it drives the whole fleet through `:9000`.)
+> This maps every port: the dashboard on `:9000` and all 21 agents on `7001-7023`, so the dashboard, `curl`, and HackMyAgent all work. Docker does not publish ports without `-p`, so a bare `docker run` reaches nothing. (Only want the dashboard? `-p 9000:9000` alone is enough; it drives the whole fleet through `:9000`.)
 
 > **v0.8.0 breaking change:** agent ports moved from `3000`-base to `7000`-base to avoid the common `3000` collision with Next.js/React dev servers. Dashboard stays on `9000`. See [Upgrading from v0.7.x](#upgrading-from-v07x).
 
@@ -26,7 +26,7 @@ open http://localhost:9000
 
 The dashboard groups the fleet by protocol, with each agent's security level and live attack stats:
 
-![The DVAA dashboard agent grid: 19 agents across API, MCP, and A2A protocols, each card showing its security level and live attack stats](docs/dashboard-agents.png)
+![The DVAA dashboard agent grid: 21 agents across API, MCP, and A2A protocols, each card showing its security level and live attack stats](docs/dashboard-agents.png)
 
 | Agent | Port | Security | Vulnerabilities |
 |-------|------|----------|-----------------|
@@ -40,6 +40,8 @@ The dashboard groups the fleet by protocol, with each agent's security level and
 | ResearchBot-AIM | 7016 | AIM-protected | Same code as ResearchBot, outbound tool calls gated by AIM |
 | FlightBot | 7017 | Weak | Indirect injection via web fetch, wallet exfiltration |
 | FlightBot-AIM | 7018 | AIM-protected | Same code as FlightBot, egress gated by AIM capability grant |
+| RepoBot | 7022 | Weak | Repo-local agent-config injection (AGENTS.md), credential exfiltration |
+| RepoBot-AIM | 7023 | AIM-protected | Same code as RepoBot, shell/file/egress gated by AIM capability grant |
 | VisionBot | 7006 | Weak | Image-based prompt injection |
 | MemoryBot | 7007 | Vulnerable | Memory injection, cross-session persistence |
 | LongwindBot | 7008 | Weak | Context overflow, safety displacement |
@@ -136,7 +138,7 @@ dvaa --help
 | Command | What it does |
 |---|---|
 | `dvaa` | Start the dashboard and full agent fleet (same as `npm start`). |
-| `dvaa agents [--json]` | List all 19 agents with port, protocol, security level, URL. |
+| `dvaa agents [--json]` | List all 21 agents with port, protocol, security level, URL. |
 | `dvaa health [--json]` | Ping the dashboard at `:9000`. Exit 1 if unreachable. |
 | `dvaa attack <agent\|url> [--intensity passive\|active\|aggressive] [--verbose]` | Run HMA attacks against a DVAA agent. `--all` runs the full fleet. |
 | `dvaa logs [--limit N] [--follow] [--json]` | Show or tail the attack log. |
@@ -147,6 +149,7 @@ dvaa --help
 | `dvaa browse [url] [--agents X] [--categories Y] [--json] [--publish]` | Send DVAA agents to browse a target site (agentpwn.com by default). |
 | `dvaa demo aim-ab [-i] [--cloud] [--json] [--verbose]` | Run the deterministic A/B: same agent code, AIM enforcement off vs on. `-i` steps through it interactively for a live audience; `--cloud` mirrors the denied event to your AIM dashboard ([see below](#aim-protected-agent)). |
 | `dvaa demo flight [-i] [--live] [--json]` | Three-act story: a flight agent holding a synthetic wallet is compromised by a poisoned travel page, then the same agent under AIM blocks the exfil at the egress boundary. Self-contained: runs its own fleet, no pre-flight. See `docs/demo/FLIGHT_RUN_SCRIPT.md`. |
+| `dvaa demo repo [-i] [--json] [--verbose]` | Three beats: clone an ordinary-looking repository, ask an agent to review it, and watch it follow the instructions in the repo's own `AGENTS.md` — bootstrap, credentials, exfil — then report the repo as clean. The same agent under AIM is denied at every out-of-grant boundary. Self-contained and always offline. See `docs/demo/REPO_RUN_SCRIPT.md`. |
 
 Run any command with `--help` for per-command options.
 
@@ -349,14 +352,14 @@ VERBOSE=true            # Detailed logging
 **Port 7001 (or similar) already in use.** Something else on your machine is bound to that port. First stop the conflicting service. That's the simplest fix. If you can't stop it, use `HOST_PORT_OFFSET` to shift every port by a fixed amount:
 
 ```bash
-# Remap host ports 7001-7021 → 7501-7521. Container-internal ports stay unchanged.
+# Remap host ports 7001-7023 → 7501-7523. Container-internal ports stay unchanged.
 docker run -d -e HOST_PORT_OFFSET=500 \
   -p 9000:9000 \
-  -p 7501-7521:7001-7021 \
+  -p 7501-7523:7001-7023 \
   opena2a/dvaa:0.9.3
 ```
 
-`HOST_PORT_OFFSET` only affects what the dashboard **displays** (e.g. test commands, agent URLs). The container still binds internally to `7001-7021`. You are responsible for the matching `-p` mappings. A naive `-p 8001:7001` without the env var means the dashboard will keep telling users to hit `7001` when the agent is actually on `8001`.
+`HOST_PORT_OFFSET` only affects what the dashboard **displays** (e.g. test commands, agent URLs). The container still binds internally to `7001-7023`. You are responsible for the matching `-p` mappings. A naive `-p 8001:7001` without the env var means the dashboard will keep telling users to hit `7001` when the agent is actually on `8001`.
 
 **Dashboard shows stale data after upgrade.** Hard-reload (Cmd+Shift+R / Ctrl+Shift+R). The frontend is cached aggressively.
 

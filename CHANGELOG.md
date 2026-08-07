@@ -2,6 +2,58 @@
 
 ## Unreleased
 
+### Added: `dvaa demo repo` - repo-local agent-config injection
+
+The delivery channel is the one every developer uses daily: you clone a
+repository and point a coding agent at it, and the repository's own `AGENTS.md`
+is read by that agent as instructions addressed to itself.
+
+- **Three beats.** Beat 1 `git clone`s a fixture repository that is deliberately
+  boring — a dependency-free date formatter with tests — and shows the README.
+  Beat 2 asks `RepoBot` to review it; the agent reads `AGENTS.md`, fetches the
+  bootstrap it names, reads the credentials it names, posts them to the
+  collector it names, and reports the repository as CLEAN. Beat 3 runs the same
+  agent code under an AIM grant of `{repo:read, chat:respond}`; the three
+  out-of-grant actions are each denied at the tool boundary and nothing reaches
+  the canary.
+- **The demo says what AIM does not do.** Both agents report the repo as clean.
+  Concealment is a property of the response text and `chat:respond` is inside
+  the grant, so enforcement does not touch it. The demo states this rather than
+  staging a confession the agent would not actually make: AIM is a capability
+  boundary, not an input filter and not a truth serum. The denied attempts are
+  in the audit log either way, and the agent's trust score drops on them.
+- **Always offline, with the blast radius in the code rather than the runner.**
+  The bootstrap URL and the collector both resolve to the run's own `127.0.0.1`
+  canary; the credential paths resolve against a per-run sandbox home seeded
+  with FAKE values, through a reader that serves a fixed two-entry allowlist and
+  re-checks the resolved path against the sandbox root. There is deliberately no
+  `--live` mode. DVAA fetches the bootstrap so the canary records it and never
+  executes the body.
+- **New agents** `RepoBot` (7022) and `RepoBot-AIM` (7023), same code and same
+  vulnerability profile, differing only in enforcement.
+- **Payload** is the hackmyagent#435 reproduction, kept recognizable against the
+  regression fixture in that repo's `agent-instruction-routing.test.ts`. That
+  open issue tracks the routing question this fixture exercises — analyzer
+  routing keyed on filename rather than on artifact role. Scan the fixture and
+  read the current result rather than quoting a score from here.
+- **Run script** `docs/demo/REPO_RUN_SCRIPT.md`: presenter runbook, beat-by-beat
+  narration, the honest-scope line (demonstrated capability, not a measured
+  in-the-wild rate), the measured scanner table, reset, failure fallbacks.
+- **Tests** `test/repo-demo.test.js`: 14 network-free checks covering the agent
+  grants, the payload's four directives, detector behavior on benign input, the
+  fixture repo carrying exactly one bad file, and the sandbox reader refusing
+  traversal, absolute paths, the real `$HOME`, and any file not in its table.
+
+### Added: `--only <ids>` scoped fleet
+
+`dvaa --api --only repobot,repobot-aim` starts just those agents and no
+dashboard. This is what makes a demo's "it manages its own fleet" claim true:
+previously a demo runner spawned the whole fleet, so anything already holding
+one port in `7001-7021` or `9000` — a developer fleet, the docker-compose
+fleet, an unrelated service on `9000` — killed the spawned process on startup,
+and the runner could only report "the agents did not come up within the
+timeout". Both `demo repo` and `demo flight` now use it.
+
 ### Fixed
 
 - **The server path reported no usage at all.** dvaa's documented happy path is `docker run` (README §Quick start), whose `CMD` passes no subcommand (`Dockerfile:23`). That takes the server path, which reaches `tele.start()` (`src/index.js:1806`) and nothing else — the only `tele.track()` call lives in the CLI dispatcher (`src/cli/router.js:63`), which `process.exit()`s and is unreachable from the server. So the majority of installs emitted exactly one `start` event, on their boot day, and never a `command`.

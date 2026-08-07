@@ -39,6 +39,10 @@ export default async function run(argv) {
     const { default: runFlight } = await import('./demo-flight.js');
     return await runFlight(argv, flags);
   }
+  if (scenario === 'repo') {
+    const { default: runRepo } = await import('./demo-repo.js');
+    return await runRepo(argv, flags);
+  }
   if (scenario !== 'aim-ab') {
     fail(`Unknown demo scenario: ${scenario}\nRun: dvaa demo --help`);
   }
@@ -473,6 +477,11 @@ async function startCanary() {
 const USAGE = `Usage: dvaa demo <scenario> [--json] [--verbose]
 
 Scenarios:
+  repo      Three beats: clone an ordinary-looking repository, ask an agent
+            to review it, and watch it follow the instructions in the repo's
+            own AGENTS.md - bootstrap, credentials, exfil - then report the
+            repo as clean. The same agent under AIM is denied at every
+            out-of-grant boundary. Self-contained and always offline.
   flight    Three-act story: a flight-booking agent holding a synthetic
             traveler wallet. It searches flights, then a poisoned travel
             page makes the unprotected agent exfiltrate the wallet; the
@@ -485,13 +494,14 @@ Scenarios:
 Pre-flight (aim-ab only):
   Both RAGBot (port 7005) and RAGBot-AIM (port 7014) must be reachable.
   Start the fleet in another terminal: dvaa --api
-  The flight scenario needs no pre-flight - it runs its own fleet.
+  The repo and flight scenarios need no pre-flight - they run their own fleet.
 
 Options:
   --interactive, -i  Step through the demo live with pauses + narration
                      (for a follow-along audience; requires a terminal)
   --live     flight: fetch the real target instead of the seeded offline
              page; the capture lands on the public agentpwn /pwned wall.
+             Not available for repo - that scenario is offline by design.
   --cloud    aim-ab: mirror the denied event to your AIM dashboard.
              Requires 'aim-sdk login' first; falls back to local-only.
   --json     Machine-readable output (for CI / scripting)
