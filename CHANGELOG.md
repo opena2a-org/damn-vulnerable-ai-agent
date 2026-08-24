@@ -1,6 +1,8 @@
 # Changelog - damn-vulnerable-ai-agent
 
-## Unreleased
+## 0.9.3 (unreleased; date set at the tag push)
+
+The 2026-07-07 cut under this number was never published to any registry. Its entries are folded below and this entry supersedes it.
 
 ### Added: `dvaa demo repo` - repo-local agent-config injection
 
@@ -85,7 +87,7 @@ timeout". Both `demo repo` and `demo flight` now use it.
 - `test/telemetry-actions.test.js` (NEW): the allowlist. Asserts the HEALTHCHECK endpoints are never tracked, that reads are never tracked, that a burst of 100 payloads throttles to one event while usage on two different days emits on each (which is exactly what `engaged` measures), that no id or content reaches the event name, and that a throwing or rejecting `track` never surfaces on a request path.
 - `test/telemetry-server-path.test.js` (NEW): drives the **real** dashboard server over HTTP, because the bug was never in a helper — it was that the server path had no telemetry wired to it at all. Asserts a docker-shaped user firing a payload emits `lab-chat`, that hammering `/stats` and `/health` emits nothing, that a query string cannot smuggle a match past the allowlist, and that the lab serves normally even when telemetry throws.
 
-## 0.9.3 (2026-07-07)
+### From the unpublished 2026-07-07 cut
 
 ### Fixed
 

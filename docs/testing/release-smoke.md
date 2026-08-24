@@ -16,10 +16,10 @@ git status    # must be clean
 docker build -t opena2a/dvaa:smoke .
 docker rm -f dvaa-smoke 2>/dev/null
 docker run -d --name dvaa-smoke \
-  -p 9000:9000 -p 7001-7008:7001-7008 -p 7010-7013:7010-7013 -p 7020-7021:7020-7021 \
+  -p 9000:9000 -p 7001-7023:7001-7023 \
   opena2a/dvaa:smoke
 sleep 5
-curl -s http://localhost:9000/health | jq    # expect {"status":"ok","agents":14,...}
+curl -s http://localhost:9000/health | jq    # expect {"status":"ok","agents":21,...}
 docker exec dvaa-smoke whoami                # expect "node" (non-root)
 ```
 
@@ -32,8 +32,9 @@ Open the dashboard in a fresh browser (or incognito to avoid stale localStorage)
 
 | # | Page | What must be true |
 |---|---|---|
-| 1.1 | `/#agents` | 14 agent cards render. SecureBot has HARDENED badge, LegacyBot has CRITICAL. Each has a working `Test` button. |
-| 1.2 | `/#attack-lab` | Agent dropdown populated with all 14. Kill-chain bar with 9 stages renders gray/dim. Tutor panel shows offline-mode hint. |
+| 1.1 | `/#agents` | 21 agent cards render (ports 7001-7008, 7010-7018, 7020-7023). SecureBot has HARDENED badge, LegacyBot has CRITICAL. Each has a working `Test` button. |
+| 1.1b | `/#agents` | All four matched pairs present, same code with and without governance: RAGBot 7005 / RAGBot-AIM 7014, ResearchBot 7015 / ResearchBot-AIM 7016, FlightBot 7017 / FlightBot-AIM 7018, RepoBot 7022 / RepoBot-AIM 7023. |
+| 1.2 | `/#attack-lab` | Agent dropdown populated with all 21. Kill-chain bar with 9 stages renders gray/dim. Tutor panel shows offline-mode hint. |
 | 1.3 | `/#challenges` | 22 challenges render grouped by difficulty. Click any → modal with description + verify box. |
 | 1.4 | `/#scenarios` | 86 scenario cards. Filter bar works (Auto-fixable narrows to ~10 cards). Progress bar at top shows `0 / 19,400 points`. |
 | 1.5 | `/#attack-log` | Empty state: `0 events`. Filter dropdowns (All agents / categories / results) render. `Clear All` button present. |
@@ -111,7 +112,7 @@ body, fail — see issue #55.
 ```bash
 npm install -g .            # install from the release candidate
 dvaa --help                 # help text lists all subcommands
-dvaa agents                 # table of 14 agents with non-zero port numbers
+dvaa agents                 # table of 21 agents with non-zero port numbers
 dvaa agents --json | jq '.[0] | has("name") and has("port")'   # must be true
 dvaa health                 # "DVAA dashboard: http://localhost:9000  OK", exit 0
 dvaa health >/dev/null; echo $?    # 0 if server up, 1 if down

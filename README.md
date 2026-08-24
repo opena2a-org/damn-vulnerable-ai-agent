@@ -8,11 +8,11 @@
 An intentionally vulnerable AI agent platform for security training, red-teaming, and validating security tools. 21 agents, 12 vulnerability categories, 3 protocols. The [DVWA](https://dvwa.co.uk/) of AI agents.
 
 ```bash
-docker run -p 9000:9000 -p 7001-7023:7001-7023 opena2a/dvaa:0.9.3
+docker run -p 9000:9000 -p 7001-7021:7001-7021 opena2a/dvaa:0.9.2
 open http://localhost:9000
 ```
 
-> This maps every port: the dashboard on `:9000` and all 21 agents on `7001-7023`, so the dashboard, `curl`, and HackMyAgent all work. Docker does not publish ports without `-p`, so a bare `docker run` reaches nothing. (Only want the dashboard? `-p 9000:9000` alone is enough; it drives the whole fleet through `:9000`.)
+> This maps every port of the published image: the dashboard on `:9000` and its 19 agents on `7001-7021`, so the dashboard, `curl`, and HackMyAgent all work. The two newest agents (RepoBot 7022/7023, bringing the count to 21) are on main and ship with the next image. Docker does not publish ports without `-p`, so a bare `docker run` reaches nothing. (Only want the dashboard? `-p 9000:9000` alone is enough; it drives the whole fleet through `:9000`.)
 
 > **v0.8.0 breaking change:** agent ports moved from `3000`-base to `7000`-base to avoid the common `3000` collision with Next.js/React dev servers. Dashboard stays on `9000`. See [Upgrading from v0.7.x](#upgrading-from-v07x).
 
@@ -26,7 +26,7 @@ open http://localhost:9000
 
 The dashboard groups the fleet by protocol, with each agent's security level and live attack stats:
 
-![The DVAA dashboard agent grid: 21 agents across API, MCP, and A2A protocols, each card showing its security level and live attack stats](docs/dashboard-agents.png)
+![The DVAA dashboard agent grid across API, MCP, and A2A protocols, each card showing its security level and live attack stats](docs/dashboard-agents.png)
 
 | Agent | Port | Security | Vulnerabilities |
 |-------|------|----------|-----------------|
@@ -138,7 +138,7 @@ dvaa --help
 | Command | What it does |
 |---|---|
 | `dvaa` | Start the dashboard and full agent fleet (same as `npm start`). |
-| `dvaa agents [--json]` | List all 21 agents with port, protocol, security level, URL. |
+| `dvaa agents [--json]` | List all agents with port, protocol, security level, URL. |
 | `dvaa health [--json]` | Ping the dashboard at `:9000`. Exit 1 if unreachable. |
 | `dvaa attack <agent\|url> [--intensity passive\|active\|aggressive] [--verbose]` | Run HMA attacks against a DVAA agent. `--all` runs the full fleet. |
 | `dvaa logs [--limit N] [--follow] [--json]` | Show or tail the attack log. |
@@ -352,14 +352,14 @@ VERBOSE=true            # Detailed logging
 **Port 7001 (or similar) already in use.** Something else on your machine is bound to that port. First stop the conflicting service. That's the simplest fix. If you can't stop it, use `HOST_PORT_OFFSET` to shift every port by a fixed amount:
 
 ```bash
-# Remap host ports 7001-7023 → 7501-7523. Container-internal ports stay unchanged.
+# Remap host ports 7001-7021 → 7501-7521. Container-internal ports stay unchanged.
 docker run -d -e HOST_PORT_OFFSET=500 \
   -p 9000:9000 \
-  -p 7501-7523:7001-7023 \
-  opena2a/dvaa:0.9.3
+  -p 7501-7521:7001-7021 \
+  opena2a/dvaa:0.9.2
 ```
 
-`HOST_PORT_OFFSET` only affects what the dashboard **displays** (e.g. test commands, agent URLs). The container still binds internally to `7001-7023`. You are responsible for the matching `-p` mappings. A naive `-p 8001:7001` without the env var means the dashboard will keep telling users to hit `7001` when the agent is actually on `8001`.
+`HOST_PORT_OFFSET` only affects what the dashboard **displays** (e.g. test commands, agent URLs). The container still binds internally to its agent ports (`7001-7021` on 0.9.2). You are responsible for the matching `-p` mappings. A naive `-p 8001:7001` without the env var means the dashboard will keep telling users to hit `7001` when the agent is actually on `8001`.
 
 **Dashboard shows stale data after upgrade.** Hard-reload (Cmd+Shift+R / Ctrl+Shift+R). The frontend is cached aggressively.
 

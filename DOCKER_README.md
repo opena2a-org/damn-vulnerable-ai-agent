@@ -2,7 +2,7 @@
 
 **The AI agent you're supposed to break.**
 
-21 agents. 12 attack classes. Zero consequences. DVAA is an intentionally vulnerable AI agent platform for learning, red-teaming, and validating security tools. Think [DVWA](https://dvwa.co.uk/) / [OWASP WebGoat](https://owasp.org/www-project-webgoat/), but for AI agents.
+19 agents. 12 attack classes. Zero consequences. DVAA is an intentionally vulnerable AI agent platform for learning, red-teaming, and validating security tools. Think [DVWA](https://dvwa.co.uk/) / [OWASP WebGoat](https://owasp.org/www-project-webgoat/), but for AI agents.
 
 - **Learn:** understand AI agent vulnerabilities hands-on with CTF-style challenges (5,900 total points)
 - **Attack:** practice prompt injection, jailbreaking, data exfiltration, and more
@@ -16,13 +16,13 @@
 ```bash
 docker run -d --name dvaa \
   -p 9000:9000 \
-  -p 7001-7023:7001-7023 \
-  opena2a/dvaa:0.9.3
+  -p 7001-7021:7001-7021 \
+  opena2a/dvaa:0.9.2
 ```
 
 Open the dashboard at [http://localhost:9000](http://localhost:9000).
 
-This maps every port: the dashboard on `9000` and all 21 agents on `7001-7023`, so the dashboard, `curl`, and HackMyAgent all work. Docker does not publish ports without `-p`, so a bare `docker run` reaches nothing. (Only want the dashboard? `-p 9000:9000` alone is enough; it drives the whole fleet through `:9000`.)
+This maps every port: the dashboard on `9000` and all 19 agents on `7001-7021`, so the dashboard, `curl`, and HackMyAgent all work. Docker does not publish ports without `-p`, so a bare `docker run` reaches nothing. (Only want the dashboard? `-p 9000:9000` alone is enough; it drives the whole fleet through `:9000`.)
 
 > **v0.8.0 breaking change:** agent ports moved `3000` to `7000` to avoid the common collision with Next.js/React dev servers. Dashboard stays on `9000`. See [Upgrading from v0.7.x](#upgrading-from-v07x).
 
@@ -47,7 +47,7 @@ No environment variables or external services needed. Simulated mode (default) w
 
 The dashboard at `http://localhost:9000` includes six integrated views:
 
-- **Agents:** grid of all 21 agents with live stats, security levels, and test commands. Click a card to drill into its tools, declared vulnerabilities, and attack history.
+- **Agents:** grid of all 19 agents with live stats, security levels, and test commands. Click a card to drill into its tools, declared vulnerabilities, and attack history.
 - **Challenges:** CTF-style challenge board with 5,900 total points, progressive hints, and in-browser verification.
 - **Attack Lab:** interactive multi-step kill-chain walkthroughs (live progression requires LLM mode).
 - **Attack Log:** real-time table of detected attacks. Click any row for the full payload, the agent response with leaked secrets highlighted, a What / Why / Defend explainer per category, and a "same payload vs SecureBot" command.
@@ -148,7 +148,7 @@ Key subcommands (all accept `--json` for CI):
 
 | | |
 |---|---|
-| `dvaa agents` | List all 21 agents with port, protocol, URL |
+| `dvaa agents` | List all agents with port, protocol, URL |
 | `dvaa health` | Ping the dashboard; exit 1 if unreachable |
 | `dvaa attack <agent\|url>` | Run HMA attack suite (accepts agent name or URL) |
 | `dvaa logs [--follow]` | Tail the attack log |
@@ -172,14 +172,14 @@ The image's default `CMD` starts every agent and the dashboard together; no `dva
 **Port 7001 (or similar) already in use.** Stop the conflicting service first; that's the simplest fix. If you can't, use `HOST_PORT_OFFSET` to shift every displayed port by a fixed amount:
 
 ```bash
-# Remap host ports 7001-7023 to 7501-7523. Container-internal ports stay unchanged.
+# Remap host ports 7001-7021 to 7501-7521. Container-internal ports stay unchanged.
 docker run -d -e HOST_PORT_OFFSET=500 \
   -p 9000:9000 \
-  -p 7501-7523:7001-7023 \
-  opena2a/dvaa:0.9.3
+  -p 7501-7521:7001-7021 \
+  opena2a/dvaa:0.9.2
 ```
 
-`HOST_PORT_OFFSET` affects only what the dashboard **displays** (test commands, agent URLs). The container still binds internally to `7001-7023`. Remapping with `-p 8001:7001` without setting the env var will leave the dashboard telling users to hit `7001` while the agent is actually on `8001`.
+`HOST_PORT_OFFSET` affects only what the dashboard **displays** (test commands, agent URLs). The container still binds internally to its agent ports (`7001-7021` on 0.9.2). Remapping with `-p 8001:7001` without setting the env var will leave the dashboard telling users to hit `7001` while the agent is actually on `8001`.
 
 ## Upgrading from v0.7.x
 
