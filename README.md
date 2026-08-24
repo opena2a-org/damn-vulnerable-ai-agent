@@ -5,14 +5,14 @@
 [![Docker Hub](https://img.shields.io/docker/pulls/opena2a/dvaa)](https://hub.docker.com/r/opena2a/dvaa)
 [![OASB Compatible](https://img.shields.io/badge/OASB-1.0-teal)](https://oasb.ai)
 
-An intentionally vulnerable AI agent platform for security training, red-teaming, and validating security tools. 19 agents, 12 vulnerability categories, 3 protocols. The [DVWA](https://dvwa.co.uk/) of AI agents.
+An intentionally vulnerable AI agent platform for security training, red-teaming, and validating security tools. 21 agents, 12 vulnerability categories, 3 protocols. The [DVWA](https://dvwa.co.uk/) of AI agents.
 
 ```bash
 docker run -p 9000:9000 -p 7001-7021:7001-7021 opena2a/dvaa:0.9.2
 open http://localhost:9000
 ```
 
-> This maps every port: the dashboard on `:9000` and all 19 agents on `7001-7021`, so the dashboard, `curl`, and HackMyAgent all work. Docker does not publish ports without `-p`, so a bare `docker run` reaches nothing. (Only want the dashboard? `-p 9000:9000` alone is enough; it drives the whole fleet through `:9000`.)
+> This maps every port of the published image: the dashboard on `:9000` and its 19 agents on `7001-7021`, so the dashboard, `curl`, and HackMyAgent all work. The two newest agents (RepoBot 7022/7023, bringing the count to 21) are on main and ship with the next image. Docker does not publish ports without `-p`, so a bare `docker run` reaches nothing. (Only want the dashboard? `-p 9000:9000` alone is enough; it drives the whole fleet through `:9000`.)
 
 > **v0.8.0 breaking change:** agent ports moved from `3000`-base to `7000`-base to avoid the common `3000` collision with Next.js/React dev servers. Dashboard stays on `9000`. See [Upgrading from v0.7.x](#upgrading-from-v07x).
 
