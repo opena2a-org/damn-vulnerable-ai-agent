@@ -1,0 +1,26 @@
+name: README cites a published image
+
+on:
+  pull_request:
+    paths:
+      - README.md
+      - scripts/check-readme-cites-published-image.sh
+  push:
+    branches:
+      - main
+    paths:
+      - README.md
+      - scripts/check-readme-cites-published-image.sh
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Every image tag the README cites must exist on Docker Hub
+        run: bash scripts/check-readme-cites-published-image.sh README.md

@@ -16,13 +16,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Update Docker Hub description
-        uses: peter-evans/dockerhub-description@v4
+        uses: peter-evans/dockerhub-description@432a30c9e07499fd01da9f8a49f0faf9e0ca5b77 # v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PAT }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: opena2a/dvaa
           readme-filepath: ./DOCKER_README.md
           short-description: "Damn Vulnerable AI Agent: intentionally vulnerable AI agents for security testing and red-teaming"
