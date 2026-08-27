@@ -56,6 +56,21 @@ fleet, an unrelated service on `9000` — killed the spawned process on startup,
 and the runner could only report "the agents did not come up within the
 timeout". Both `demo repo` and `demo flight` now use it.
 
+### Changed: `dvaa browse` is now `dvaa selftest`; `--publish` removed
+
+`dvaa browse` is renamed to `dvaa selftest` to describe what it actually does:
+it runs the local DVAA agent fleet against a bundled mirror of the AgentPwn
+payload library and reports which local agents comply. The command never
+contacted a target site — every probe is a POST to `http://localhost:<port>` —
+so the old positional `[url]` argument and the "browses agentpwn.com" framing
+were misleading and have been removed. `dvaa browse` still runs as a deprecated
+alias that prints a one-line notice and routes to `selftest`.
+
+`--publish` is removed. It POSTed synthetic self-test results to an external
+AgentPwn callback endpoint; these are lab results from local agents, and a
+client-labelled write like that is indistinguishable from an attacker's at the
+receiver.
+
 ### Fixed
 
 - **The server path reported no usage at all.** dvaa's documented happy path is `docker run` (README §Quick start), whose `CMD` passes no subcommand (`Dockerfile:23`). That takes the server path, which reaches `tele.start()` (`src/index.js:1806`) and nothing else — the only `tele.track()` call lives in the CLI dispatcher (`src/cli/router.js:63`), which `process.exit()`s and is unreachable from the server. So the majority of installs emitted exactly one `start` event, on their boot day, and never a `command`.

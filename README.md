@@ -146,7 +146,7 @@ dvaa --help
 | `dvaa benchmark [path] [--level L1\|L2\|L3] [--json]` | Run OASB-1 compliance benchmark against a target directory. |
 | `dvaa hma <args...>` | Pass-through to the bundled HackMyAgent CLI for anything not covered above. |
 | `dvaa telemetry [on\|off\|status]` | Inspect or toggle anonymous usage telemetry (see §Telemetry). |
-| `dvaa browse [url] [--agents X] [--categories Y] [--json] [--publish]` | Send DVAA agents to browse a target site (agentpwn.com by default). |
+| `dvaa selftest [--agents X] [--categories Y] [--json] [--verbose]` | Run the local DVAA agent fleet against the bundled AgentPwn payload mirror and report which agents comply. Formerly `dvaa browse`; the old name still works and warns. |
 | `dvaa demo aim-ab [-i] [--cloud] [--json] [--verbose]` | Run the deterministic A/B: same agent code, AIM enforcement off vs on. `-i` steps through it interactively for a live audience; `--cloud` mirrors the denied event to your AIM dashboard ([see below](#aim-protected-agent)). |
 | `dvaa demo flight [-i] [--live] [--json]` | Three-act story: a flight agent holding a synthetic wallet is compromised by a poisoned travel page, then the same agent under AIM blocks the exfil at the egress boundary. Self-contained: runs its own fleet, no pre-flight. See `docs/demo/FLIGHT_RUN_SCRIPT.md`. |
 | `dvaa demo repo [-i] [--json] [--verbose]` | Three beats: clone an ordinary-looking repository, ask an agent to review it, and watch it follow the instructions in the repo's own `AGENTS.md` — bootstrap, credentials, exfil — then report the repo as clean. The same agent under AIM is denied at every out-of-grant boundary. Self-contained and always offline. See `docs/demo/REPO_RUN_SCRIPT.md`. |
@@ -162,43 +162,42 @@ dvaa attack legacybot --intensity aggressive   # break it another way
 dvaa logs --follow                  # watch attacks land live
 ```
 
-## Wild Testing with AgentPwn
+## Self-testing the fleet with AgentPwn payloads
 
-Send DVAA agents to browse [agentpwn.com](https://agentpwn.com) and see which ones get pwned by real-world injection payloads.
+Run the local DVAA agent fleet against a bundled mirror of the [AgentPwn](https://agentpwn.com) payload library and see which agents get pwned by real-world injection payloads. Every agent probed is a local DVAA process; the command contacts no external site.
 
-> **CLI required:** `dvaa --api` and `dvaa browse` are provided by the npm package, **not** by the Docker image. Install with `npm install -g damn-vulnerable-ai-agent` to use them.
+> **CLI required:** `dvaa --api` and `dvaa selftest` are provided by the npm package, **not** by the Docker image. Install with `npm install -g damn-vulnerable-ai-agent` to use them.
 
 ```bash
 # Start DVAA agents first
 dvaa --api
 
-# Browse agentpwn.com with all agents (in another terminal)
-dvaa browse
+# Run the whole fleet against the bundled payload mirror (in another terminal)
+dvaa selftest
 
 # Test specific agents
-dvaa browse --agents helperbot,legacybot
+dvaa selftest --agents helperbot,legacybot
 
 # Filter by attack category
-dvaa browse --categories prompt-injection,data-exfiltration
+dvaa selftest --categories prompt-injection,data-exfiltration
 
 # JSON output for CI integration
-dvaa browse --json
-
-# Publish results to the AgentPwn registry
-dvaa browse --publish
+dvaa selftest --json
 ```
 
-The browse command tests each DVAA agent against 7 attack payloads across 6 categories (prompt injection, data exfiltration, jailbreak, capability abuse, supply chain, context manipulation). Results show which agents are vulnerable to which real-world attacks.
+The selftest command tests each local DVAA agent against 8 attack payloads across 6 categories (prompt injection, data exfiltration, jailbreak, capability abuse, supply chain, context manipulation). Results show which agents are vulnerable to which real-world attacks.
 
 | Agent | Security | Pwn Rate | Notable Vulnerabilities |
 |-------|----------|----------|------------------------|
 | SecureBot | Hardened | 0% | Correctly blocks all attacks |
-| HelperBot | Weak | 14% | Falls for direct prompt injection |
-| LegacyBot | Critical | 86% | Pwned by almost everything |
-| CodeBot | Vulnerable | 29% | Attempts to execute supply chain commands |
-| MemoryBot | Vulnerable | 29% | Leaks stored credentials from memory |
+| HelperBot | Weak | 25% | Falls for direct prompt injection |
+| LegacyBot | Critical | 50% | Pwned across several categories, including the DAN jailbreak |
+| CodeBot | Vulnerable | 25% | Attempts to execute supply chain commands |
+| MemoryBot | Vulnerable | 25% | Leaks stored credentials from memory |
 
-This integration connects DVAA (the lab) with AgentPwn (the wild). The same attacks that DVAA agents fall for in controlled testing are the ones real agents encounter when browsing the web.
+Rates are from a deterministic run (fleet started with `dvaa --api --offline`, then `dvaa selftest`) against the 8 bundled payloads, counting strong success indicators only; generic-compliance matches are reported separately as weak signals, not pwns. Runs against live LLM providers vary.
+
+The bundled payloads mirror AgentPwn's library: the same attacks these lab agents fall for in controlled testing are the ones real agents encounter in the wild.
 
 ## AIM-Protected Agent
 
@@ -268,7 +267,7 @@ It registers RAGBot-AIM under your account and posts the denied `http:post` as a
 
 **Fully offline.** Add `--offline` to the fleet (`dvaa --api --offline`) to disable anonymous telemetry for an airplane-mode run. The A/B itself never needs the network: the canary binds to host loopback and AIM enforcement is local.
 
-RAGBot-AIM also shows up in `dvaa browse` as the agent that survives the RAG-poisoning + outbound-exfil payload while the rest of the fleet does not.
+RAGBot-AIM also shows up in `dvaa selftest` as the agent that survives the RAG-poisoning + outbound-exfil payload while the rest of the fleet does not.
 
 ## CTF Challenges
 

@@ -119,8 +119,9 @@ dvaa health >/dev/null; echo $?    # 0 if server up, 1 if down
 dvaa scan aitool-jupyter-noauth    # PASS verdict, <1s after first run (cache)
 dvaa scan --list | head             # 86 scenarios listed
 dvaa not-a-real-command; echo $?    # 1 + "Unknown command"
-dvaa browse '; echo PWNED > /tmp/pwn'; ls /tmp/pwn 2>&1 | grep "No such"
-# Last test confirms command-injection defense: no file created.
+dvaa selftest '; echo PWNED > /tmp/pwn'; ls /tmp/pwn 2>&1 | grep "No such"
+dvaa browse --help 2>&1 | grep "now .dvaa selftest."   # deprecated alias still routes + warns
+# The selftest line confirms command-injection defense: no file created.
 ```
 
 Any unexpected exit code, missing command in `--help`, or a file written

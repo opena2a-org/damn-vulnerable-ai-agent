@@ -155,7 +155,7 @@ Key subcommands (all accept `--json` for CI):
 | `dvaa scan <scenario> [--fix]` | Run HMA against a scenario fixture, optionally remediate |
 | `dvaa benchmark [path] [--level L1\|L2\|L3]` | OASB-1 compliance benchmark |
 | `dvaa hma <args…>` | Pass-through to the bundled HackMyAgent CLI |
-| `dvaa browse [url]` | Send DVAA agents to browse a target (agentpwn.com by default) |
+| `dvaa selftest` | Run the local DVAA agent fleet against the bundled AgentPwn payload mirror and report which agents comply |
 
 The image's default `CMD` starts every agent and the dashboard together; no `dvaa` invocation needed. The CLI is for scripting, CI, and the dev-workflow loop (spin up, attack, scan, fix, re-scan) from your host.
 
