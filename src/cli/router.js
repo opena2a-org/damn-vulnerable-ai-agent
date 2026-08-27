@@ -29,7 +29,8 @@ const COMMANDS = {
   telemetry: { run: runTelemetry, summary: 'Inspect or toggle anonymous usage telemetry: on | off | status.' },
   demo:      { run: runDemo,      summary: 'Run a scripted A/B demo (aim-ab: vulnerable vs AIM-secured agent).' },
   chat:      { run: runChat,      summary: 'Interactive REPL against a DVAA agent (default: researchbot-aim).' },
-  browse:    { run: null,         summary: 'Send DVAA agents to browse a target site (handled in index.js).' },
+  selftest:  { run: null,         summary: 'Run the local DVAA agent fleet against the bundled payload mirror and report the pwn matrix (handled in index.js).' },
+  browse:    { run: null },  // deprecated alias for selftest; hidden (no summary) but still dispatched in index.js
 };
 
 export function isSubcommand(name) {

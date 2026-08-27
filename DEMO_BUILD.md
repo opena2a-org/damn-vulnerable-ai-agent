@@ -7,7 +7,7 @@ Reference for the AIM A/B demo shipped in DVAA. A public capability anyone can r
 Two parts:
 
 1. **Deterministic A/B (`dvaa demo aim-ab`)**. Same agent code, run twice against the same poisoned RAG document. The only variable is whether the AIM capability layer is active. Run A executes the outbound exfiltration; Run B attempts it and is denied by capability enforcement before the data leaves the agent. Produces presenter-friendly output and exits 0 on PASS.
-2. **AgentPwn showcase (`dvaa browse`)**. The same AIM-protected agent is in the regular DVAA fleet enumeration. When users run `dvaa browse` against agentpwn.com (or any URL), the AIM-protected agent shows up as the one that survives the RAG-poisoning + outbound-exfil payload while the rest of the fleet does not.
+2. **AgentPwn showcase (`dvaa selftest`)**. The same AIM-protected agent is in the regular DVAA fleet enumeration. When users run `dvaa selftest`, which runs the local fleet against the bundled AgentPwn payload mirror, the AIM-protected agent shows up as the one that survives the RAG-poisoning + outbound-exfil payload while the rest of the fleet does not.
 
 ## The 15th agent
 
@@ -170,17 +170,17 @@ This registration contract is the hosted mirror of [`docs/demo/setup-aim-local.s
 
 ## How to run the AgentPwn showcase
 
-Same target URL DVAA documents in its main README; the 15th agent slots into the standard `dvaa browse` enumeration:
+The 15th agent slots into the standard `dvaa selftest` enumeration:
 
 ```bash
 dvaa --api                         # Terminal 1
-dvaa browse                        # Terminal 2, defaults to agentpwn.com
+dvaa selftest                      # Terminal 2, local fleet vs bundled payload mirror
 ```
 
 Look at the per-agent summary at the bottom. RAGBot-AIM should show `0 pwned, 1 blocked` on the RAG-poisoning payload while RAGBot shows `1 pwned`. To compare just those two:
 
 ```bash
-dvaa browse --agents ragbot,ragbot-aim --categories data-exfiltration
+dvaa selftest --agents ragbot,ragbot-aim --categories data-exfiltration
 ```
 
 ## Recorded fallback

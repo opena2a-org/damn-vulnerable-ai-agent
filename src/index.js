@@ -73,12 +73,12 @@ const args = process.argv.slice(2);
 // "dvaa helpr" or "dvaa screen"), reject up-front instead of silently
 // starting the server - server-start happens for flag-only or empty argv.
 if (args.length > 0 && !args[0].startsWith('-')) {
-  if (isSubcommand(args[0]) || args[0] === 'browse') {
+  if (isSubcommand(args[0]) || args[0] === 'selftest' || args[0] === 'browse') {
     if (isSubcommand(args[0])) {
       await dispatch(args);
       // dispatch() calls process.exit(); we never reach this line.
     }
-    // browse falls through to the dedicated handler below.
+    // selftest (and its deprecated alias browse) fall through to the handler below.
   } else {
     console.error(`Unknown command: ${args[0]}`);
     console.error('Run: dvaa --help');
@@ -86,13 +86,17 @@ if (args.length > 0 && !args[0].startsWith('-')) {
   }
 }
 
-// Handle browse command - spawn with argv (not a shell template literal) so
-// arguments cannot be shell-interpreted. Template-literal exec was CVE-class
-// command injection: a user running `dvaa browse "; rm -rf ~"` would execute it.
+// Handle selftest command (and its deprecated alias `browse`) - spawn with argv
+// (not a shell template literal) so arguments cannot be shell-interpreted.
+// Template-literal exec was CVE-class command injection: a user running
+// `dvaa selftest "; rm -rf ~"` would execute it.
 //
-// Runs BEFORE the global --help check below so `dvaa browse --help` reaches
+// Runs BEFORE the global --help check below so `dvaa selftest --help` reaches
 // browse.js's own help text instead of falling back to the root help.
-if (args[0] === 'browse') {
+if (args[0] === 'selftest' || args[0] === 'browse') {
+  if (args[0] === 'browse') {
+    console.error('Note: `dvaa browse` is now `dvaa selftest`. It runs against LOCAL DVAA agents, not a target URL.');
+  }
   const { spawnSync } = await import('child_process');
   const { dirname, join } = await import('path');
   const { fileURLToPath } = await import('url');
@@ -168,7 +172,7 @@ const onlyIds = onlyIdx >= 0 && args[onlyIdx + 1]
   : null;
 
 // Filter flags - only consider known boolean flags and value-consuming flags
-const knownFlags = ['--all', '--api', '--mcp', '--a2a', '--verbose', '-v', '--team', '--timer', '--offline', '--only', 'browse'];
+const knownFlags = ['--all', '--api', '--mcp', '--a2a', '--verbose', '-v', '--team', '--timer', '--offline', '--only', 'selftest', 'browse'];
 // Build set of indices that are flag values (consumed by --team/--timer/--only)
 const consumedIndices = new Set();
 if (teamIdx >= 0 && args[teamIdx + 1]) consumedIndices.add(teamIdx + 1);
