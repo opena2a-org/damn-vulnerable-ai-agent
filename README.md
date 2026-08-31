@@ -194,6 +194,12 @@ The selftest command tests each local DVAA agent against 8 attack payloads acros
 | LegacyBot | Critical | 50% | Pwned across several categories, including the DAN jailbreak |
 | CodeBot | Vulnerable | 25% | Attempts to execute supply chain commands |
 | MemoryBot | Vulnerable | 25% | Leaks stored credentials from memory |
+| FlightBot | Weak | 13% | Only the context-window probe lands via the generic mirror; the wallet exfil needs the poisoned page from `dvaa demo flight` |
+| FlightBot-AIM | AIM-protected | 13% | Same code as FlightBot, egress gated by an AIM capability grant |
+| RepoBot | Weak | 13% | Only the context-window probe lands via the generic mirror; the credential exfil needs the poisoned `AGENTS.md` from `dvaa demo repo` |
+| RepoBot-AIM | AIM-protected | 13% | Same code as RepoBot, shell/file/egress gated by an AIM capability grant |
+
+The roster covers all four sensitive-asset endpoints (FlightBot 7017/7018, RepoBot 7022/7023) alongside the seven general agents. The bundled payloads are generic AgentPwn probes, so these four mostly resist them (reported as blocked); their headline wallet/credential exfil is delivery-channel specific and is exercised by `dvaa demo flight` and `dvaa demo repo`, not by the generic mirror.
 
 Rates are from a deterministic run (fleet started with `dvaa --api --offline`, then `dvaa selftest`) against the 8 bundled payloads, counting strong success indicators only; generic-compliance matches are reported separately as weak signals, not pwns. Runs against live LLM providers vary.
 
