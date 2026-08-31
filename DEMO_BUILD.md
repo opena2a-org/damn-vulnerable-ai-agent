@@ -298,9 +298,9 @@ Wire-up:
 - `tool_calls` and `dvaa` metadata (AIM decision, http_post URL, status) are byte-identical between offline and LLM modes — the chat REPL and the `dvaa demo aim-ab` parser are unaffected.
 - LLM call failures (no key, timeout, network error, empty response) silently fall back to the deterministic offline template. The demo never hard-fails because of an unreachable API.
 
-CHIEF-CSR rule encoded in the prompt: AIM-enforced agents get an addendum that AIM gates outbound actions only and does NOT filter incoming content. The agent is explicitly instructed not to claim "AIM blocked the attack" or "AIM protected me from the injection" when AIM only denied the resulting outbound action. Wording is load-bearing because the live demo's pitch is narrow on purpose.
+No-overclaim rule encoded in the prompt: AIM-enforced agents get an addendum that AIM gates outbound actions only and does NOT filter incoming content. The agent is explicitly instructed not to claim "AIM blocked the attack" or "AIM protected me from the injection" when AIM only denied the resulting outbound action. Wording is load-bearing because the live demo's pitch is narrow on purpose.
 
-To re-tune the prompts: edit `RESEARCH_AGENT_BASE` and `RESEARCH_AGENT_AIM_ADDENDUM` in `src/llm/prompts.js`. Re-run [`test/research-agent-llm-mode.test.js`](test/research-agent-llm-mode.test.js) to assert the no-overclaim wording survives the edit (the test grep-asserts the chief-CSR sentinel phrases).
+To re-tune the prompts: edit `RESEARCH_AGENT_BASE` and `RESEARCH_AGENT_AIM_ADDENDUM` in `src/llm/prompts.js`. Re-run [`test/research-agent-llm-mode.test.js`](test/research-agent-llm-mode.test.js) to assert the no-overclaim wording survives the edit (the test grep-asserts the no-overclaim sentinel phrases).
 
 ### SSRF guard on web_fetch
 

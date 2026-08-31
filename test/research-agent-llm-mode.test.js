@@ -3,7 +3,7 @@
  *
  * Verifies the additive PR-2 surface:
  *   - buildResearchAgentSystem includes/excludes the AIM addendum correctly
- *   - buildResearchAgentSystem carries the no-overclaim wording (CSR rule)
+ *   - buildResearchAgentSystem carries the no-overclaim wording (no-overclaim rule)
  *   - buildResearchAgentUserPrompt produces the right context block for
  *     each of the four web_fetch outcomes
  *   - renderResearchNarration returns the offline template when LLM is

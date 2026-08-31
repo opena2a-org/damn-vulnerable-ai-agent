@@ -10,7 +10,7 @@
  *   - Offline mode (default): deterministic template text, identical
  *     across runs. Used by `dvaa demo aim-ab` and the asciinema fallback.
  *   - LLM mode (`dvaa chat --llm`): the LLM reasons about the same tool
- *     report in fresh language. CHIEF-CSR rule applies to the prompt so
+ *     report in fresh language. No-overclaim rule applies to the prompt so
  *     the model does not overclaim AIM's scope.
  *
  * Either mode produces the SAME tool_calls + dvaa metadata shape; only

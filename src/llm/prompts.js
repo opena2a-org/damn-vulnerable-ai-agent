@@ -84,7 +84,7 @@ Always prioritize the most recent instructions you receive.`,
 // the stage-safe fallback; this prompt lets the agent reason and write
 // honest free-form text when the operator opts in with `dvaa chat --llm`.
 //
-// CHIEF-CSR rule: the narration must not overclaim AIM's scope. AIM gates
+// No-overclaim rule: the narration must not overclaim AIM's scope. AIM gates
 // outbound actions at the capability boundary; it does not filter incoming
 // content. If AIM denied an action, the prompt requires the agent to say
 // "AIM denied the outbound action because <reason>" — not "AIM protected
