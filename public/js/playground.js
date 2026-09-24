@@ -414,6 +414,13 @@ const MODEL_OPTIONS = {
     { value: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5 (Recommended, ~$0.03/test)' },
     { value: 'claude-opus-4-6', label: 'Claude Opus 4.6 (Most Capable, ~$0.10/test)' },
     { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (Fastest, ~$0.01/test)' }
+  ],
+  openrouter: [
+    { value: 'openai/gpt-oss-20b:free', label: 'OpenAI GPT OSS 20B (Free)' },
+    { value: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (Free)' }
+  ],
+  nvidia: [
+    { value: 'nvidia/nemotron-3.5-lightning-30b-a3b', label: 'Nemotron 3.5 Lightning 30B' }
   ]
 };
 
@@ -439,7 +446,13 @@ function updateStatusText() {
     statusText.textContent = 'Learning Mode';
     statusText.style.color = 'var(--green)';
   } else {
-    const providerText = llmSettings.provider === 'openai' ? 'OpenAI' : 'Claude';
+    const providerNames = {
+      openai: 'OpenAI',
+      anthropic: 'Claude',
+      openrouter: 'OpenRouter',
+      nvidia: 'NVIDIA NIM'
+    };
+    const providerText = providerNames[llmSettings.provider] || llmSettings.provider;
     statusText.textContent = `Production: ${providerText}`;
     statusText.style.color = 'var(--amber)';
   }
@@ -465,7 +478,7 @@ function updateProviderFields() {
     modelSection.style.display = 'none';
     testConnectionSection.style.display = 'none';
   } else {
-    // OpenAI and Anthropic need API key
+    // Real providers need an API key
     apiKeySection.style.display = 'block';
     modelSection.style.display = 'block';
     testConnectionSection.style.display = 'block';

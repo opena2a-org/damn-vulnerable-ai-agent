@@ -21,6 +21,8 @@ export function renderSettings(state) {
   const providerSelect = el('select', { className: 'settings-input', id: 'llm-provider' });
   providerSelect.appendChild(el('option', { value: 'openai' }, 'OpenAI'));
   providerSelect.appendChild(el('option', { value: 'anthropic' }, 'Anthropic'));
+  providerSelect.appendChild(el('option', { value: 'openrouter' }, 'OpenRouter'));
+  providerSelect.appendChild(el('option', { value: 'nvidia' }, 'NVIDIA NIM'));
   providerRow.appendChild(providerSelect);
   llmSection.appendChild(providerRow);
 
@@ -30,7 +32,7 @@ export function renderSettings(state) {
   const keyInput = el('input', {
     className: 'settings-input',
     type: 'password',
-    placeholder: 'sk-... or sk-ant-...',
+    placeholder: 'Provider API key',
     id: 'llm-key',
   });
   keyRow.appendChild(keyInput);
@@ -93,7 +95,10 @@ export function renderSettings(state) {
         body: JSON.stringify({ provider, apiKey, model }),
       });
       const data = await resp.json();
-      statusEl.textContent = `Active: ${data.provider} (${data.model})`;
+      if (!resp.ok || data.error) {
+        throw new Error(data.error || 'Connection failed');
+      }
+      statusEl.textContent = `Connected: ${data.provider} (${data.model})`;
       statusEl.className = 'settings-status active';
       keyInput.value = '';  // Clear from DOM for security
     } catch (err) {

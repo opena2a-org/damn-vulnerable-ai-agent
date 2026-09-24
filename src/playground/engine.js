@@ -510,7 +510,7 @@ export class PlaygroundEngine {
   }
 
   /**
-   * Create real LLM client (OpenAI or Anthropic)
+  * Create real LLM client
    */
   createRealLLM(provider, apiKey, model) {
     if (!apiKey) {
@@ -523,6 +523,10 @@ export class PlaygroundEngine {
         return new OpenAIClient(apiKey, model);
       case 'anthropic':
         return new AnthropicClient(apiKey, model);
+      case 'openrouter':
+        return new OpenAICompatibleClient(apiKey, model || 'openai/gpt-oss-20b:free', 'https://openrouter.ai/api/v1', 'OpenRouter');
+      case 'nvidia':
+        return new OpenAICompatibleClient(apiKey, model || 'nvidia/nemotron-3.5-lightning-30b-a3b', 'https://integrate.api.nvidia.com/v1', 'NVIDIA NIM');
       default:
         console.warn(`Unknown provider: ${provider}, using simulator`);
         return this.simulator;
@@ -555,6 +559,36 @@ class OpenAIClient {
     } catch (error) {
       console.error('OpenAI API error:', error.message);
       throw new Error('OpenAI API call failed');
+    }
+  }
+}
+
+class OpenAICompatibleClient {
+  constructor(apiKey, model, baseURL, providerName) {
+    this.client = new OpenAI({ apiKey, baseURL, defaultHeaders: providerName === 'OpenRouter' ? {
+      'HTTP-Referer': 'https://github.com/opena2a-org/damn-vulnerable-ai-agent',
+      'X-Title': 'Damn Vulnerable AI Agent'
+    } : undefined });
+    this.model = model;
+    this.providerName = providerName;
+  }
+
+  async generate({ systemPrompt, userMessage }) {
+    try {
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
+        temperature: 0.7,
+        max_tokens: 500
+      });
+
+      return response.choices[0]?.message?.content || '';
+    } catch (error) {
+      console.error(`${this.providerName} API error:`, error.message);
+      throw new Error(`${this.providerName} API call failed`);
     }
   }
 }
