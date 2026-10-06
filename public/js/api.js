@@ -4,19 +4,37 @@
 
 const BASE = '';
 
+/**
+ * Error for a non-2xx response. Its message is the server's own `error` text
+ * when it sent one (for example the missing-HMA hint), so a view can show it
+ * as is. `status` carries the HTTP status.
+ */
+async function responseError(method, path, res) {
+  let serverMessage = '';
+  try {
+    const data = await res.json();
+    if (data && typeof data.error === 'string') serverMessage = data.error;
+  } catch { /* body was not JSON */ }
+  const err = new Error(serverMessage || `${method} ${path}: ${res.status}`);
+  err.status = res.status;
+  return err;
+}
+
 async function get(path) {
   const res = await fetch(`${BASE}${path}`);
-  if (!res.ok) throw new Error(`GET ${path}: ${res.status}`);
+  if (!res.ok) throw await responseError('GET', path, res);
   return res.json();
 }
 
+// Declares a JSON body: the server answers 415 to a state-changing request
+// with any other content type.
 async function post(path, body = {}) {
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`POST ${path}: ${res.status}`);
+  if (!res.ok) throw await responseError('POST', path, res);
   return res.json();
 }
 
@@ -44,6 +62,12 @@ export function verifyChallenge(challengeId, response) {
   return post(`/api/challenges/${encodeURIComponent(challengeId)}/verify`, { response });
 }
 
+// Clears the attack log only; challenge progress and scores stay.
+export function clearAttackLog() {
+  return post('/api/attack-log/clear');
+}
+
+// Full reset: attack log, stats, challenge progress and the scores file.
 export function resetAll() {
   return post('/api/reset');
 }

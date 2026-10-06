@@ -5,6 +5,11 @@
 import { el, CATEGORY_LABELS, formatNumber, successRate, formatUptime } from '../utils.js';
 import { statCard } from '../components.js';
 
+// Per-agent sort. Module scope, because the poll re-renders this view every
+// 2 s and a sort chosen by the learner must survive that.
+let sortCol = 'requests';
+let sortAsc = false;
+
 /**
  * Render the stats overview
  */
@@ -85,8 +90,6 @@ export function renderStats(state) {
     const headRow = el('tr');
     const columns = ['Agent', 'Requests', 'Attacks', 'Successful', 'Rate'];
     const sortKeys = ['name', 'requests', 'attacks', 'successful', 'rate'];
-    let sortCol = 'requests';
-    let sortAsc = false;
 
     for (let i = 0; i < columns.length; i++) {
       const th = el('th', {}, columns[i]);
