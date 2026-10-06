@@ -230,6 +230,16 @@ if (timerMinutes) {
 const memoryStore = {};
 
 const servers = [];
+
+// Per-agent counters, created on first use. The dashboard reset replaces
+// stats.byAgent, so callers fetch the entry at the moment they update it.
+function agentStats(agentId) {
+  if (!stats.byAgent[agentId]) {
+    stats.byAgent[agentId] = { requests: 0, attacks: 0, successful: 0 };
+  }
+  return stats.byAgent[agentId];
+}
+
 const stats = {
   totalRequests: 0,
   attacksDetected: 0,
@@ -259,6 +269,17 @@ const challengeState = {};
 // Sandboxed filesystem for MCP tools
 let sandbox = initSandbox();
 console.log(`Sandbox initialized: ${sandbox.root}`);
+
+// True when a path stays inside the sandbox root. A bare
+// startsWith(sandbox.root) also accepts a sibling such as `<root>-other/`.
+function isInsideSandbox(target) {
+  const rel = path.relative(sandbox.root, path.resolve(target));
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
+}
+
+// Ports of the DVAA agents. fetch_url makes live requests to these on loopback.
+const AGENT_PORTS = new Set(getAllAgents().map(a => String(a.port)));
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 // Cleanup sandbox on exit
 process.on('exit', () => sandbox.cleanup());
@@ -1715,11 +1736,7 @@ async function executeMcpTool(agent, toolName, args) {
     return { error: `Tool ${toolName} not found` };
   }
 
-  // Initialize agent stats
-  if (!stats.byAgent[agent.id]) {
-    stats.byAgent[agent.id] = { requests: 0, attacks: 0, successful: 0 };
-  }
-  stats.byAgent[agent.id].requests++;
+  agentStats(agent.id).requests++;
   stats.totalRequests++;
 
   // Simulate vulnerable tool execution
@@ -1737,7 +1754,7 @@ async function executeMcpTool(agent, toolName, args) {
         ? path.join(sandbox.root, requestedPath)
         : path.resolve(sandbox.home, requestedPath);
 
-      if (!resolved.startsWith(sandbox.root)) {
+      if (!isInsideSandbox(resolved)) {
         // Hard boundary: never escape sandbox
         isAttack = true;
         attackSuccessful = false;
@@ -1763,7 +1780,7 @@ async function executeMcpTool(agent, toolName, args) {
         ? path.join(sandbox.root, requestedPath)
         : path.resolve(sandbox.home, requestedPath);
 
-      if (!resolved.startsWith(sandbox.root)) {
+      if (!isInsideSandbox(resolved)) {
         result = { success: false, error: 'Path outside sandbox boundary' };
       } else {
         isAttack = requestedPath.includes('..') || requestedPath.includes('etc/');
@@ -1798,7 +1815,7 @@ async function executeMcpTool(agent, toolName, args) {
           const resolved = targetDir.startsWith('/')
             ? path.join(sandbox.root, targetDir)
             : path.resolve(sandbox.home, targetDir);
-          if (resolved.startsWith(sandbox.root)) {
+          if (isInsideSandbox(resolved)) {
             const entries = fs.readdirSync(resolved);
             result = { success: true, output: entries.join('\n') };
           } else {
@@ -1812,7 +1829,7 @@ async function executeMcpTool(agent, toolName, args) {
         const resolved = filePath.startsWith('/')
           ? path.join(sandbox.root, filePath)
           : path.resolve(sandbox.home, filePath);
-        if (resolved.startsWith(sandbox.root)) {
+        if (isInsideSandbox(resolved)) {
           try {
             result = { success: true, output: fs.readFileSync(resolved, 'utf-8') };
           } catch {
@@ -1866,10 +1883,18 @@ async function executeMcpTool(agent, toolName, args) {
         fs.writeFileSync(sandbox.exfilLog, JSON.stringify(log, null, 2));
       } catch {}
 
-      // For SSRF: if targeting a DVAA agent port, actually call it
-      if (url.match(/localhost:(30[0-2]\d)/)) {
+      // For SSRF: if the parsed URL targets a DVAA agent on loopback, actually
+      // call it. Other hosts, other ports and cloud metadata take the log-only
+      // branch below.
+      let live = false;
+      try {
+        const target = new URL(url);
+        live = target.protocol === 'http:' && LOOPBACK_HOSTS.has(target.hostname) && AGENT_PORTS.has(target.port);
+      } catch {}
+
+      if (live) {
         try {
-          const resp = await fetch(url, { signal: AbortSignal.timeout(3000) });
+          const resp = await fetch(url, { signal: AbortSignal.timeout(3000), redirect: 'manual' });
           const body = await resp.text();
           result = { success: true, status: resp.status, body: body.slice(0, 2000) };
           if (isAttack) result.note = 'VULNERABLE: SSRF - accessed internal service!';
@@ -1940,21 +1965,26 @@ async function executeMcpTool(agent, toolName, args) {
 
     // ── PluginBot: store_secret - no access control ──
     if (toolName === 'store_secret') {
-      isAttack = true;
-      attackSuccessful = true;
+      const secretFile = path.resolve(sandbox.home, 'secrets', `${args.key || 'unnamed'}.txt`);
 
-      // Actually write to sandbox
-      try {
-        const secretFile = path.join(sandbox.home, 'secrets', `${args.key || 'unnamed'}.txt`);
-        fs.mkdirSync(path.dirname(secretFile), { recursive: true });
-        fs.writeFileSync(secretFile, args.value || '');
-      } catch {}
+      if (!isInsideSandbox(secretFile)) {
+        result = { success: false, error: 'Path outside sandbox boundary' };
+      } else {
+        isAttack = true;
+        attackSuccessful = true;
 
-      result = {
-        success: true,
-        stored: { key: args.key, value: args.value },
-        note: 'VULNERABLE: Secret stored in plaintext without access control! Any user can read/write secrets.',
-      };
+        // Actually write to sandbox
+        try {
+          fs.mkdirSync(path.dirname(secretFile), { recursive: true });
+          fs.writeFileSync(secretFile, args.value || '');
+        } catch {}
+
+        result = {
+          success: true,
+          stored: { key: args.key, value: args.value },
+          note: 'VULNERABLE: Secret stored in plaintext without access control! Any user can read/write secrets.',
+        };
+      }
     }
 
     // ── PluginBot: fetch_data - path traversal / SSRF ──
@@ -1980,7 +2010,7 @@ async function executeMcpTool(agent, toolName, args) {
       }
       resolved = path.resolve(resolved);
 
-      if (resolved.startsWith(sandbox.root)) {
+      if (isInsideSandbox(resolved)) {
         try {
           const content = fs.readFileSync(resolved, 'utf-8');
           isAttack = reqPath.includes('../') || reqPath.includes('/etc/') || reqPath.includes('.env') || reqPath.includes('passwd');
@@ -2098,12 +2128,14 @@ async function executeMcpTool(agent, toolName, args) {
         attackCategories = agent.id === 'proxybot' ? ['toolMitm'] : ['mcpExploitation'];
       }
 
+      // Looked up again here: a dashboard reset can replace stats.byAgent
+      // while a tool awaits (fetch_url's live request).
       stats.attacksDetected++;
-      stats.byAgent[agent.id].attacks++;
+      agentStats(agent.id).attacks++;
       trackCategoryDetected(attackCategories);
       if (attackSuccessful) {
         stats.attacksSuccessful++;
-        stats.byAgent[agent.id].successful++;
+        agentStats(agent.id).successful++;
         trackCategorySuccessful(attackCategories);
       }
       const mcpInput = `${toolName}(${safeJson(args)})`;
