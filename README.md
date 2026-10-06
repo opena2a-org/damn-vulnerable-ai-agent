@@ -54,6 +54,8 @@ The dashboard groups the fleet by protocol, with each agent's security level and
 | Orchestrator | 7020 | Standard | A2A delegation abuse |
 | Worker | 7021 | Weak | A2A command execution |
 
+The Security column is a label. Which attacks an agent falls for comes from its own definition in `src/core/agents.js`. In the default simulated mode, two levels also change how an agent answers chat: a Hardened agent answers a detected attack with a block message or a generic reply, and a Critical agent complies with it.
+
 ## Attack Categories
 
 Based on [OASB-1](https://oasb.ai) (Open Agent Security Benchmark):
@@ -67,7 +69,7 @@ Based on [OASB-1](https://oasb.ai) (Open Agent Security Benchmark):
 | Context Manipulation | Poison conversation memory |
 | MCP Exploitation | Abuse MCP tool interfaces (path traversal, SSRF) |
 | A2A Attacks | Multi-agent trust exploitation |
-| Supply Chain | Malicious component injection |
+| Supply Chain | Remote installers piped to a shell, packages from a named registry, unverified or unsigned components |
 | Memory Injection | Inject persistent instructions into agent memory |
 | Context Overflow | Displace safety instructions via context padding |
 | Tool Registry Poisoning | Manipulate tool discovery and registration |
