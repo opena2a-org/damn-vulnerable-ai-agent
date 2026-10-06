@@ -14,6 +14,18 @@ function normalize(name) {
 }
 
 /**
+ * Find an agent by the name `dvaa agents` shows ("VisionBot", "RAGBot-AIM") or
+ * by its id ("multimodal", "ragbot-aim"). Case, spaces, "-" and "_" are
+ * ignored. `attack`, `chat` and `selftest --agents` resolve agents here, so
+ * they accept the names `dvaa agents` lists. Returns the agent record or null.
+ */
+export function findAgent(input) {
+  const wanted = normalize(input);
+  if (!wanted) return null;
+  return getAllAgents().find(a => normalize(a.name) === wanted || normalize(a.id) === wanted) || null;
+}
+
+/**
  * Resolve an agent name OR URL to { name, port, protocol, url }.
  * URLs pass through untouched (useful for scanning external targets).
  */
@@ -22,8 +34,7 @@ export function resolveTarget(input) {
   if (/^https?:\/\//i.test(input)) {
     return { name: null, port: null, protocol: 'url', url: input };
   }
-  const wanted = normalize(input);
-  const match = getAllAgents().find(a => normalize(a.name) === wanted || normalize(a.id) === wanted);
+  const match = findAgent(input);
   if (!match) return null;
   return {
     name: match.name,

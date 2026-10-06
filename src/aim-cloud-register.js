@@ -10,6 +10,9 @@
  * docs/demo/setup-aim-local.sh (which registers against a local backend):
  *   GET  /api/v1/agents            (Bearer JWT)  -> find existing by name
  *   POST /api/v1/agents            (Bearer JWT)  -> { name, publicKey, capabilities } -> { id }
+ *   PUT  /api/v1/agents/:id/keys   (Bearer JWT)  -> { publicKey } -> { publicKey }
+ *        (the SDK's own key-registration route; used when an existing
+ *        registration holds a different key than this install)
  *
  * Everything here is best-effort and OFFLINE-SAFE by omission: if the user is
  * not logged in or the backend is unreachable, the caller falls back to the
@@ -147,29 +150,73 @@ function saveCache(file, obj) {
 }
 
 /**
+ * Drop a cached agent pairing, e.g. after the server rejected an event signed
+ * with the cached key, so the next run asks the server again.
+ */
+export function forgetCachedAgent(cacheFile) {
+  if (!cacheFile) return;
+  try { fs.rmSync(cacheFile, { force: true }); } catch { /* nothing cached */ }
+}
+
+const UNAUTHORIZED = { error: 'unauthorized', detail: 'login token rejected or expired - run: aim-sdk login' };
+
+function describeFailure(res) {
+  const body = res.body;
+  const text = typeof body === 'string' ? body : (body?.error || body?.message || '');
+  return `${res.error || 'request_failed'}${text ? `: ${text}` : ''}`;
+}
+
+/**
  * Register DVAA's RAGBot-AIM against the user's account (or load the existing
  * registration by name). Returns { agentId } or { error, detail }.
  *
  * Registers with DVAA's OWN publicKey so the verification signatures (signed
- * by DVAA's matching private key) validate server-side.
+ * by DVAA's matching private key) validate server-side. An existing
+ * registration is used only when it holds that same key; when it holds a
+ * different one (the local identity was regenerated), its key is updated to
+ * this install's. The cache records only pairings the server has confirmed.
  */
 export async function registerOrLoadAgent({ apiBase, jwt, publicKey, name = AGENT_NAME, capabilities = CAPABILITIES, cacheFile }) {
   if (cacheFile) {
     try {
       const c = JSON.parse(fs.readFileSync(cacheFile, 'utf-8'));
-      if (c.agentId && c.publicKey === publicKey && c.apiBase === apiBase) {
+      // Entries written before pairings were checked lack `confirmed`; ask the
+      // server again rather than trust one of those.
+      if (c.confirmed === true && c.agentId && c.publicKey === publicKey && c.apiBase === apiBase) {
         return { agentId: c.agentId, cached: true };
       }
     } catch { /* no cache yet */ }
   }
 
   const list = await jsonRequest({ method: 'GET', url: `${apiBase}/api/v1/agents`, jwt });
-  if (list.status === 401) return { error: 'unauthorized', detail: 'login token rejected or expired - run: aim-sdk login' };
+  if (list.status === 401) return UNAUTHORIZED;
   if (list.ok) {
     const found = asAgentArray(list.body).find((a) => a && a.name === name);
     if (found && found.id) {
-      saveCache(cacheFile, { agentId: found.id, publicKey, apiBase });
-      return { agentId: found.id, existing: true };
+      if (found.publicKey === publicKey) {
+        saveCache(cacheFile, { agentId: found.id, publicKey, apiBase, confirmed: true });
+        return { agentId: found.id, existing: true };
+      }
+      // Same name, different key: every event signed with the local key would
+      // be rejected with 401 "Public key mismatch". Move the registration to
+      // this install's key, and cache it only once the server echoes it back.
+      const upd = await jsonRequest({
+        method: 'PUT',
+        url: `${apiBase}/api/v1/agents/${encodeURIComponent(found.id)}/keys`,
+        jwt,
+        body: { publicKey },
+      });
+      if (upd.status === 401) return UNAUTHORIZED;
+      if (upd.ok && upd.body?.publicKey === publicKey) {
+        saveCache(cacheFile, { agentId: found.id, publicKey, apiBase, confirmed: true });
+        return { agentId: found.id, existing: true, keyUpdated: true };
+      }
+      return {
+        error: 'key_mismatch',
+        detail: `${name} (${found.id}) is registered with a different public key, and updating it to this install's key failed (${describeFailure(upd)}). ` +
+          'Delete that agent in the AIM dashboard and re-run with --cloud to register it again.',
+        status: upd.status,
+      };
     }
   }
 
@@ -189,10 +236,20 @@ export async function registerOrLoadAgent({ apiBase, jwt, publicKey, name = AGEN
       capabilities,
     },
   });
-  if (reg.status === 401) return { error: 'unauthorized', detail: 'login token rejected or expired - run: aim-sdk login' };
+  if (reg.status === 401) return UNAUTHORIZED;
   const id = reg.body?.id || reg.body?.agentId;
   if (reg.ok && id) {
-    saveCache(cacheFile, { agentId: id, publicKey, apiBase });
+    // The backend stores the key it was given. If its answer names a
+    // different one, nothing signed locally would verify: do not cache that.
+    const echoed = reg.body?.publicKey;
+    if (echoed != null && echoed !== publicKey) {
+      return {
+        error: 'key_mismatch',
+        detail: `the backend registered ${name} (${id}) with a different public key than this install's; events signed locally would be rejected.`,
+        status: reg.status,
+      };
+    }
+    saveCache(cacheFile, { agentId: id, publicKey, apiBase, confirmed: true });
     return { agentId: id, registered: true };
   }
   return {

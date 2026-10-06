@@ -18,7 +18,8 @@ import { createDashboardServer } from './dashboard/server.js';
 import { initSandbox } from './sandbox/init.js';
 import { callLLM, isLLMEnabled, configureLLM, disableLLM, getLLMConfig } from './llm/provider.js';
 import { renderResearchNarration } from './llm/research-narration.js';
-import { isSubcommand, dispatch, listCommands } from './cli/router.js';
+import { dispatch, listCommands } from './cli/router.js';
+import { planInvocation, renderRootHelp } from './cli/entry.js';
 import { detectUrlExfiltrationInjection } from './payloads/agentpwn-mirror.js';
 import {
   AGENT_INSTRUCTION_FILENAME,
@@ -62,144 +63,71 @@ const PKG_VERSION = (() => {
 // init() loads opt-out config + persists install_id; never throws.
 await tele.init({ tool: 'dvaa', version: PKG_VERSION });
 
-// Parse command line args
+// Parse command line args. planInvocation() (src/cli/entry.js) decides what
+// this invocation does before anything binds a port:
+//   - a subcommand (agents, health, attack, ...) owns the process and exits;
+//     it may follow a leading --offline (`dvaa --offline agents`);
+//   - selftest (and its deprecated alias browse) runs src/browse.js;
+//   - an unknown command, unknown flag, or stray word is refused, instead of
+//     silently starting the server;
+//   - otherwise --help, --version, or the server fleet.
 const args = process.argv.slice(2);
+const plan = planInvocation(args);
 
-// Subcommand dispatch: if argv[0] is a known subcommand (agents, health,
-// attack, logs, scan, benchmark, hma), the command owns the process and
-// exits. "browse" is handled below for backward compatibility with the
-// legacy inline implementation.
-//
-// If argv[0] is a non-flag positional that ISN'T a known subcommand (e.g.
-// "dvaa helpr" or "dvaa screen"), reject up-front instead of silently
-// starting the server - server-start happens for flag-only or empty argv.
-if (args.length > 0 && !args[0].startsWith('-')) {
-  if (isSubcommand(args[0]) || args[0] === 'selftest' || args[0] === 'browse') {
-    if (isSubcommand(args[0])) {
-      await dispatch(args);
-      // dispatch() calls process.exit(); we never reach this line.
-    }
-    // selftest (and its deprecated alias browse) fall through to the handler below.
-  } else {
-    console.error(`Unknown command: ${args[0]}`);
-    console.error('Run: dvaa --help');
-    process.exit(1);
-  }
+if (plan.kind === 'command') {
+  await dispatch(plan.argv);
+  // dispatch() calls process.exit(); we never reach this line.
+}
+
+if (plan.kind === 'error') {
+  console.error(plan.message);
+  console.error(plan.hint);
+  process.exit(1);
 }
 
 // Handle selftest command (and its deprecated alias `browse`) - spawn with argv
 // (not a shell template literal) so arguments cannot be shell-interpreted.
 // Template-literal exec was CVE-class command injection: a user running
-// `dvaa selftest "; rm -rf ~"` would execute it.
-//
-// Runs BEFORE the global --help check below so `dvaa selftest --help` reaches
-// browse.js's own help text instead of falling back to the root help.
-if (args[0] === 'selftest' || args[0] === 'browse') {
-  if (args[0] === 'browse') {
+// `dvaa selftest "; rm -rf ~"` would execute it. The child runs on
+// process.execPath, the Node running this CLI, so it works when `node` is not
+// on PATH (nvm shims, a packaged runtime) and never picks up a different one.
+if (plan.kind === 'selftest') {
+  if (plan.alias) {
     console.error('Note: `dvaa browse` is now `dvaa selftest`. It runs against LOCAL DVAA agents, not a target URL.');
   }
   const { spawnSync } = await import('child_process');
-  const { dirname, join } = await import('path');
-  const { fileURLToPath } = await import('url');
-  const __dirname = dirname(fileURLToPath(import.meta.url));
-  const result = spawnSync('node', [join(__dirname, 'browse.js'), ...args.slice(1)], {
+  const result = spawnSync(process.execPath, [path.join(__dirname, 'browse.js'), ...plan.argv], {
     stdio: 'inherit',
     shell: false,
   });
+  if (result.error) {
+    console.error(`Could not run selftest with ${process.execPath}: ${result.error.message}`);
+    process.exit(1);
+  }
   process.exit(result.status ?? 1);
 }
 
-// Handle --help / -h
-if (args.includes('--help') || args.includes('-h')) {
-  const commands = listCommands();
-  const cmdLines = commands.map(c => `  ${c.name.padEnd(11)} ${c.summary}`);
-  console.log(`Usage: dvaa [options]
-       dvaa <command> [args]
-
-Server options (default mode - start DVAA dashboard + agent fleet):
-  --all          Start all agents (default)
-  --api          Start API agents only (ports 7001-7008)
-  --mcp          Start MCP servers only (ports 7010-7013)
-  --a2a          Start A2A agents only (ports 7020-7021)
-  --only <ids>   Start only these agents (comma-separated ids), no dashboard.
-                 Lets a scoped fleet run beside one that is already up.
-  --verbose, -v  Enable verbose logging
-  --offline      Airplane-mode: disable anonymous telemetry (no network calls)
-  --team <name>  Team mode (separate scoreboards per team)
-  --timer <min>  Workshop timer (countdown in dashboard)
-  --help, -h     Show this help
-  --version      Show version
-
-Commands:
-${cmdLines.join('\n')}
-
-Run any command with --help for command-specific options.
-
-Agents:
-  API (OpenAI-compatible)  SecureBot, HelperBot, LegacyBot, CodeBot, RAGBot, RAGBot-AIM, ResearchBot, ResearchBot-AIM, FlightBot, FlightBot-AIM, VisionBot, MemoryBot, LongwindBot
-  MCP (JSON-RPC 2.0)       ToolBot, DataBot, PluginBot, ProxyBot
-  A2A (Agent-to-Agent)     Orchestrator, Worker
-
-Dashboard:  http://localhost:9000
-Docs:       https://github.com/opena2a-org/damn-vulnerable-ai-agent`);
+// Handle --help / -h. Port ranges and the agent list come from the registry.
+if (plan.kind === 'help') {
+  console.log(renderRootHelp(listCommands()));
   process.exit(0);
 }
 
 // Handle --version - uses the shared versionLine helper so the telemetry
 // disclosure line is consistent across every opena2a-org CLI.
-if (args.includes('--version')) {
+if (plan.kind === 'version') {
   console.log(versionLine({ tool: 'dvaa', version: PKG_VERSION, telemetry: tele.status() }));
   process.exit(0);
 }
 
-// Parse --team and --timer (flags that consume the next argument)
-const teamIdx = args.indexOf('--team');
-const teamName = teamIdx >= 0 && args[teamIdx + 1] ? args[teamIdx + 1] : null;
-const timerIdx = args.indexOf('--timer');
-const timerMinutes = timerIdx >= 0 && args[timerIdx + 1] ? parseInt(args[timerIdx + 1]) : null;
-
-// --only <id,id>: start ONLY the named agents, and no dashboard.
+// Server mode. --team/--timer consume the next argument; --only <id,id>
+// starts ONLY the named agents and no dashboard, which is what lets a demo
+// runner's scoped fleet run next to whatever already holds the other ports.
 //
-// This is what makes a demo's "it manages its own fleet" claim actually true.
-// Without it a demo runner spawns the whole fleet, which binds ports 7001-7021
-// and 9000; anything already holding ONE of those - a developer fleet, the
-// docker-compose fleet, an unrelated service on 9000 - kills the spawned
-// process on startup, and the runner can only report "the agents did not come
-// up within the timeout". A scoped fleet touches exactly the two ports the
-// scenario needs, so the demo runs next to whatever else is on the machine.
-const onlyIdx = args.indexOf('--only');
-const onlyIds = onlyIdx >= 0 && args[onlyIdx + 1]
-  ? args[onlyIdx + 1].split(',').map(s => s.trim()).filter(Boolean)
-  : null;
-
-// Filter flags - only consider known boolean flags and value-consuming flags
-const knownFlags = ['--all', '--api', '--mcp', '--a2a', '--verbose', '-v', '--team', '--timer', '--offline', '--only', 'selftest', 'browse'];
-// Build set of indices that are flag values (consumed by --team/--timer/--only)
-const consumedIndices = new Set();
-if (teamIdx >= 0 && args[teamIdx + 1]) consumedIndices.add(teamIdx + 1);
-if (timerIdx >= 0 && args[timerIdx + 1]) consumedIndices.add(timerIdx + 1);
-if (onlyIdx >= 0 && args[onlyIdx + 1]) consumedIndices.add(onlyIdx + 1);
-
-const unknownFlags = args.filter((a, i) => a.startsWith('-') && !knownFlags.includes(a) && !consumedIndices.has(i));
-if (unknownFlags.length > 0) {
-  console.error(`Unknown flag: ${unknownFlags[0]}`);
-  console.error('Run: dvaa --help');
-  process.exit(1);
-}
-
-// Non-protocol flags should not prevent starting all agents
-const nonProtocolFlags = ['--verbose', '-v', '--team', '--timer', '--offline', '--only'];
-const protocolFlags = args.filter((a, i) => a.startsWith('-') && !consumedIndices.has(i) && !nonProtocolFlags.includes(a));
-const startAll = args.includes('--all') || protocolFlags.length === 0;
-const startApi = args.includes('--api') || startAll;
-const startMcp = args.includes('--mcp') || startAll;
-const startA2a = args.includes('--a2a') || startAll;
-const verbose = args.includes('--verbose') || args.includes('-v');
-
 // --offline: stage/airplane-mode switch. The telemetry opt-out it implies is
 // applied BEFORE tele.init() above (init snapshots the config once); this flag
 // is read here only to print the confirmation banner at startup.
-const offline = args.includes('--offline');
+const { teamName, timerMinutes, onlyIds, startApi, startMcp, startA2a, verbose, offline } = plan;
 
 console.log(`
 ╔══════════════════════════════════════════════════════════════╗
@@ -270,6 +198,17 @@ const challengeState = {};
 // Sandboxed filesystem for MCP tools
 let sandbox = initSandbox();
 console.log(`Sandbox initialized: ${sandbox.root}`);
+
+// True when a path stays inside the sandbox root. A bare
+// startsWith(sandbox.root) also accepts a sibling such as `<root>-other/`.
+function isInsideSandbox(target) {
+  const rel = path.relative(sandbox.root, path.resolve(target));
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
+}
+
+// Ports of the DVAA agents. fetch_url makes live requests to these on loopback.
+const AGENT_PORTS = new Set(getAllAgents().map(a => String(a.port)));
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 // Cleanup sandbox on exit
 process.on('exit', () => sandbox.cleanup());
@@ -1983,11 +1922,7 @@ async function executeMcpTool(agent, toolName, args) {
     return { error: `Tool ${toolName} not found` };
   }
 
-  // Initialize agent stats
-  if (!stats.byAgent[agent.id]) {
-    stats.byAgent[agent.id] = { requests: 0, attacks: 0, successful: 0 };
-  }
-  stats.byAgent[agent.id].requests++;
+  agentStats(agent.id).requests++;
   stats.totalRequests++;
 
   // Simulate vulnerable tool execution
@@ -2005,7 +1940,7 @@ async function executeMcpTool(agent, toolName, args) {
         ? path.join(sandbox.root, requestedPath)
         : path.resolve(sandbox.home, requestedPath);
 
-      if (!resolved.startsWith(sandbox.root)) {
+      if (!isInsideSandbox(resolved)) {
         // Hard boundary: never escape sandbox
         isAttack = true;
         attackSuccessful = false;
@@ -2031,7 +1966,7 @@ async function executeMcpTool(agent, toolName, args) {
         ? path.join(sandbox.root, requestedPath)
         : path.resolve(sandbox.home, requestedPath);
 
-      if (!resolved.startsWith(sandbox.root)) {
+      if (!isInsideSandbox(resolved)) {
         result = { success: false, error: 'Path outside sandbox boundary' };
       } else {
         isAttack = requestedPath.includes('..') || requestedPath.includes('etc/');
@@ -2066,7 +2001,7 @@ async function executeMcpTool(agent, toolName, args) {
           const resolved = targetDir.startsWith('/')
             ? path.join(sandbox.root, targetDir)
             : path.resolve(sandbox.home, targetDir);
-          if (resolved.startsWith(sandbox.root)) {
+          if (isInsideSandbox(resolved)) {
             const entries = fs.readdirSync(resolved);
             result = { success: true, output: entries.join('\n') };
           } else {
@@ -2080,7 +2015,7 @@ async function executeMcpTool(agent, toolName, args) {
         const resolved = filePath.startsWith('/')
           ? path.join(sandbox.root, filePath)
           : path.resolve(sandbox.home, filePath);
-        if (resolved.startsWith(sandbox.root)) {
+        if (isInsideSandbox(resolved)) {
           try {
             result = { success: true, output: fs.readFileSync(resolved, 'utf-8') };
           } catch {
@@ -2134,10 +2069,18 @@ async function executeMcpTool(agent, toolName, args) {
         fs.writeFileSync(sandbox.exfilLog, JSON.stringify(log, null, 2));
       } catch {}
 
-      // For SSRF: if targeting a DVAA agent port, actually call it
-      if (url.match(/localhost:(30[0-2]\d)/)) {
+      // For SSRF: if the parsed URL targets a DVAA agent on loopback, actually
+      // call it. Other hosts, other ports and cloud metadata take the log-only
+      // branch below.
+      let live = false;
+      try {
+        const target = new URL(url);
+        live = target.protocol === 'http:' && LOOPBACK_HOSTS.has(target.hostname) && AGENT_PORTS.has(target.port);
+      } catch {}
+
+      if (live) {
         try {
-          const resp = await fetch(url, { signal: AbortSignal.timeout(3000) });
+          const resp = await fetch(url, { signal: AbortSignal.timeout(3000), redirect: 'manual' });
           const body = await resp.text();
           result = { success: true, status: resp.status, body: body.slice(0, 2000) };
           if (isAttack) result.note = 'VULNERABLE: SSRF - accessed internal service!';
@@ -2208,21 +2151,26 @@ async function executeMcpTool(agent, toolName, args) {
 
     // ── PluginBot: store_secret - no access control ──
     if (toolName === 'store_secret') {
-      isAttack = true;
-      attackSuccessful = true;
+      const secretFile = path.resolve(sandbox.home, 'secrets', `${args.key || 'unnamed'}.txt`);
 
-      // Actually write to sandbox
-      try {
-        const secretFile = path.join(sandbox.home, 'secrets', `${args.key || 'unnamed'}.txt`);
-        fs.mkdirSync(path.dirname(secretFile), { recursive: true });
-        fs.writeFileSync(secretFile, args.value || '');
-      } catch {}
+      if (!isInsideSandbox(secretFile)) {
+        result = { success: false, error: 'Path outside sandbox boundary' };
+      } else {
+        isAttack = true;
+        attackSuccessful = true;
 
-      result = {
-        success: true,
-        stored: { key: args.key, value: args.value },
-        note: 'VULNERABLE: Secret stored in plaintext without access control! Any user can read/write secrets.',
-      };
+        // Actually write to sandbox
+        try {
+          fs.mkdirSync(path.dirname(secretFile), { recursive: true });
+          fs.writeFileSync(secretFile, args.value || '');
+        } catch {}
+
+        result = {
+          success: true,
+          stored: { key: args.key, value: args.value },
+          note: 'VULNERABLE: Secret stored in plaintext without access control! Any user can read/write secrets.',
+        };
+      }
     }
 
     // ── PluginBot: fetch_data - path traversal / SSRF ──
@@ -2248,7 +2196,7 @@ async function executeMcpTool(agent, toolName, args) {
       }
       resolved = path.resolve(resolved);
 
-      if (resolved.startsWith(sandbox.root)) {
+      if (isInsideSandbox(resolved)) {
         try {
           const content = fs.readFileSync(resolved, 'utf-8');
           isAttack = reqPath.includes('../') || reqPath.includes('/etc/') || reqPath.includes('.env') || reqPath.includes('passwd');
@@ -2366,12 +2314,14 @@ async function executeMcpTool(agent, toolName, args) {
         attackCategories = agent.id === 'proxybot' ? ['toolMitm'] : ['mcpExploitation'];
       }
 
+      // Looked up again here: a dashboard reset can replace stats.byAgent
+      // while a tool awaits (fetch_url's live request).
       stats.attacksDetected++;
-      stats.byAgent[agent.id].attacks++;
+      agentStats(agent.id).attacks++;
       trackCategoryDetected(attackCategories);
       if (attackSuccessful) {
         stats.attacksSuccessful++;
-        stats.byAgent[agent.id].successful++;
+        agentStats(agent.id).successful++;
         trackCategorySuccessful(attackCategories);
       }
       const mcpInput = `${toolName}(${safeJson(args)})`;

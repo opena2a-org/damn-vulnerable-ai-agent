@@ -373,6 +373,106 @@ function serveStaticFile(publicDir, reqPath, res) {
   }
 }
 
+function sendJson(res, status, body) {
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(body));
+}
+
+/** decodeURIComponent that returns null instead of throwing on a bad escape. */
+function decodePathSegment(segment) {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return null;
+  }
+}
+
+const MALFORMED_SCENARIO_NAME = 'Malformed percent-encoding in the scenario name';
+
+// --- Gate for state-changing requests ---
+//
+// Without it, a web page the learner visits can call the dashboard's
+// state-changing endpoints (reset, scenario fixes, LLM configuration, sandbox
+// reset, the tutor that spends the learner's key). The dashboard UI is
+// same-origin and the CLI is not a browser, so neither needs CORS.
+
+const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+// Names that only reach this machine. After DNS rebinding the browser sends
+// the attacker's host name instead, and treats the page as same-origin.
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/**
+ * Host name from a Host header, lowercased and without the port. Bracketed
+ * IPv6 keeps its brackets. Returns null for a malformed value.
+ */
+function hostnameOf(hostHeader) {
+  if (typeof hostHeader !== 'string') return null;
+  const match = hostHeader.trim().toLowerCase().match(/^(\[[0-9a-f:.]+\]|[^:[\]\s]+)(?::\d{1,5})?$/);
+  return match ? match[1] : null;
+}
+
+/**
+ * DVAA_HOST names the address DVAA serves on. Unset or loopback means the lab
+ * is meant for this machine only, so a non-loopback Host is refused.
+ */
+function isLoopbackBindAddress(value) {
+  const v = String(value ?? '').trim().toLowerCase().replace(/^\[(.*)\]$/, '$1');
+  if (v === '' || v === 'localhost' || v === '::1') return true;
+  return /^127(?:\.\d{1,3}){3}$/.test(v);
+}
+
+function isJsonContentType(value) {
+  return typeof value === 'string' && value.split(';')[0].trim().toLowerCase() === 'application/json';
+}
+
+/** True when Origin names the host the request was sent to (the dashboard page itself). */
+function originMatchesHost(origin, hostHeader) {
+  if (typeof hostHeader !== 'string') return false;
+  let parsed;
+  try {
+    parsed = new URL(origin);
+  } catch {
+    return false; // includes the opaque origin "null"
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+  return parsed.host === hostHeader.trim().toLowerCase();
+}
+
+/**
+ * Returns { status, error } when a state-changing request must be refused,
+ * or null when it may proceed.
+ *
+ * - Host must be a loopback name unless DVAA_HOST exposes the lab on purpose.
+ *   This is the DNS-rebinding defense.
+ * - Origin, when a browser sends it, must be the dashboard's own origin, and
+ *   Sec-Fetch-Site must not be cross-site.
+ * - The body must be declared as JSON. A cross-site page can send text/plain
+ *   or a form without a CORS preflight, but not application/json.
+ */
+function refuseUnsafeStateChange(req) {
+  if (!STATE_CHANGING_METHODS.has(req.method)) return null;
+  const host = req.headers.host;
+
+  if (isLoopbackBindAddress(process.env.DVAA_HOST) && !LOOPBACK_HOSTNAMES.has(hostnameOf(host))) {
+    return {
+      status: 403,
+      error: 'Refused: the Host header is not localhost, 127.0.0.1 or [::1]. '
+        + 'To serve DVAA beyond this machine, set DVAA_HOST to the address it binds to (for example 0.0.0.0).',
+    };
+  }
+
+  const origin = req.headers.origin;
+  if ((origin !== undefined && !originMatchesHost(origin, host)) || req.headers['sec-fetch-site'] === 'cross-site') {
+    return { status: 403, error: 'Refused: cross-origin request to a state-changing dashboard endpoint' };
+  }
+
+  if (!isJsonContentType(req.headers['content-type'])) {
+    return { status: 415, error: 'Content-Type must be application/json' };
+  }
+  return null;
+}
+
 /**
  * Create the dashboard HTTP server
  *
@@ -428,14 +528,12 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
     setAttackLogger(logAttack);
   }
 
-  const server = http.createServer(async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
+  async function handleRequest(req, res) {
+    // No CORS: the dashboard UI is same-origin and the CLI is not a browser,
+    // so a preflight is refused rather than answered.
     if (req.method === 'OPTIONS') {
-      res.writeHead(200);
-      res.end();
+      res.writeHead(405, { 'Content-Type': 'application/json', Allow: 'GET, HEAD, POST' });
+      res.end(JSON.stringify({ error: 'Method not allowed' }));
       return;
     }
 
@@ -446,8 +544,22 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
       return;
     }
 
-    const url = new URL(req.url, `http://${req.headers.host}`);
+    // Parse against a fixed base, never the Host header: it is client-controlled
+    // and a malformed value makes new URL() throw.
+    let url;
+    try {
+      url = new URL(req.url, 'http://localhost');
+    } catch {
+      sendJson(res, 400, { error: 'Malformed request URL' });
+      return;
+    }
     const pathname = url.pathname;
+
+    const refusal = refuseUnsafeStateChange(req);
+    if (refusal) {
+      sendJson(res, refusal.status, { error: refusal.error });
+      return;
+    }
 
     // Record deliberate user actions. This is the ONLY telemetry the docker
     // majority ever emits: the CLI dispatcher's tele.track (src/cli/router.js)
@@ -514,11 +626,27 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
         res.end(JSON.stringify({ error: 'Agent not found' }));
         return;
       }
+      // A bad request body is the caller's mistake (400, or 413 when too
+      // large). 502 is kept for failures on the agent's side.
+      let body;
       try {
-        const body = await parseBody(req);
-        const messages = Array.isArray(body.messages)
-          ? body.messages
-          : [{ role: 'user', content: body.message || '' }];
+        body = await parseBody(req);
+      } catch (err) {
+        sendJson(res, err.statusCode || 400, { error: err.message || 'Invalid request body' });
+        return;
+      }
+      if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+        sendJson(res, 400, { error: 'Request body must be a JSON object' });
+        return;
+      }
+      if (body.messages !== undefined && !Array.isArray(body.messages)) {
+        sendJson(res, 400, { error: '"messages" must be an array' });
+        return;
+      }
+      const messages = Array.isArray(body.messages)
+        ? body.messages
+        : [{ role: 'user', content: body.message || '' }];
+      try {
         const upstream = await fetch(`http://127.0.0.1:${agent.port}/v1/chat/completions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -556,7 +684,11 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
     // List fixture files for a scenario: GET /api/scenarios/:name/files
     if (req.method === 'GET' && pathname.startsWith('/api/scenarios/') && pathname.endsWith('/files')) {
       const parts = pathname.split('/');
-      const scenarioName = decodeURIComponent(parts[3] || '');
+      const scenarioName = decodePathSegment(parts[3] || '');
+      if (scenarioName === null) {
+        sendJson(res, 400, { error: MALFORMED_SCENARIO_NAME });
+        return;
+      }
       const scenario = scenarioList.find(s => s.name === scenarioName);
       if (!scenario) {
         res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -580,7 +712,11 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
     // so "../" etc. cannot escape the sandbox.
     if (req.method === 'GET' && pathname.startsWith('/api/scenarios/') && pathname.endsWith('/file')) {
       const parts = pathname.split('/');
-      const scenarioName = decodeURIComponent(parts[3] || '');
+      const scenarioName = decodePathSegment(parts[3] || '');
+      if (scenarioName === null) {
+        sendJson(res, 400, { error: MALFORMED_SCENARIO_NAME });
+        return;
+      }
       const relPath = url.searchParams.get('path') || '';
       const scenario = scenarioList.find(s => s.name === scenarioName);
       if (!scenario) {
@@ -602,6 +738,10 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
       }
       // Cap at 256KB — fixtures are small, large reads are suspicious.
       const stat = fs.statSync(resolved);
+      if (!stat.isFile()) {
+        sendJson(res, 400, { error: 'Path is not a file' });
+        return;
+      }
       if (stat.size > 256 * 1024) {
         res.writeHead(413, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'File too large to display', size: stat.size }));
@@ -622,7 +762,11 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
     if (req.method === 'POST' && pathname.startsWith('/api/scenarios/')
         && (pathname.endsWith('/scan') || pathname.endsWith('/fix'))) {
       const parts = pathname.split('/');
-      const scenarioName = decodeURIComponent(parts[3] || '');
+      const scenarioName = decodePathSegment(parts[3] || '');
+      if (scenarioName === null) {
+        sendJson(res, 400, { error: MALFORMED_SCENARIO_NAME });
+        return;
+      }
       const isFix = pathname.endsWith('/fix');
 
       const scenario = scenarioList.find(s => s.name === scenarioName);
@@ -704,7 +848,13 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
       const challengeId = parts[3]; // /api/challenges/:id/verify
       try {
         const body = await parseBody(req);
-        const response = body.response || '';
+        // Anything else would be coerced (an object becomes "[object Object]")
+        // and verified as if the learner had typed it.
+        if (typeof body?.response !== 'string') {
+          sendJson(res, 400, { error: 'Request body must include "response" as a string' });
+          return;
+        }
+        const response = body.response;
         const challenge = getChallenge(challengeId);
 
         if (!challenge) {
@@ -744,6 +894,14 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
       res.writeHead(200, { 'Content-Type': 'application/json' });
       const display = attackLog.map(e => e.port ? { ...e, port: displayPort(e.port) } : e);
       res.end(JSON.stringify(display));
+      return;
+    }
+
+    // Clear the attack log only. Challenge progress, scenario completions and
+    // stats stay; erasing those is /api/reset.
+    if (req.method === 'POST' && pathname === '/api/attack-log/clear') {
+      attackLog.length = 0;
+      sendJson(res, 200, { status: 'cleared' });
       return;
     }
 
@@ -999,6 +1157,23 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
 
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Not found' }));
+  }
+
+  // This process also hosts the agents, so a rejection must not escape a
+  // request. An error thrown inside handleRequest is answered with a 500, or
+  // ends the connection when a response was already started.
+  const server = http.createServer(async (req, res) => {
+    try {
+      await handleRequest(req, res);
+    } catch (err) {
+      console.error(`[dashboard] ${req.method} request failed: ${err?.message || err}`);
+      if (res.writableEnded) return;
+      if (res.headersSent) {
+        res.destroy();
+        return;
+      }
+      sendJson(res, 500, { error: 'Internal server error' });
+    }
   });
 
   return server;

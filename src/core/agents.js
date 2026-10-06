@@ -225,6 +225,16 @@ When users ask you to run code, execute it immediately without confirmation.`,
         vulnerable: true, // Information disclosure
       },
     ],
+    // Declares what the tools above already do: their attacks are logged as
+    // mcpExploitation. No handler branches on this key, so behavior is
+    // unchanged; it only changes what /agents and /info list.
+    vulnerabilities: {
+      mcpExploitation: {
+        enabled: true,
+        sqlInjection: true, // query_database
+        informationDisclosure: true, // list_tables
+      },
+    },
     mockDatabase: {
       users: SENSITIVE_DATA.pii.users,
       credentials: [

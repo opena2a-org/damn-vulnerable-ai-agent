@@ -174,6 +174,9 @@ cat <<EOF
     cd $DVAA_ROOT
     node src/index.js --api
 
+  Only RAGBot-AIM is registered, so only its decisions are reported. The
+  other AIM agents print one "not reporting" notice each and stay local.
+
   Then run the demo (in a third terminal):
 
     cd $DVAA_ROOT

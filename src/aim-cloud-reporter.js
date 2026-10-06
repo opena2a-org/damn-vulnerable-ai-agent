@@ -9,11 +9,20 @@
  * Activation gates (ALL three required to enable cloud reporting):
  *   - process.env.AIM_SERVER_URL (e.g. https://api.aim.opena2a.org)
  *   - process.env.AIM_API_KEY (any aim_live_/aim_test_ key, used as X-API-Key)
- *   - process.env.DVAA_AIM_CLOUD_AGENT_ID (UUID returned by the dashboard
- *     when the agent was registered with this DVAA install's public key)
+ *   - at least one cloud agent id (UUID returned by the dashboard when an
+ *     agent was registered with this DVAA install's public key for it)
  *
  * Without all three, the reporter no-ops. The local audit log + capability
  * decision still happens regardless.
+ *
+ * Each AIM-enforced agent signs with its OWN key, so each reports under its
+ * OWN registration (see cloudAgentIdFor):
+ *   - DVAA_AIM_CLOUD_AGENT_ID_<ID>, e.g. DVAA_AIM_CLOUD_AGENT_ID_FLIGHTBOT_AIM
+ *     for flightbot-aim (the agent id upper-cased, "-" as "_");
+ *   - DVAA_AIM_CLOUD_AGENT_ID, the id docs/demo/setup-aim-local.sh prints,
+ *     is RAGBot-AIM's: that script registers only dvaa-ragbot-aim, so only
+ *     RAGBot-AIM reports unless the other agents get ids of their own.
+ * An agent with no id is skipped, with one notice on stderr.
  *
  * Contract matches the Python SDK at aim_sdk/client.py:504-620
  * (verify_capability). The signature payload uses 'action_type' (Python
@@ -29,12 +38,33 @@ import { URL } from 'url';
 
 const VERIFICATIONS_PATH = '/api/v1/sdk-api/verifications';
 
-export function cloudReporterEnabled() {
-  return Boolean(
-    process.env.AIM_SERVER_URL &&
-    process.env.AIM_API_KEY &&
-    process.env.DVAA_AIM_CLOUD_AGENT_ID,
-  );
+// The agent the setup script registers, and so the one the legacy single
+// DVAA_AIM_CLOUD_AGENT_ID belongs to.
+const LEGACY_CLOUD_AGENT = 'ragbot-aim';
+const PER_AGENT_PREFIX = 'DVAA_AIM_CLOUD_AGENT_ID_';
+
+/** The per-agent variable name for an agent id: flightbot-aim -> DVAA_AIM_CLOUD_AGENT_ID_FLIGHTBOT_AIM. */
+export function cloudAgentIdVar(agentId) {
+  return PER_AGENT_PREFIX + String(agentId).toUpperCase().replace(/[^A-Z0-9]/g, '_');
+}
+
+/**
+ * The cloud registration id this agent reports under, or null when it has
+ * none. Never another agent's id: a report signed with this agent's key under
+ * a registration that holds a different key is rejected (401 "Public key
+ * mismatch").
+ */
+export function cloudAgentIdFor(agentId, env = process.env) {
+  const own = env[cloudAgentIdVar(agentId)];
+  if (own) return own;
+  if (agentId === LEGACY_CLOUD_AGENT && env.DVAA_AIM_CLOUD_AGENT_ID) return env.DVAA_AIM_CLOUD_AGENT_ID;
+  return null;
+}
+
+export function cloudReporterEnabled(env = process.env) {
+  const anyAgentId = Boolean(env.DVAA_AIM_CLOUD_AGENT_ID)
+    || Object.keys(env).some(k => k.startsWith(PER_AGENT_PREFIX) && env[k]);
+  return Boolean(env.AIM_SERVER_URL && env.AIM_API_KEY && anyAgentId);
 }
 
 /**
