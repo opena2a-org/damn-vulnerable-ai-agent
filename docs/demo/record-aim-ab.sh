@@ -25,8 +25,18 @@ fi
 
 cd "$REPO_ROOT"
 
-echo "Cleaning prior AIM data directory so the trust score starts at the same value every recording..."
-rm -rf .dvaa-aim
+# Reset the trust score by emptying the agents' audit logs, NOT by deleting
+# .dvaa-aim: the score drop is computed from the denials in audit.jsonl, while
+# identity.json holds each agent's Ed25519 key. Deleting it would mint new
+# keys that no existing AIM cloud registration holds, so reports signed with
+# them are rejected with 401 "Public key mismatch" until the registration is
+# updated.
+echo "Emptying prior AIM audit logs so the trust score starts at the same value every recording (agent identities are kept)..."
+if [ -d .dvaa-aim ]; then
+  find .dvaa-aim -type f -name audit.jsonl | while IFS= read -r audit_log; do
+    : > "$audit_log"
+  done
+fi
 
 echo "Starting DVAA fleet (api agents) in the background..."
 DVAA_AIM_DATA_DIR="$(pwd)/.dvaa-aim" node src/index.js --api > "$LOG_FILE" 2>&1 &

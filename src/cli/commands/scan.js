@@ -10,14 +10,18 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { runScan } from '../../dashboard/scanner.js';
-import { emit, isJsonMode, splitArgs, tableRows, fail } from '../format.js';
+import { emit, isJsonMode, parseCommandArgs, tableRows, fail } from '../format.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.resolve(__dirname, '../../..');
 
 export default async function run(argv) {
-  const { positional, flags } = splitArgs(argv);
-  if (flags.has('help') || flags.has('h')) {
+  const { positional, flags } = parseCommandArgs('scan', argv, {
+    fix: { type: 'boolean' },
+    list: { type: 'boolean' },
+    json: { type: 'boolean' },
+  }, { maxPositionals: 1 });
+  if (flags.has('help')) {
     console.log(USAGE);
     return 0;
   }

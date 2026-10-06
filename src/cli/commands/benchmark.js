@@ -1,22 +1,19 @@
 /**
- * dvaa benchmark - run OASB-1 compliance benchmark against a target.
- *
- * Default target: the caller's current directory. Pass --agent <name> to
- * resolve against a DVAA fleet member's code path, or --url <url> to scan a
- * different target. Delegates to `hackmyagent secure -b oasb-1 -l <L>`.
+ * dvaa benchmark [path] - run the OASB-1 compliance benchmark against a
+ * directory (default: the caller's current directory). It scans files on
+ * disk, not a running agent. Delegates to
+ * `hackmyagent secure <path> --benchmark oasb-1 --level <L>`.
  */
 
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { runHmaInherit } from '../hma.js';
-import { splitArgs } from '../format.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PKG_ROOT = path.resolve(__dirname, '../../..');
+import { parseCommandArgs } from '../format.js';
 
 export default async function run(argv) {
-  const { positional, flags, values } = splitArgs(argv);
-  if (flags.has('help') || flags.has('h')) {
+  const { positional, flags, values } = parseCommandArgs('benchmark', argv, {
+    level: { type: 'string' },
+    json: { type: 'boolean' },
+  }, { maxPositionals: 1 });
+  if (flags.has('help')) {
     console.log(USAGE);
     return 0;
   }

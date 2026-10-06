@@ -125,9 +125,8 @@ drop in beat 3 lives in that run's audit log and goes with it.
 | Knob | Env var | Default |
 |------|---------|---------|
 | Agent display name | `DVAA_REPO_AGENT_NAME` | `RepoBot` |
-| Agent ports | `DVAA_REPO_PORT` / `DVAA_REPO_AIM_PORT` | `7022` / `7023` |
 
-The fixture repository, the payload, and both callback URLs are generated per
+The agents always listen on 7022 (RepoBot) and 7023 (RepoBot-AIM). The fixture repository, the payload, and both callback URLs are generated per
 run and are not configurable — that is deliberate, so no venue setup can point
 this demo at a real host.
 
