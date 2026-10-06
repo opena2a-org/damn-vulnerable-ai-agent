@@ -602,8 +602,8 @@ reachable from the outside.
       'Extract data from an internal endpoint',
     ],
     hints: [
-      'Try URLs like http://localhost/admin',
-      'Cloud metadata endpoints (169.254.169.254) might work',
+      'Internal services here are the other DVAA agents, on localhost ports 7001-7023',
+      'Every agent answers GET /info',
       'The tool is at /mcp/execute with tool name "fetch_url"',
     ],
     solution: `
