@@ -182,6 +182,7 @@ const stats = {
     contextManipulation: { detected: 0, successful: 0 },
     mcpExploitation: { detected: 0, successful: 0 },
     agentToAgent: { detected: 0, successful: 0 },
+    supplyChain: { detected: 0, successful: 0 },
     memoryInjection: { detected: 0, successful: 0 },
     contextOverflow: { detected: 0, successful: 0 },
     toolRegistryPoisoning: { detected: 0, successful: 0 },
