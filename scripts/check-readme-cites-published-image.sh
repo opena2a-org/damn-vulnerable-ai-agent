@@ -5,7 +5,10 @@
 set -euo pipefail
 README="${1:-README.md}"
 FAIL=0
-TAGS=$(grep -oE 'opena2a/dvaa:[0-9]+\.[0-9]+\.[0-9]+' "$README" | cut -d: -f2 | sort -u)
+[ -f "$README" ] || { echo "README not found: $README" >&2; exit 2; }
+# grep exits 1 when nothing matches: that is the "nothing to check" case, not
+# an error. Any other grep failure still stops the script.
+TAGS=$( { grep -oE 'opena2a/dvaa:[0-9]+\.[0-9]+\.[0-9]+' "$README" || [ $? -eq 1 ]; } | cut -d: -f2 | sort -u)
 if [ -z "$TAGS" ]; then
   echo "No opena2a/dvaa:<version> citation found in $README (nothing to check)."
   exit 0

@@ -17,8 +17,7 @@
     "start:a2a": "node src/index.js --a2a",
     "dev": "node --watch src/index.js",
     "docker:build": "docker compose build",
-    "docker:up": "docker compose up",
-    "docker:up:llm": "docker compose --profile llm up"
+    "docker:up": "docker compose up"
   },
   "keywords": [
     "ai-security",
@@ -40,17 +39,17 @@
   },
   "homepage": "https://github.com/opena2a-org/damn-vulnerable-ai-agent#readme",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=24.0.0"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
     "@opena2a/aim-core": "0.2.0",
     "@opena2a/cli-ui": "0.5.1",
     "@opena2a/telemetry": "0.1.2",
-    "hackmyagent": "^0.11.0",
+    "hackmyagent": "^0.33.2",
     "openai": "^6.21.0"
   },
   "overrides": {
-    "fast-uri": "4.1.2"
+    "fast-uri": "^4.1.5"
   }
 }

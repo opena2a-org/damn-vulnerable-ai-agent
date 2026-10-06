@@ -2,7 +2,7 @@
 
 **Category:** Multi-Step Attack Chain
 **Severity:** Critical
-**Check IDs:** PROMPT-002, MCP-002, MCP-011, INJ-003
+**Check IDs:** None (see Detection status)
 **ATM Techniques:** T-2001, T-1002, T-5003, T-4003
 
 ## Description
@@ -46,3 +46,7 @@ npx hackmyagent secure scenarios/prompt-to-lateral-movement/vulnerable
 - [CWE-74: Improper Neutralization of Special Elements in Output](https://cwe.mitre.org/data/definitions/74.html)
 - [CWE-918: Server-Side Request Forgery](https://cwe.mitre.org/data/definitions/918.html)
 - OWASP Top 10 for LLM Applications -- LLM01: Prompt Injection
+
+## Detection status
+
+No check detects this chain as of HackMyAgent 0.33.2 (static scan). `SEM-CRED-002` fired on this fixture in HackMyAgent 0.11.15 but does not in 0.33.2. The remaining findings are generic: `GIT-001` and `DEP-001` fire on every fixture, `SANDBOX-001` is container-isolation advice, and `MCP-006`, `MCP-007`, `TOOL-001` and `TOOL-002` are configuration advice for `mcp.json`. The chain is designed around PROMPT-002, MCP-002, MCP-011 and INJ-003; none of them fires on this fixture.

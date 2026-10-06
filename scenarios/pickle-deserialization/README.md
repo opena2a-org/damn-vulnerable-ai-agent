@@ -1,6 +1,6 @@
 # Unsafe Deserialization in ML Pipeline
 
-**Check:** None (see Detection status) | **Severity:** Critical | **Auto-Fix:** No
+**Check:** NEMO-009 | **Severity:** Critical | **Auto-Fix:** No
 
 An ML pipeline loads a pickle file (Python serialized object) without safety checks. Pickle deserialization can execute arbitrary code during loading. Common in ML workflows where models, embeddings, or training data are shared via pickle files.
 
@@ -14,10 +14,4 @@ An ML pipeline loads a pickle file (Python serialized object) without safety che
 
 ## Detection status
 
-**Automated static detection not yet implemented in HMA for this scenario.**
-
-**Deferred (future work):**
-
-- `SUPPLY-009` — no HMA check with this ID exists — aspirational
-
-See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.
+Detected by `NEMO-009` (HackMyAgent 0.33.2, static scan): it reports the `pickle.load()` call in `load_model.py`.

@@ -13,10 +13,6 @@ A .well-known/mcp.json file makes MCP servers publicly discoverable. Attackers c
 
 ## Detection status
 
-**Automated static detection not yet implemented in HMA for this scenario.**
-
-**Deferred (future work):**
-
-- `MCP-011` — real HMA check (fires on other fixtures); this fixture does not trigger it
+No check detects this fixture as of HackMyAgent 0.33.2 (static scan). `MCP-011` detected it in HackMyAgent 0.11.15; in 0.33.2 the check still exists but does not fire on `.well-known/mcp.json`.
 
 See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.

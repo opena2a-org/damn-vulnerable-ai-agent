@@ -1,180 +1,182 @@
 #!/usr/bin/env bash
-# DVAA Scenario Verification Harness
+# DVAA scenario verification harness.
 #
-# For each scenario, runs the full cycle:
-#   1. Copy vulnerable/ to temp dir
-#   2. HMA scan → assert expected checks FOUND (detection works)
-#   3. HMA fix  → assert expected checks FIXED (auto-fix works)
-#   4. HMA scan → assert expected checks GONE (fix actually works)
-#   5. Clean up
+# For every scenario with expected checks (scenarios/<name>/expected-checks.json):
+#   1. copy vulnerable/ to a temporary directory;
+#   2. scan the copy: every expected check must fire;
+#   3. if any expected check is auto-fixable, run --fix on the copy, re-scan it,
+#      and require each fixable expected check to be gone;
+#   4. remove the copy. HackMyAgent only receives the copy, so the shipped
+#      fixture is not modified.
 #
-# Usage: ./verify-all.sh [scenario-name]
-#   Run all scenarios or a specific one.
+# A scenario whose expected-checks.json is [] is reported as "no expectations"
+# and is not counted as passed. A scenario with expectations but no
+# vulnerable/ directory fails.
+#
+# Scans use the same flags as the dashboard and `dvaa scan`
+# (src/dashboard/scanner.js): results stay on this machine, static checks only.
+#
+# Usage: scenarios/verify-all.sh [scenario-name]
+#   HMA_CLI  HackMyAgent command to run (default: this package's
+#            node_modules/.bin/hackmyagent, installed by `npm ci`)
+# Exit status: 0 when every scenario with expectations passes, 1 when any
+# fails, 2 on a usage or setup error.
 
 set -euo pipefail
 
-HMA="${HMA_CLI:-npx hackmyagent}"
 SCENARIOS_DIR="$(cd "$(dirname "$0")" && pwd)"
-PASSED=0
-FAILED=0
-ERRORS=""
+PKG_ROOT="$(dirname "$SCENARIOS_DIR")"
+HMA_FLAGS=(--format json --no-color --no-registry --no-contribute --static-only --no-machine-posture)
 
-verify_scenario() {
-  local scenario_name="$1"
-  local scenario_dir="$SCENARIOS_DIR/$scenario_name"
-  local vuln_dir="$scenario_dir/vulnerable"
-  local expected_file="$scenario_dir/expected-checks.json"
-
-  if [ ! -d "$vuln_dir" ] || [ ! -f "$expected_file" ]; then
-    echo "  SKIP: Missing vulnerable/ or expected-checks.json"
-    return 0
+if [ -n "${HMA_CLI:-}" ]; then
+  read -r -a HMA_CMD <<< "$HMA_CLI"
+else
+  HMA_CMD=("$PKG_ROOT/node_modules/.bin/hackmyagent")
+  if [ ! -x "${HMA_CMD[0]}" ]; then
+    echo "HackMyAgent not found at ${HMA_CMD[0]}." >&2
+    echo "Run: npm ci  (in $PKG_ROOT), or set HMA_CLI to a hackmyagent command." >&2
+    exit 2
   fi
+fi
 
-  # Read expected check IDs
-  local expected_checks
-  expected_checks=$(cat "$expected_file")
-
-  # Create temp working dir
-  local tmp_dir
-  tmp_dir=$(mktemp -d)
-  trap "rm -rf '$tmp_dir'" RETURN
-
-  # Copy vulnerable files to temp
-  cp -r "$vuln_dir"/. "$tmp_dir"/
-
-  echo "  [1/3] Detect..."
-  # Step 1: Scan - expected checks should be FOUND
-  local scan_output
-  scan_output=$($HMA secure "$tmp_dir" --json 2>/dev/null || true)
-
-  local all_detected=true
-  for check_id in $(echo "$expected_checks" | tr -d '[]" ' | tr ',' '\n'); do
-    if echo "$scan_output" | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-found = any(f['checkId'] == '$check_id' for f in data.get('findings', []))
-sys.exit(0 if found else 1)
-" 2>/dev/null; then
-      echo "    $check_id detected"
-    else
-      echo "    $check_id NOT DETECTED"
-      all_detected=false
-    fi
-  done
-
-  if [ "$all_detected" = false ]; then
-    echo "  FAIL: Detection incomplete"
-    return 1
-  fi
-
-  # Check which are fixable
-  local fixable_checks
-  fixable_checks=$(echo "$scan_output" | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-checks = [f['checkId'] for f in data.get('findings', []) if f.get('fixable') and not f.get('passed')]
-expected = json.loads('$expected_checks')
-fixable = [c for c in expected if c in checks]
-print(' '.join(fixable))
-" 2>/dev/null || echo "")
-
-  if [ -z "$fixable_checks" ]; then
-    echo "  [2/3] Fix... (no auto-fixable checks, skipping fix verification)"
-    echo "  PASS (detect only)"
-    return 0
-  fi
-
-  echo "  [2/3] Fix..."
-  # Step 2: Fix - run with --fix
-  # Re-copy fresh vulnerable files (scan may have been non-destructive but be safe)
-  rm -rf "$tmp_dir"/*
-  cp -r "$vuln_dir"/. "$tmp_dir"/
-
-  local fix_output
-  fix_output=$($HMA secure "$tmp_dir" --fix --json 2>/dev/null || true)
-
-  local all_fixed=true
-  for check_id in $fixable_checks; do
-    if echo "$fix_output" | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-fixed = any(f['checkId'] == '$check_id' and f.get('fixed') for f in data.get('findings', []))
-sys.exit(0 if fixed else 1)
-" 2>/dev/null; then
-      echo "    $check_id fixed"
-    else
-      echo "    $check_id NOT FIXED"
-      all_fixed=false
-    fi
-  done
-
-  if [ "$all_fixed" = false ]; then
-    echo "  FAIL: Auto-fix incomplete"
-    return 1
-  fi
-
-  echo "  [3/3] Verify fix..."
-  # Step 3: Re-scan fixed directory - expected checks should be GONE
-  local verify_output
-  verify_output=$($HMA secure "$tmp_dir" --json 2>/dev/null || true)
-
-  local all_gone=true
-  for check_id in $fixable_checks; do
-    # Check if the finding still exists AND is not passed
-    if echo "$verify_output" | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-still_failing = any(f['checkId'] == '$check_id' and not f.get('passed') and not f.get('fixed') for f in data.get('findings', []))
-sys.exit(1 if still_failing else 0)
-" 2>/dev/null; then
-      echo "    $check_id gone (fix verified)"
-    else
-      echo "    $check_id STILL PRESENT (fix did not work)"
-      all_gone=false
-    fi
-  done
-
-  if [ "$all_gone" = false ]; then
-    echo "  FAIL: Fix verification failed - issues persist after fix"
-    return 1
-  fi
-
-  echo "  PASS (detect + fix + verify)"
-  return 0
+# Reads a HackMyAgent JSON report on stdin and prints "<checkId> <fixable>"
+# for each check that failed. Exits 3 if stdin is not a JSON report.
+parse_report() {
+  node -e '
+    let s = "";
+    process.stdin.on("data", d => { s += d; }).on("end", () => {
+      let report;
+      try { report = JSON.parse(s); } catch { process.exit(3); }
+      const ids = new Map();
+      for (const f of report.findings || []) {
+        if (!f || f.passed !== false || !f.checkId) continue;
+        ids.set(f.checkId, ids.get(f.checkId) || f.fixable === true);
+      }
+      for (const [id, fixable] of ids) console.log(id + " " + fixable);
+    });'
 }
 
-# Main
-echo "DVAA Scenario Verification"
-echo "=========================="
-echo ""
+# scan <dir> <out-file> [extra HackMyAgent flags]: writes parse_report output.
+# HackMyAgent exits 1 when it finds critical or high issues; the report decides.
+scan() {
+  local dir="$1" out="$2"
+  shift 2
+  "${HMA_CMD[@]}" secure "$dir" "${HMA_FLAGS[@]}" "$@" > "$out.json" 2>/dev/null || true
+  parse_report < "$out.json" > "$out"
+}
 
-# Run specific scenario or all
-target="${1:-all}"
+fires() { grep -q "^$1 " "$2"; }
 
+# Runs in a subshell so the EXIT trap removes the temporary copy.
+# Returns 0 pass, 1 fail, 3 no expectations.
+verify_scenario() (
+  name="$1"
+  dir="$SCENARIOS_DIR/$name"
+  expected=$(node -e 'const a = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); if (!Array.isArray(a)) process.exit(1); console.log(a.join(" "))' "$dir/expected-checks.json") || {
+    echo "  FAIL: expected-checks.json is not a JSON array"
+    return 1
+  }
+  if [ -z "$expected" ]; then
+    echo "  no expectations (expected-checks.json is [])"
+    return 3
+  fi
+  if [ ! -d "$dir/vulnerable" ]; then
+    echo "  FAIL: no vulnerable/ directory (expects $expected)"
+    return 1
+  fi
+
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT
+  mkdir "$tmp/copy"
+  cp -R "$dir/vulnerable/." "$tmp/copy/"
+
+  echo "  [1/3] Detect"
+  if ! scan "$tmp/copy" "$tmp/baseline"; then
+    echo "  FAIL: HackMyAgent did not return a JSON report"
+    return 1
+  fi
+  detected=true
+  fixable=()
+  for id in $expected; do
+    if fires "$id" "$tmp/baseline"; then
+      echo "    $id detected"
+      if grep -q "^$id true$" "$tmp/baseline"; then fixable+=("$id"); fi
+    else
+      echo "    $id NOT DETECTED"
+      detected=false
+    fi
+  done
+  if [ "$detected" = false ]; then
+    echo "  FAIL: detection incomplete"
+    return 1
+  fi
+
+  if [ "${#fixable[@]}" -eq 0 ]; then
+    echo "  [2/3] Fix: no expected check is auto-fixable"
+    echo "  PASS (detected)"
+    return 0
+  fi
+
+  echo "  [2/3] Fix (${fixable[*]})"
+  "${HMA_CMD[@]}" secure "$tmp/copy" "${HMA_FLAGS[@]}" --fix > /dev/null 2>&1 || true
+
+  echo "  [3/3] Re-scan the fixed copy"
+  if ! scan "$tmp/copy" "$tmp/after"; then
+    echo "  FAIL: HackMyAgent did not return a JSON report after --fix"
+    return 1
+  fi
+  fixed=true
+  for id in "${fixable[@]}"; do
+    if fires "$id" "$tmp/after"; then
+      echo "    $id STILL FIRING after --fix"
+      fixed=false
+    else
+      echo "    $id fixed"
+    fi
+  done
+  if [ "$fixed" = false ]; then
+    echo "  FAIL: fix verification failed"
+    return 1
+  fi
+  echo "  PASS (detected, fixed, confirmed by re-scan)"
+  return 0
+)
+
+target="${1:-}"
+if [ -n "$target" ] && [ ! -f "$SCENARIOS_DIR/$target/expected-checks.json" ]; then
+  echo "No scenario named '$target' in $SCENARIOS_DIR" >&2
+  exit 2
+fi
+
+echo "DVAA scenario verification"
+echo "HackMyAgent: $("${HMA_CMD[@]}" --version 2>/dev/null | head -1)"
+echo
+
+PASSED=0
+FAILED=0
+NO_EXPECTATIONS=0
+FAILED_NAMES=()
 for scenario_dir in "$SCENARIOS_DIR"/*/; do
-  scenario_name=$(basename "$scenario_dir")
+  name=$(basename "$scenario_dir")
+  [ "$name" = "examples" ] && continue
+  [ -f "$scenario_dir/expected-checks.json" ] || continue
+  if [ -n "$target" ] && [ "$target" != "$name" ]; then continue; fi
 
-  # Skip if specific scenario requested and this isn't it
-  if [ "$target" != "all" ] && [ "$target" != "$scenario_name" ]; then
-    continue
-  fi
-
-  echo "[$scenario_name]"
-  if verify_scenario "$scenario_name"; then
-    PASSED=$((PASSED + 1))
-  else
-    FAILED=$((FAILED + 1))
-    ERRORS="$ERRORS  - $scenario_name\n"
-  fi
-  echo ""
+  echo "[$name]"
+  rc=0
+  verify_scenario "$name" || rc=$?
+  case "$rc" in
+    0) PASSED=$((PASSED + 1)) ;;
+    3) NO_EXPECTATIONS=$((NO_EXPECTATIONS + 1)) ;;
+    *) FAILED=$((FAILED + 1)); FAILED_NAMES+=("$name") ;;
+  esac
+  echo
 done
 
-echo "=========================="
-echo "Results: $PASSED passed, $FAILED failed"
-
-if [ $FAILED -gt 0 ]; then
-  echo ""
+echo "Results: $PASSED passed, $FAILED failed, $NO_EXPECTATIONS with no expectations ($((PASSED + FAILED + NO_EXPECTATIONS)) scenarios)"
+if [ "$FAILED" -gt 0 ]; then
+  echo
   echo "Failed scenarios:"
-  echo -e "$ERRORS"
+  for name in "${FAILED_NAMES[@]}"; do echo "  - $name"; done
   exit 1
 fi

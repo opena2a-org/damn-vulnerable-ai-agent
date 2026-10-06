@@ -49,6 +49,10 @@ Expected output:
 
 To verify the reference fix blocks the same attack, import `secure-engine.js` in place of `enforcement-engine.js`; the same 52-subcommand pipeline returns `action=DENY` and emits a `POLICY_PARSE_FAILURE` telemetry event.
 
+## Detection status
+
+No check detects this fixture as of HackMyAgent 0.33.2 (static scan). The next section describes the intended detection approach.
+
 ## Detection (future work)
 
 Automated static detection for this pattern is not yet implemented. The intended detection approach maps to OASB-SEC-021 evidence tiers:
