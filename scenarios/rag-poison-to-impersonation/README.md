@@ -2,7 +2,7 @@
 
 **Category:** Multi-Step Attack Chain
 **Severity:** Critical
-**Check IDs:** RAG-003, RAG-004, A2A-001, A2A-002, MEM-006
+**Check IDs:** None (see Detection status)
 **ATM Techniques:** T-2005, T-5001, T-4005, T-3003
 
 ## Description
@@ -46,3 +46,7 @@ npx hackmyagent secure scenarios/rag-poison-to-impersonation/vulnerable
 - [CWE-345: Insufficient Verification of Data Authenticity](https://cwe.mitre.org/data/definitions/345.html)
 - [CWE-285: Improper Authorization](https://cwe.mitre.org/data/definitions/285.html)
 - OWASP Top 10 for LLM Applications -- LLM01: Prompt Injection
+
+## Detection status
+
+No check detects this chain as of HackMyAgent 0.33.2 (static scan). `AIM-002` fired on this fixture in HackMyAgent 0.11.15 but does not in 0.33.2. The remaining findings are generic: `GIT-001` and `DEP-001` fire on every fixture, and `SANDBOX-001` is container-isolation advice. The chain is designed around RAG-003, RAG-004, A2A-001, A2A-002 and MEM-006; none of them fires on this fixture.

@@ -2,7 +2,9 @@
  * dvaa scan <scenario> - reuse dashboard scanner.js logic to run HMA against
  * scenarios/<name>/vulnerable/, print expected/fired/missing diff.
  *
- * --fix: run with HMA auto-fix + baseline diff (same flow as dashboard /fix).
+ * --fix: apply HMA's fixes to a temporary copy of the fixture and report what
+ *        they changed (same flow as dashboard /fix). HackMyAgent only
+ *        receives the copy, so the shipped fixture is not modified.
  * --list: enumerate all scenarios + their expected checks.
  */
 
@@ -69,7 +71,7 @@ function renderResult(result, argv) {
     return;
   }
   const header = result.fix
-    ? `Fix run · ${result.fired.length} still firing, ${result.expectedDetail.filter(d => d.status === 'fixed').length} resolved`
+    ? `Fix run on a temporary copy · ${result.fired.length} still firing, ${result.expectedDetail.filter(d => d.status === 'fixed').length} resolved (${result.durationMs}ms)`
     : result.missing.length === 0
       ? `PASS · all ${result.expected.length} expected check(s) fired (${result.durationMs}ms)`
       : `PARTIAL · ${result.fired.length} of ${result.expected.length} expected check(s) fired (${result.durationMs}ms)`;
@@ -84,7 +86,26 @@ function renderResult(result, argv) {
     lines.push('');
   }
   lines.push(`${result.allFindingsCount} total HMA findings across the fixture.`);
+  if (result.fix && result.changes) {
+    lines.push('', ...renderChanges(result));
+  }
   emit(lines, argv);
+}
+
+function renderChanges(result) {
+  const files = result.changes.files;
+  const where = `scenarios/${result.name}/vulnerable/`;
+  if (files.length === 0) {
+    return [`The fix changed no files. ${where} is unchanged.`];
+  }
+  const lines = [`The fix changed ${files.length} file(s) in the temporary copy. ${where} is unchanged.`];
+  for (const f of files) {
+    const counts = f.binary ? 'binary' : `+${f.added} -${f.removed}`;
+    lines.push(`  ${f.status.padEnd(9)} ${f.path}  ${counts}`);
+    for (const line of f.preview) lines.push(`      ${line}`);
+    if (f.truncated) lines.push('      ...');
+  }
+  return lines;
 }
 
 function listScenarios(argv) {
@@ -125,7 +146,8 @@ Run HackMyAgent against a DVAA scenario fixture and diff findings against
 scenarios/<name>/expected-checks.json.
 
 Options:
-  --fix     Run HMA with --fix and report before/after diff
-  --list    Print all 86 scenarios and their expected checks
+  --fix     Apply HMA's fixes to a temporary copy and report what changed;
+            the shipped fixture is not modified
+  --list    Print every scenario and its expected checks
   --json    Machine-readable output
   --help    Show this message`;

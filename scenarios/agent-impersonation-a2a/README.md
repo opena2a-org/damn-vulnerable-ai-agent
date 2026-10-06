@@ -2,7 +2,7 @@
 
 **Category:** Multi-Agent
 **Severity:** Critical
-**Check IDs:** None (see Detection status)
+**Check IDs:** AIM-002
 **OASB Control:** 7.1
 
 ## Description
@@ -50,10 +50,4 @@ npx hackmyagent secure scenarios/agent-impersonation-a2a/vulnerable
 
 ## Detection status
 
-**Automated static detection not yet implemented in HMA for this scenario.**
-
-**Deferred (future work):**
-
-- `AUTH-001` — real HMA check (fires on other fixtures); this fixture does not trigger it
-
-See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.
+Detected by `AIM-002` (HackMyAgent 0.33.2, static scan): it reports that `agent.json` declares an identity without cryptographic key binding, which is what lets any sender claim to be a trusted agent. The worker's trust in the `from` field is not flagged on its own.

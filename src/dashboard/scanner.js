@@ -6,6 +6,12 @@
  * output, and returns a structured result the UI can render directly (fired,
  * missing, diagnostic text per finding).
  *
+ * Every run works on a per-request temporary copy of the fixture. HackMyAgent
+ * only receives the copy, so a scan or --fix does not write to the shipped
+ * scenarios/ tree. A fix run is judged by
+ * comparing a baseline scan with a re-scan of the fixed copy, and it reports
+ * which files the fix changed.
+ *
  * Prefers the locally-installed hackmyagent (pinned in package.json) but
  * falls back to require.resolve / PATH so the dashboard works in any npm
  * install layout. Version-parity with expected-checks.json is enforced by
@@ -15,9 +21,28 @@
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { getHmaBinPath } from '../cli/hma.js';
 
 const SCAN_TIMEOUT_MS = 60_000;
+
+// Flags on every `hackmyagent secure` run:
+//   --no-registry, --no-contribute  results stay on this machine.
+//   --static-only                   deterministic static checks with no model
+//                                   download. expected-checks.json and
+//                                   scenarios/verify-all.sh use the same set.
+//   --no-machine-posture            scan the fixture only, not the AI runtimes
+//                                   installed in the user's home directory.
+export const HMA_SCAN_FLAGS = Object.freeze([
+  '--format', 'json', '--no-color',
+  '--no-registry', '--no-contribute',
+  '--static-only', '--no-machine-posture',
+]);
+
+// HackMyAgent writes its pre-fix backups here; they are not part of the diff.
+const HMA_BACKUP_DIR = '.hackmyagent-backup';
+// Changed lines shown per file in a fix run's diff summary.
+const PREVIEW_LINES = 12;
 
 // HMA's `check-metadata` command scans test fixtures to build a registry of
 // every check ID it ships. That takes ~20s, so we cache the JSON on disk
@@ -35,10 +60,13 @@ async function loadCheckRegistry(hmaBin) {
     ? path.join(cacheDir, `check-metadata-v${version}.json`)
     : null;
 
-  // Disk cache hit — fast path.
+  // Disk cache hit — fast path. The Dockerfile pre-generates this file from
+  // raw `check-metadata` output ({ checks: {...}, ... }); this module writes
+  // the bare checks map. Accept both.
   if (cacheFile && fs.existsSync(cacheFile)) {
     try {
-      checkRegistryCache = JSON.parse(fs.readFileSync(cacheFile, 'utf-8'));
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf-8'));
+      checkRegistryCache = cached && typeof cached.checks === 'object' ? cached.checks : cached;
       return checkRegistryCache;
     } catch { /* corrupt file — fall through to regenerate */ }
   }
@@ -72,35 +100,55 @@ async function getHmaVersion(hmaBin) {
 }
 
 /**
- * Run HMA against scenarios/<name>/vulnerable/ and return parsed results.
+ * Run HMA against a temporary copy of scenarios/<name>/vulnerable/ and return
+ * parsed results. runScan only reads the shipped fixture.
  *
  * @param {object}   opts
  * @param {string}   opts.pkgRoot    Absolute path to the DVAA package root.
  * @param {string}   opts.name       Scenario directory name (must already be validated by caller).
  * @param {string[]} opts.expected   Expected check IDs from scenario's expected-checks.json.
- * @param {boolean}  [opts.fix=false] Pass --fix to HMA (auto-remediate).
+ * @param {boolean}  [opts.fix=false] Apply HMA's --fix to the copy and report what changed.
+ * @param {string}   [opts.hmaBin]   HackMyAgent binary; defaults to the resolved install.
  * @returns {Promise<ScanResult>}
  */
-export async function runScan({ pkgRoot, name, expected, fix = false }) {
-  const hmaBin = getHmaBinPath();
-  const scenarioDir = path.join(pkgRoot, 'scenarios', name, 'vulnerable');
+export async function runScan({ pkgRoot, name, expected, fix = false, hmaBin = getHmaBinPath() }) {
+  const fixtureDir = path.join(pkgRoot, 'scenarios', name, 'vulnerable');
 
   if (!hmaBin) {
     throw new Error('HMA binary not found. Run `npm install hackmyagent` (or `npm install -g hackmyagent`).');
   }
-  if (!fs.existsSync(scenarioDir)) {
+  if (!fs.existsSync(fixtureDir)) {
     throw new Error(`Scenario has no vulnerable/ directory: ${name}`);
   }
 
-  // Fix runs need a baseline to tell "fixed" apart from "never fired" — HMA
-  // drops a check from findings entirely once it passes, so we can't infer fix
-  // success from a single post-fix scan alone. One extra scan is cheap (<200ms).
   const started = Date.now();
   const registry = await loadCheckRegistry(hmaBin);
-  const baseline = fix ? await runHma(hmaBin, scenarioDir, false) : null;
-  const current = await runHma(hmaBin, scenarioDir, fix);
-  const durationMs = Date.now() - started;
 
+  const workRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dvaa-scan-'));
+  try {
+    const workDir = path.join(workRoot, 'vulnerable');
+    // Symlinks are left out of the copy, so a fix cannot follow one to a file
+    // outside it.
+    fs.cpSync(fixtureDir, workDir, {
+      recursive: true,
+      filter: src => !fs.lstatSync(src).isSymbolicLink(),
+    });
+
+    // Fix runs need a baseline to tell "fixed" apart from "never fired". The
+    // fix is then judged by re-scanning the fixed copy, not by the --fix
+    // output, whose shape differs between HMA versions.
+    const baseline = fix ? await runHma(hmaBin, workDir) : null;
+    if (fix) await runHma(hmaBin, workDir, { fix: true });
+    const current = await runHma(hmaBin, workDir);
+    const changes = fix ? diffTrees(fixtureDir, workDir) : null;
+    const durationMs = Date.now() - started;
+    return buildResult({ name, expected, fix, registry, baseline, current, changes, durationMs });
+  } finally {
+    fs.rmSync(workRoot, { recursive: true, force: true });
+  }
+}
+
+function buildResult({ name, expected, fix, registry, baseline, current, changes, durationMs }) {
   const firedNow = findingIds(current.findings);
   const firedBefore = baseline ? findingIds(baseline.findings) : firedNow;
 
@@ -141,11 +189,12 @@ export async function runScan({ pkgRoot, name, expected, fix = false }) {
     durationMs,
     exitCode: current.exitCode,
     fix,
+    changes,
   };
 }
 
-async function runHma(hmaBin, scenarioDir, fix) {
-  const args = ['secure', scenarioDir, '--format', 'json', '--no-color'];
+async function runHma(hmaBin, targetDir, { fix = false } = {}) {
+  const args = ['secure', targetDir, ...HMA_SCAN_FLAGS];
   if (fix) args.push('--fix');
 
   const { stdout, stderr, code, timedOut } = await spawnCapture(hmaBin, args, SCAN_TIMEOUT_MS);
@@ -164,6 +213,101 @@ async function runHma(hmaBin, scenarioDir, fix) {
   return {
     findings: Array.isArray(parsed.findings) ? parsed.findings : [],
     exitCode: code,
+  };
+}
+
+/**
+ * Compare the pristine fixture with the fixed copy: which files the fix added,
+ * removed or modified, with line counts and a short preview of changed lines.
+ */
+function diffTrees(originalDir, fixedDir) {
+  const before = listFiles(originalDir);
+  const after = listFiles(fixedDir);
+  const files = [];
+  for (const rel of [...new Set([...before.keys(), ...after.keys()])].sort()) {
+    const a = before.get(rel);
+    const b = after.get(rel);
+    if (a && b && a.equals(b)) continue;
+    const status = !a ? 'added' : !b ? 'removed' : 'modified';
+    files.push({ path: rel, status, ...lineDiff(a, b) });
+  }
+  return { files };
+}
+
+// Relative POSIX path -> file contents, skipping HMA's backup directory.
+function listFiles(root) {
+  const out = new Map();
+  (function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (dir === root && entry.name === HMA_BACKUP_DIR) continue;
+        walk(abs);
+      } else if (entry.isFile()) {
+        out.set(path.relative(root, abs).split(path.sep).join('/'), fs.readFileSync(abs));
+      }
+    }
+  })(root);
+  return out;
+}
+
+// Line-level diff of two buffers (either may be undefined for an added or
+// removed file). Returns counts plus the first PREVIEW_LINES changed lines.
+// Exported for tests.
+export function lineDiff(before, after) {
+  if ((before && before.includes(0)) || (after && after.includes(0))) {
+    return { binary: true, added: 0, removed: 0, preview: [], truncated: false };
+  }
+  const toLines = buf => {
+    if (!buf) return [];
+    const lines = buf.toString('utf-8').split('\n');
+    if (lines[lines.length - 1] === '') lines.pop();   // text that ends with a newline
+    return lines;
+  };
+  const a = toLines(before);
+  const b = toLines(after);
+
+  // Strip the common prefix and suffix, then run an LCS over the middle.
+  let start = 0;
+  while (start < a.length && start < b.length && a[start] === b[start]) start++;
+  let endA = a.length;
+  let endB = b.length;
+  while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) { endA--; endB--; }
+  const midA = a.slice(start, endA);
+  const midB = b.slice(start, endB);
+
+  const ops = [];
+  if (midA.length * midB.length > 4_000_000) {
+    // Too large for a line-level LCS: report the whole changed region.
+    for (const line of midA) ops.push(`- ${line}`);
+    for (const line of midB) ops.push(`+ ${line}`);
+  } else {
+    const n = midA.length;
+    const m = midB.length;
+    const lcs = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = m - 1; j >= 0; j--) {
+        lcs[i][j] = midA[i] === midB[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+      }
+    }
+    let i = 0;
+    let j = 0;
+    while (i < n && j < m) {
+      if (midA[i] === midB[j]) { i++; j++; } else if (lcs[i + 1][j] >= lcs[i][j + 1]) {
+        ops.push(`- ${midA[i++]}`);
+      } else {
+        ops.push(`+ ${midB[j++]}`);
+      }
+    }
+    while (i < n) ops.push(`- ${midA[i++]}`);
+    while (j < m) ops.push(`+ ${midB[j++]}`);
+  }
+
+  return {
+    added: ops.filter(op => op.startsWith('+')).length,
+    removed: ops.filter(op => op.startsWith('-')).length,
+    preview: ops.slice(0, PREVIEW_LINES),
+    truncated: ops.length > PREVIEW_LINES,
   };
 }
 
@@ -238,11 +382,24 @@ function spawnCapture(cmd, args, timeoutMs) {
  * @property {number}             allFindingsCount  Total findings reported (fired + passed).
  * @property {number}             durationMs
  * @property {number}             exitCode
- * @property {boolean}            fix            Whether --fix was applied this run.
+ * @property {boolean}            fix            Whether --fix was applied (to a temporary copy) this run.
+ * @property {ScanChanges|null}   changes        On a fix run, what the fix changed in the copy; null otherwise.
+ *
+ * @typedef {object} ScanChanges
+ * @property {ChangedFile[]} files
+ *
+ * @typedef {object} ChangedFile
+ * @property {string}   path       POSIX path relative to vulnerable/.
+ * @property {'added'|'removed'|'modified'} status
+ * @property {number}   added      Lines added.
+ * @property {number}   removed    Lines removed.
+ * @property {string[]} preview    First changed lines, prefixed "+ " or "- ".
+ * @property {boolean}  truncated  More changed lines exist than the preview shows.
+ * @property {boolean}  [binary]   Binary file: no line counts.
  *
  * @typedef {object} ExpectedFinding
  * @property {string}  checkId
- * @property {'fired'|'missing'} status
+ * @property {'fired'|'fixed'|'missing'} status
  * @property {string}  name
  * @property {string}  [severity]
  * @property {string}  [file]

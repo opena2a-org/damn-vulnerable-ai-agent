@@ -2,7 +2,7 @@
 
 **Category:** Injection
 **Severity:** High
-**Check IDs:** None (see Detection status)
+**Check IDs:** NEMO-009
 **OASB Control:** 1.4
 
 ## Description
@@ -49,10 +49,4 @@ npx hackmyagent secure scenarios/encoding-bypass-base64/vulnerable
 
 ## Detection status
 
-**Automated static detection not yet implemented in HMA for this scenario.**
-
-**Deferred (future work):**
-
-- `CODEINJ-001` — real HMA check, but this fixture lacks the trigger file/condition
-
-See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.
+Detected by `NEMO-009` (HackMyAgent 0.33.2, static scan): it reports the `eval()` that runs the decoded input in `handler.js`. The base64 decoding that slips past the blocklist is not flagged on its own.
