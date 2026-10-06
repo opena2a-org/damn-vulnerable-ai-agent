@@ -14,7 +14,7 @@ import { getAllChallenges, getChallenge, verifyChallenge, TRACKS } from '../chal
 import { handlePlaygroundRoutes, setAttackLogger } from '../playground/routes.js';
 import { parseBody } from '../utils/http.js';
 import { initSandbox } from '../sandbox/init.js';
-import { configureLLM, disableLLM, getLLMConfig } from '../llm/provider.js';
+import { configureLLM, verifyLLMConnection, disableLLM, getLLMConfig } from '../llm/provider.js';
 import { getTutorGuidance, askTutor, resetSession } from '../llm/tutor.js';
 import { detectAttacks } from '../core/vulnerabilities.js';
 import { runScan } from './scanner.js';
@@ -889,11 +889,13 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
     if (req.method === 'POST' && pathname === '/api/llm/configure') {
       try {
         const body = await parseBody(req);
-        const result = configureLLM({
+        const config = {
           provider: body.provider,
           apiKey: body.apiKey,
           model: body.model,
-        });
+        };
+        await verifyLLMConnection(config);
+        const result = configureLLM(config);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 'configured', ...result }));
       } catch (err) {
