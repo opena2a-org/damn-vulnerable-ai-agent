@@ -267,7 +267,7 @@ function isInsideSandbox(target) {
   return rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
 }
 
-// Ports of the DVAA agents themselves: the only targets fetch_url reaches live.
+// Ports of the DVAA agents. fetch_url makes live requests to these on loopback.
 const AGENT_PORTS = new Set(getAllAgents().map(a => String(a.port)));
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
@@ -1878,8 +1878,8 @@ async function executeMcpTool(agent, toolName, args) {
       } catch {}
 
       // For SSRF: if the parsed URL targets a DVAA agent on loopback, actually
-      // call it. Everything else (other hosts, other ports, cloud metadata) is
-      // logged and never fetched, so this tool cannot reach beyond the lab.
+      // call it. Other hosts, other ports and cloud metadata take the log-only
+      // branch below.
       let live = false;
       try {
         const target = new URL(url);

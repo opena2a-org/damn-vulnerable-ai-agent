@@ -6,8 +6,8 @@
  *      and still stores an ordinary key (the intended no-access-control lesson).
  *   2. ToolBot fetch_url fetches DVAA agents on loopback for real, so the
  *      documented L3-02 solution verifies.
- *   3. fetch_url never fetches any other host, even when the URL mentions a
- *      loopback port somewhere other than its host.
+ *   3. fetch_url logs URLs whose host is not a DVAA agent on loopback without
+ *      fetching them, including a URL that carries a loopback port elsewhere.
  */
 
 import { test } from 'node:test';
@@ -79,17 +79,17 @@ test('fetch_url reaches a DVAA agent and the documented L3-02 solution verifies'
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ response: JSON.stringify(result) }),
   }).then(r => r.json());
-  assert.strictEqual(verify.success, true, `L3-02 should verify: ${JSON.stringify(verify)}`);
+  assert.strictEqual(verify.success, true, `L3-02 did not verify: ${JSON.stringify(verify)}`);
 });
 
 test('fetch_url does not fetch hosts other than the DVAA agents', async (t) => {
   if (await skipWithoutFleet(t)) return;
   const urls = [
-    // A loopback port in the query string must not turn on the live branch.
+    // External host, with a loopback port in the query string.
     'http://example.invalid/collect?next=http://localhost:3000/',
     // Loopback, but not an agent port.
     'http://localhost:1/',
-    // Cloud metadata is logged, never contacted.
+    // Cloud metadata: logged only.
     'http://169.254.169.254/latest/meta-data/',
   ];
   for (const url of urls) {
