@@ -111,7 +111,7 @@ function runScript(name, { lookupCount = '0', lookupFails = false } = {}) {
 
 const skip = process.platform === 'win32' ? 'needs bash and executable stubs' : false;
 
-test('setup-aim-local.sh seeds the admin over stdin and never through a host path', { skip }, () => {
+test('setup-aim-local.sh sends its SQL to psql on stdin and names no host /tmp path in a docker call', { skip }, () => {
   const { res, calls, psql } = runScript('seed');
   const output = `status ${res.status}\nstdout:\n${res.stdout}\nstderr:\n${res.stderr}`;
 

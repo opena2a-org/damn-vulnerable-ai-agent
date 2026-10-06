@@ -90,9 +90,12 @@ done
 curl -fsS -m 2 "$BACKEND_URL/health" >/dev/null 2>&1 || err "backend never became healthy (check: docker logs aim-backend)"
 
 step "Seed admin user (if not already present)"
-# psql inside aim-postgres reads the SQL on stdin, so no SQL file is written
-# on the host. Values travel as psql variables (-v name=value, read as
-# :'name'), which psql quotes, instead of being spliced into the SQL text.
+# psql inside aim-postgres reads the SQL on stdin, so the script writes no SQL
+# file to a fixed host path. Bash before 5.1 (the macOS system bash is 3.2)
+# still spools each here-document to a temporary file that it creates under a
+# generated name and removes before psql runs. Values travel as psql variables
+# (-v name=value, read as :'name'), which psql quotes, instead of being spliced
+# into the SQL text.
 aim_psql() { docker exec -i aim-postgres psql -U postgres -d identity "$@"; }
 # ON_ERROR_STOP makes a failing query exit non-zero, as `psql -c` did, so a
 # failed lookup still falls back to 0.
