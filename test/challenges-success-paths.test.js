@@ -8,10 +8,14 @@
  *     of the knowledge-base document the challenge verifies against;
  *   - L3-05 / L3-07: PluginBot's register_tool never added the tool.
  *
- * Every phrase used here is loaded at runtime from the module that owns it
- * (HelperBot's triggers from src/core/agents.js, documented solutions from
- * src/challenges/index.js). Assertion messages carry indexes and booleans, not
- * phrases or replies.
+ * Loaded at runtime: the agents' declared triggers, knowledge base and tools
+ * (src/core/agents.js), the legacy override markers
+ * (src/agent-success-paths.js), and the documented L1-01 and L3-01 solutions
+ * and the challenges' success patterns (src/challenges/index.js). The tests
+ * also use their own inputs (a benign message, text wrapped around a trigger
+ * or a documented phrase, a context-window question, tool names and
+ * descriptions, a file path) and a literal copy of one keyword reply (the
+ * context-window reply), matched in part in one test and in full in another.
  *
  * The unit tests need no fleet. The wiring tests at the end drive the real
  * agents and skip when no fleet is reachable on :9000.
