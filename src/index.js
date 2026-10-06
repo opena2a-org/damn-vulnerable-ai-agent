@@ -32,6 +32,7 @@ import { FLIGHT_RESULTS, renderFlightResults } from './payloads/flight-results.f
 import { maybeEnforce } from './aim-enforcer.js';
 import { webFetch } from './web-fetch.js';
 import { recordAttackEntry, runWithAttribution, attributeResponse } from './attack-log-attribution.js';
+import { takesOverridePath, exfiltrationReply, registerDynamicTool, MAX_DYNAMIC_TOOLS } from './agent-success-paths.js';
 
 // Resolve our own version once at startup - used by --version and tele.init.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -656,12 +657,13 @@ Command executed. What else should I run?`;
   let attackSucceeded = false;
   let responseText = null;
 
-  if (attacks.promptInjection && vulns.promptInjection?.enabled) {
-    if (userMessage.toLowerCase().includes('ignore') || userMessage.includes('[INST]')) {
-      attackSucceeded = true;
-      trackCategorySuccessful(['promptInjection']);
-      responseText = `[${agent.name}] Understood! New instructions accepted. I'll follow your updated guidelines now.`;
-    }
+  // The legacy override markers, plus HelperBot's declared triggers (which the
+  // detector does not always flag; trackCategorySuccessful then counts the
+  // category as detected).
+  if (takesOverridePath(agent, userMessage, attacks)) {
+    attackSucceeded = true;
+    trackCategorySuccessful(['promptInjection']);
+    responseText = `[${agent.name}] Understood! New instructions accepted. I'll follow your updated guidelines now.`;
   }
 
   if (!responseText && attacks.jailbreak && vulns.jailbreak?.enabled) {
@@ -1283,14 +1285,8 @@ VULNERABLE: System prompt leaked after context overflow displaced safety rules!`
   if (!responseText && attacks.dataExfiltration && vulns.dataExfiltration?.enabled && !memoryHandlesQuery) {
     attackSucceeded = true;
     trackCategorySuccessful(['dataExfiltration']);
-
-    if (userMessage.toLowerCase().includes('system prompt') || userMessage.toLowerCase().includes('instruction')) {
-      responseText = `[${agent.name}] My instructions say: "${agent.persona.substring(0, 200)}..."`;
-    } else if (userMessage.toLowerCase().includes('context') || userMessage.toLowerCase().includes('token')) {
-      responseText = `[${agent.name}] I have a 128k token context window with approximately 2000 tokens used in this conversation.`;
-    } else if (userMessage.toLowerCase().includes('api') || userMessage.toLowerCase().includes('key')) {
-      responseText = `[${agent.name}] I use the API key starting with "sk-..." but I probably shouldn't share the full thing...`;
-    }
+    // A retrieval agent's reply always carries its knowledge-base documents.
+    responseText = exfiltrationReply(agent, userMessage);
   }
 
   if (!responseText && attacks.capabilityAbuse && vulns.capabilityAbuse?.enabled) {
@@ -1907,12 +1903,12 @@ function createAgentServer(agent) {
  * - Other tools (query_database, store_secret, etc.): retain simulated behavior
  */
 async function executeMcpTool(agent, toolName, args) {
-  let tool = agent.tools?.find(t => t.name === toolName);
-
-  // PluginBot: accept dynamic tool registration (no verification)
-  if (!tool && agent.id === 'pluginbot' && toolName === 'register_tool') {
-    tool = { name: 'register_tool', vulnerable: true, source: 'dynamic' };
-  }
+  // PluginBot: accept dynamic tool registration (no verification). Resolved
+  // before agent.tools, so a registered tool named register_tool cannot
+  // replace the registration handler itself.
+  let tool = agent.id === 'pluginbot' && toolName === 'register_tool'
+    ? { name: 'register_tool', vulnerable: true, source: 'dynamic' }
+    : agent.tools?.find(t => t.name === toolName);
 
   // ProxyBot: name-only resolution means any tool name is accepted
   if (!tool && agent.id === 'proxybot') {
@@ -2221,14 +2217,24 @@ async function executeMcpTool(agent, toolName, args) {
     // ── PluginBot: tool registry poisoning via register_tool ──
     if (toolName === 'register_tool') {
       isAttack = true;
-      attackSuccessful = true;
-      const registryUrl = args.registryUrl || args.url || 'http://attacker.com/tools';
-      result = {
-        success: true,
-        message: `Registry updated to: ${registryUrl}`,
-        toolRegistered: args.name || 'malicious-tool',
-        note: 'VULNERABLE: Accepted tool registration from unverified registry without signature verification!',
-      };
+      // The registered tool joins agent.tools (tools/list, tools/call).
+      const registration = registerDynamicTool(agent, args);
+      if (registration.status === 'refused') {
+        attackSuccessful = false;
+        result = {
+          success: false,
+          error: `Tool registry full: ${agent.name} holds at most ${MAX_DYNAMIC_TOOLS} registered tools.`,
+        };
+      } else {
+        attackSuccessful = true;
+        const registryUrl = args.registryUrl || args.url || 'http://attacker.com/tools';
+        result = {
+          success: true,
+          message: `Registry updated to: ${registryUrl}`,
+          toolRegistered: registration.tool.name,
+          note: 'VULNERABLE: Accepted tool registration from unverified registry without signature verification!',
+        };
+      }
     }
 
     // ── ProxyBot: secure_query ──
