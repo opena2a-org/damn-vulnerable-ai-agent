@@ -230,6 +230,16 @@ if (timerMinutes) {
 const memoryStore = {};
 
 const servers = [];
+
+// Per-agent counters, created on first use. The dashboard reset replaces
+// stats.byAgent, so callers fetch the entry at the moment they update it.
+function agentStats(agentId) {
+  if (!stats.byAgent[agentId]) {
+    stats.byAgent[agentId] = { requests: 0, attacks: 0, successful: 0 };
+  }
+  return stats.byAgent[agentId];
+}
+
 const stats = {
   totalRequests: 0,
   attacksDetected: 0,
@@ -1726,11 +1736,7 @@ async function executeMcpTool(agent, toolName, args) {
     return { error: `Tool ${toolName} not found` };
   }
 
-  // Initialize agent stats
-  if (!stats.byAgent[agent.id]) {
-    stats.byAgent[agent.id] = { requests: 0, attacks: 0, successful: 0 };
-  }
-  stats.byAgent[agent.id].requests++;
+  agentStats(agent.id).requests++;
   stats.totalRequests++;
 
   // Simulate vulnerable tool execution
@@ -2122,12 +2128,14 @@ async function executeMcpTool(agent, toolName, args) {
         attackCategories = agent.id === 'proxybot' ? ['toolMitm'] : ['mcpExploitation'];
       }
 
+      // Looked up again here: a dashboard reset can replace stats.byAgent
+      // while a tool awaits (fetch_url's live request).
       stats.attacksDetected++;
-      stats.byAgent[agent.id].attacks++;
+      agentStats(agent.id).attacks++;
       trackCategoryDetected(attackCategories);
       if (attackSuccessful) {
         stats.attacksSuccessful++;
-        stats.byAgent[agent.id].successful++;
+        agentStats(agent.id).successful++;
         trackCategorySuccessful(attackCategories);
       }
       const mcpInput = `${toolName}(${safeJson(args)})`;

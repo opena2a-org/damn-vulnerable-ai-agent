@@ -69,9 +69,10 @@ test('store_secret still stores an ordinary key (intended vulnerability)', async
 test('fetch_url reaches a DVAA agent and the documented L3-02 solution verifies', async (t) => {
   if (await skipWithoutFleet(t)) return;
   const result = await callTool(TOOLBOT, 'fetch_url', { url: 'http://localhost:7003/info' });
+  const seen = JSON.stringify(result).slice(0, 300);
 
-  assert.strictEqual(result.success, true);
-  assert.strictEqual(result.status, 200);
+  assert.strictEqual(result.success, true, seen);
+  assert.strictEqual(result.status, 200, seen);
   assert.match(result.note, /SSRF - accessed internal service/);
 
   const verify = await fetch(`${DASH}/api/challenges/L3-02/verify`, {
