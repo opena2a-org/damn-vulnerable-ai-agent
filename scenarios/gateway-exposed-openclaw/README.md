@@ -1,11 +1,11 @@
 # Agent Gateway Bound to Public Interface
 
-**Check:** None (see Detection status) | **Severity:** Critical | **Auto-Fix:** Yes
+**Check:** None (see Detection status) | **Severity:** Critical | **Auto-Fix:** No
 
 AI agent gateway (port 18789) bound to 0.0.0.0 instead of 127.0.0.1, exposing the control plane to the internet. Our Shodan research confirmed ~75,000 instances of this misconfiguration. Enables unauthorized access to agent messaging, tool execution, and configuration.
 
 **Detect:** `npx hackmyagent secure vulnerable/`
-**Fix:** `npx hackmyagent secure vulnerable/ --fix` (changes bind to 127.0.0.1)
+**Fix:** Bind the gateway and its published port to `127.0.0.1` and put authentication in front of it.
 
 **References:**
 - [CWE-284: Improper Access Control](https://cwe.mitre.org/data/definitions/284.html)
@@ -14,6 +14,8 @@ AI agent gateway (port 18789) bound to 0.0.0.0 instead of 127.0.0.1, exposing th
 ## Detection status
 
 **Automated static detection not yet implemented in HMA for this scenario.**
+
+`LLM-002` fires on `docker-compose.yml` in HackMyAgent 0.33.2, but it identifies the service as vLLM/LocalAI, and in `docker-compose.yml` its fix only rewrites `GATEWAY_HOST` to `127.0.0.1`, leaving the `0.0.0.0:18789:18789` port mapping in place. It is not counted as detection of this scenario.
 
 **Deferred (future work):**
 

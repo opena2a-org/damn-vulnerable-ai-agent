@@ -1,6 +1,6 @@
 # Steganography in Binary Assets
 
-**Check:** None (see Detection status) | **Severity:** High | **Auto-Fix:** No
+**Check:** DEP-004 | **Severity:** High | **Auto-Fix:** No
 
 Package includes binary files (images, fonts) with encoded payloads in metadata. When an AI agent processes the image description or EXIF data, the hidden payload executes. Common in supply chain attacks where malicious code is hidden in seemingly benign assets.
 
@@ -14,10 +14,4 @@ Package includes binary files (images, fonts) with encoded payloads in metadata.
 
 ## Detection status
 
-**Automated static detection not yet implemented in HMA for this scenario.**
-
-**Deferred (future work):**
-
-- `SUPPLY-008` — real HMA check, but this fixture lacks the trigger file/condition
-
-See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.
+Detected by `DEP-004` (HackMyAgent 0.33.2, static scan): it reports the `postinstall` script in `package.json` that extracts the hidden payload and passes it to `eval`. The payload inside the asset is not flagged on its own.

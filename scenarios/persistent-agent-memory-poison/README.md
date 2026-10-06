@@ -1,6 +1,6 @@
 # Persistent Agent: Memory Poisoning and Cross-Session State Tampering
 
-**Check:** None (see Detection status) | Severity: Critical | Auto-Fix: No
+**Check:** None (see Detection status) | **Severity:** Critical | **Auto-Fix:** No
 
 ## Description
 

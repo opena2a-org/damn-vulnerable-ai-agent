@@ -1,6 +1,6 @@
 # Parser Differential: JSON Comment and Duplicate Key Exploitation
 
-**Check:** None (see Detection status) | Severity: Critical | Auto-Fix: No
+**Check:** None (see Detection status) | **Severity:** Critical | **Auto-Fix:** No
 
 ## Description
 

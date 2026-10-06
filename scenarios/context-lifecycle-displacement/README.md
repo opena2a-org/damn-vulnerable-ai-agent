@@ -1,6 +1,6 @@
 # Context Lifecycle: Safety Instruction Displacement
 
-**Check:** None (see Detection status) | Severity: High | Auto-Fix: No
+**Check:** None (see Detection status) | **Severity:** High | **Auto-Fix:** No
 
 ## Description
 

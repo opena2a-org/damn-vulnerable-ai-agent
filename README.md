@@ -100,7 +100,7 @@ npx hackmyagent attack http://localhost:7003/v1/chat/completions --api-format op
 npx hackmyagent attack http://localhost:7003/v1/chat/completions \
   --api-format openai --intensity aggressive --verbose
 
-# OASB-1 benchmark (222 attack scenarios)
+# OASB-1 compliance benchmark (level L1 by default; -l L2 or -l L3 for stricter levels)
 npx hackmyagent secure -b oasb-1
 
 # Test MCP server directly
@@ -336,7 +336,7 @@ All agents expose OpenAI-compatible chat completions. MCP and A2A agents additio
 
 | Protocol | Endpoint | Ports |
 |----------|----------|-------|
-| OpenAI API | `POST /v1/chat/completions` | 7001-7008 |
+| OpenAI API | `POST /v1/chat/completions` | Every agent port: 7001-7008, 7010-7018, 7020-7023 |
 | MCP JSON-RPC | `POST /` (JSON-RPC 2.0) | 7010-7013 |
 | A2A Message | `POST /a2a/message` | 7020-7021 |
 | Health | `GET /health, /info, /stats` | All ports |
@@ -348,8 +348,6 @@ All agents expose OpenAI-compatible chat completions. MCP and A2A agents additio
 HOST_PORT_OFFSET=500    # Add this offset to every agent port the dashboard displays.
                         # Use when remapping container ports to different host ports
                         # (see Troubleshooting below).
-LOG_ATTACKS=true        # Log detected attack attempts
-VERBOSE=true            # Detailed logging
 ```
 
 ## Upgrading from v0.7.x
@@ -375,7 +373,7 @@ docker run -d -e HOST_PORT_OFFSET=500 \
 
 ## Infrastructure Vulnerability Scenarios
 
-85 real-world scenarios across 15 vulnerability categories, including 5 multi-step attack chains. Each scenario contains a `vulnerable/` directory and an `expected-checks.json` listing the HMA check IDs confirmed to fire on that fixture (see [docs/audits/2026-04-13-expected-checks.md](docs/audits/2026-04-13-expected-checks.md) for the honest-baseline audit). Run the full verification harness:
+86 scenarios, including 5 multi-step attack chains. A scenario consists of a deliberately vulnerable fixture in `vulnerable/`, a README, and an `expected-checks.json` listing the HackMyAgent checks expected to fire on that fixture. 35 scenarios have expected checks, baselined against HackMyAgent 0.33.2, the version pinned in `package-lock.json`. The other 51 have none yet (`[]`), and each of their READMEs has a Detection status section. The verification harness scans a temporary copy of each fixture and, when an expected check is fixable, applies HackMyAgent's fixes to that copy and re-scans it. HackMyAgent only receives the copies, so the shipped fixtures are not modified:
 
 ```bash
 ./scenarios/verify-all.sh
