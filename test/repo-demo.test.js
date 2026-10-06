@@ -40,6 +40,7 @@ import {
   materializeDevMachine,
   readSandboxCredential,
 } from '../src/payloads/dev-machine.fixture.js';
+import { PASSTHROUGH, fleetEnv } from '../src/cli/fleet-env.js';
 
 let passed = 0;
 let failed = 0;
@@ -326,6 +327,9 @@ test('NO subprocess this demo starts inherits the whole environment', () => {
   const dir = path.dirname(new URL(import.meta.url).pathname);
   const spawners = {
     'src/cli/commands/demo-repo.js': path.join(dir, '..', 'src', 'cli', 'commands', 'demo-repo.js'),
+    // The flight demo spawns the same kind of fleet (FlightBot holds a wallet
+    // and is built to leak it), so it gets the same allowlist.
+    'src/cli/commands/demo-flight.js': path.join(dir, '..', 'src', 'cli', 'commands', 'demo-flight.js'),
     'src/payloads/poisoned-repo.fixture.js': path.join(dir, '..', 'src', 'payloads', 'poisoned-repo.fixture.js'),
   };
 
@@ -339,12 +343,29 @@ test('NO subprocess this demo starts inherits the whole environment', () => {
     );
   }
 
-  const runner = fs.readFileSync(spawners['src/cli/commands/demo-repo.js'], 'utf8');
-  assert.match(runner, /const PASSTHROUGH = \[/, 'the fleet needs an explicit passthrough allowlist');
+  // Both fleet runners build the child env from the shared allowlist.
+  for (const label of ['src/cli/commands/demo-repo.js', 'src/cli/commands/demo-flight.js']) {
+    const runner = fs.readFileSync(spawners[label], 'utf8');
+    assert.match(runner, /const env = fleetEnv\(\{/, `${label}: the fleet needs the explicit passthrough allowlist`);
+  }
+  const repoRunner = fs.readFileSync(spawners['src/cli/commands/demo-repo.js'], 'utf8');
   // The sandbox root must still be handed over, or the demo silently reads nothing.
-  assert.match(runner, /DVAA_REPO_SANDBOX_HOME: sandboxHome/);
-  // Documented in the run script as the way to reproduce unprotected behavior.
-  assert.match(runner, /'AIM_ENFORCEMENT'/, 'AIM_ENFORCEMENT must stay passthrough');
+  assert.match(repoRunner, /DVAA_REPO_SANDBOX_HOME: sandboxHome/);
+  // Documented in the run scripts as the way to reproduce unprotected behavior.
+  assert.ok(PASSTHROUGH.includes('AIM_ENFORCEMENT'), 'AIM_ENFORCEMENT must stay passthrough');
+
+  // The allowlist itself: what a fleet child receives from a shell full of credentials.
+  const shell = {
+    PATH: '/usr/bin', HOME: '/home/presenter', AIM_ENFORCEMENT: 'off',
+    ANTHROPIC_API_KEY: 'x', OPENAI_API_KEY: 'x', GITHUB_TOKEN: 'x', AWS_ACCESS_KEY_ID: 'x',
+    AWS_SECRET_ACCESS_KEY: 'x', DATABASE_URL: 'x', NPM_TOKEN: 'x',
+  };
+  const child = fleetEnv({ DVAA_AIM_DATA_DIR: '/tmp/x', OPENA2A_TELEMETRY: 'off' }, shell);
+  assert.deepEqual(
+    Object.keys(child).sort(),
+    ['AIM_ENFORCEMENT', 'DVAA_AIM_DATA_DIR', 'HOME', 'OPENA2A_TELEMETRY', 'PATH'],
+    `the fleet env must carry the allowlist and the demo's own settings only, got ${Object.keys(child).join(', ')}`,
+  );
 
   // gitEnv carries what git needs and nothing else.
   const env = gitEnv({ GIT_AUTHOR_NAME: 'x' });

@@ -16,7 +16,7 @@
 import path from 'path';
 import fs from 'fs';
 import { AIMCore } from '@opena2a/aim-core';
-import { cloudReporterEnabled, postVerification } from './aim-cloud-reporter.js';
+import { cloudReporterEnabled, cloudAgentIdFor, cloudAgentIdVar, postVerification } from './aim-cloud-reporter.js';
 
 const ENFORCEMENT_OFF = () => String(process.env.AIM_ENFORCEMENT || '').toLowerCase() === 'off';
 
@@ -56,6 +56,60 @@ function countDeniedEvents(core) {
 
 // One AIMCore instance per agent id. Lazy-initialized on first enforce call.
 const cores = new Map();
+
+// Agents whose cloud reports are off for this process, with the reason
+// already printed once. Re-sending a report the registration has rejected
+// fails the same way until the registration changes, so the agent stays
+// skipped until the fleet restarts instead of repeating the post (and the
+// notice) on every decision.
+const cloudSkipped = new Map();
+
+function skipCloudOnce(agent, reason) {
+  if (cloudSkipped.has(agent.id)) return;
+  cloudSkipped.set(agent.id, reason);
+  process.stderr.write(reason + '\n');
+}
+
+/**
+ * Mirror one enforcement decision to the AIM cloud under THIS agent's own
+ * registration. Agents with no registration, or whose registration rejects
+ * their key, are skipped with one notice each; the debug flag is not needed
+ * to see that an agent is not reporting.
+ */
+function mirrorToCloud(agent, core, { action, resource, context, allowed }) {
+  if (cloudSkipped.has(agent.id)) return;
+  const cloudAgentId = cloudAgentIdFor(agent.id);
+  if (!cloudAgentId) {
+    skipCloudOnce(agent,
+      `[aim-cloud] ${agent.id}: not reporting to AIM, no cloud agent id for this agent. ` +
+      `docs/demo/setup-aim-local.sh registers only RAGBot-AIM (DVAA_AIM_CLOUD_AGENT_ID). ` +
+      `To report ${agent.id} too, register the public key in ${path.join(dataDirFor(agent), 'identity.json')} ` +
+      `and set ${cloudAgentIdVar(agent.id)}=<agent id>.`);
+    return;
+  }
+  void postVerification({
+    serverUrl: process.env.AIM_SERVER_URL,
+    cloudAgentId,
+    publicKey: core.getIdentity().publicKey,
+    signFn: (data) => core.sign(data),
+    apiKey: process.env.AIM_API_KEY,
+    action,
+    resource,
+    context,
+    result: allowed ? 'allowed' : 'denied',
+  }).then((res) => {
+    if (res.ok) return;
+    if (res.status === 401 || res.status === 403 || res.status === 404) {
+      const reason = typeof res.body?.error === 'string' ? res.body.error : res.error;
+      skipCloudOnce(agent,
+        `[aim-cloud] ${agent.id}: AIM rejected its report under agent ${cloudAgentId} (HTTP ${res.status}: ${reason}); ` +
+        `cloud reporting for ${agent.id} is off until the fleet restarts. That registration must hold the public key in ` +
+        `${path.join(dataDirFor(agent), 'identity.json')}.`);
+    } else if (process.env.DVAA_AIM_CLOUD_DEBUG) {
+      process.stderr.write(`[aim-cloud] verification report failed: ${res.error}${res.status ? ' (HTTP ' + res.status + ')' : ''}\n`);
+    }
+  });
+}
 
 function dataDirFor(agent) {
   const base = process.env.DVAA_AIM_DATA_DIR
@@ -143,23 +197,7 @@ export async function maybeEnforce(agent, { action, resource, context }) {
 
   // Cloud mirror (best-effort, never blocks the local decision). Fire-and-
   // forget; the local enforcement decision has already been made and logged.
-  if (cloudReporterEnabled()) {
-    void postVerification({
-      serverUrl: process.env.AIM_SERVER_URL,
-      cloudAgentId: process.env.DVAA_AIM_CLOUD_AGENT_ID,
-      publicKey: core.getIdentity().publicKey,
-      signFn: (data) => core.sign(data),
-      apiKey: process.env.AIM_API_KEY,
-      action,
-      resource,
-      context,
-      result: allowed ? 'allowed' : 'denied',
-    }).then((res) => {
-      if (!res.ok && process.env.DVAA_AIM_CLOUD_DEBUG) {
-        process.stderr.write(`[aim-cloud] verification report failed: ${res.error}${res.status ? ' (HTTP ' + res.status + ')' : ''}\n`);
-      }
-    });
-  }
+  if (cloudReporterEnabled()) mirrorToCloud(agent, core, { action, resource, context, allowed });
 
   if (!allowed) {
     return {

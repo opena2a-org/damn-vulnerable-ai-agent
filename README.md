@@ -142,6 +142,7 @@ dvaa --help
 | `dvaa health [--json]` | Ping the dashboard at `:9000`. Exit 1 if unreachable. |
 | `dvaa attack <agent\|url> [--intensity passive\|active\|aggressive] [--verbose]` | Run HMA attacks against a DVAA agent. `--all` runs the full fleet. |
 | `dvaa logs [--limit N] [--follow] [--json]` | Show or tail the attack log. |
+| `dvaa chat [agent] [--message "<text>"] [--llm] [--json]` | Chat with a running API agent (default `researchbot-aim`): a REPL, or one turn with `--message`. Input piped into the REPL is sent line by line. `--llm` turns on LLM narration with `$ANTHROPIC_API_KEY` for this chat only; when chat exits it disables LLM mode on the fleet, which removes the key. `dvaa chat list` shows the agents it can reach. |
 | `dvaa scan <scenario> [--fix] [--json]` / `dvaa scan --list` | Run HMA against a scenario fixture and diff findings against `expected-checks.json`. `--fix` remediates and re-scans. `--list` enumerates all 86 scenarios. |
 | `dvaa benchmark [path] [--level L1\|L2\|L3] [--json]` | Run OASB-1 compliance benchmark against a target directory. |
 | `dvaa hma <args...>` | Pass-through to the bundled HackMyAgent CLI for anything not covered above. |

@@ -3,18 +3,18 @@
  */
 
 import { listAgents } from '../agents.js';
-import { emit, isJsonMode, tableRows, splitArgs } from '../format.js';
+import { emit, isJsonMode, tableRows, parseCommandArgs } from '../format.js';
 
 export default async function run(argv) {
-  const { flags } = splitArgs(argv);
-  if (flags.has('help') || flags.has('h')) {
+  const parsed = parseCommandArgs('agents', argv, { json: { type: 'boolean' } }, { maxPositionals: 0 });
+  if (parsed.flags.has('help')) {
     console.log(USAGE);
     return 0;
   }
 
   const agents = listAgents();
-  if (isJsonMode(argv)) {
-    emit(agents, argv);
+  if (isJsonMode(parsed)) {
+    emit(agents, parsed);
     return 0;
   }
 
@@ -25,7 +25,7 @@ export default async function run(argv) {
     { key: 'security', header: 'SECURITY' },
     { key: 'url',      header: 'URL' },
   ]);
-  emit([`${agents.length} agents:`, '', ...lines], argv);
+  emit([`${agents.length} agents:`, '', ...lines], parsed);
   return 0;
 }
 

@@ -35,6 +35,8 @@ import readline from 'node:readline';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { emit, isJsonMode, fail } from '../format.js';
+import { fleetEnv } from '../fleet-env.js';
+import { getAllAgents } from '../../core/agents.js';
 import {
   gitEnv,
   materializePoisonedRepo,
@@ -46,8 +48,11 @@ import {
 import { materializeDevMachine } from '../../payloads/dev-machine.fixture.js';
 
 const HOST = process.env.DVAA_BASE || 'http://localhost';
-const REPO_PORT = Number(process.env.DVAA_REPO_PORT || 7022);
-const REPO_AIM_PORT = Number(process.env.DVAA_REPO_AIM_PORT || 7023);
+// The ports the spawned fleet binds, taken from the agent registry. The fleet
+// has no port override, so a runner-side knob could only point the runner at
+// ports the spawned fleet does not bind.
+const REPO_PORT = getAllAgents().find(a => a.id === 'repobot').port;
+const REPO_AIM_PORT = getAllAgents().find(a => a.id === 'repobot-aim').port;
 const AGENT_LABEL = process.env.DVAA_REPO_AGENT_NAME || 'RepoBot';
 
 const indexPath = fileURLToPath(new URL('../../index.js', import.meta.url));
@@ -97,7 +102,7 @@ export default async function runRepo(argv, flags) {
   // guard and the recovery is not obvious on stage.
   let fleetRef = null;
   process.on('exit', removeRoot);
-  for (const signal of ['SIGINT', 'SIGTERM']) {
+  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
     process.on(signal, () => {
       try { fleetRef?.stop(); } catch {}
       removeRoot();
@@ -234,19 +239,10 @@ async function ensureFleet(dataDir, sandboxHome) {
     fail(`Ports ${REPO_PORT}/${REPO_AIM_PORT} are already in use by a running DVAA fleet.\n` +
       `The repo demo manages its own fleet. Stop the other one first (the demo is self-contained).`);
   }
-  // Explicit allowlist, NOT `...process.env`. The child is a deliberately
-  // vulnerable agent fleet running on a presenter's laptop; spreading the whole
-  // environment hands it every real credential in that shell - ANTHROPIC_API_KEY,
-  // AWS_*, GITHUB_TOKEN - which is the exact thing this demo is about. Our own
-  // scanner flags the spread as NEMO-007 HIGH, and it is right to.
-  //
-  // AIM_ENFORCEMENT is passed through deliberately: the run script documents
-  // toggling it to reproduce the unprotected behavior on the same agent.
-  const PASSTHROUGH = ['PATH', 'HOME', 'TMPDIR', 'NODE_ENV', 'LANG', 'LC_ALL', 'AIM_ENFORCEMENT'];
-  const env = Object.fromEntries(
-    PASSTHROUGH.filter(k => process.env[k] !== undefined).map(k => [k, process.env[k]]),
-  );
-  Object.assign(env, {
+  // Explicit allowlist (src/cli/fleet-env.js), NOT `...process.env`: the
+  // child is a deliberately vulnerable fleet, and the presenter's shell holds
+  // real credentials. AIM_ENFORCEMENT stays passthrough for the run script.
+  const env = fleetEnv({
     DVAA_AIM_DATA_DIR: dataDir,
     // The ONLY root the agents' credential reads resolve against. Without it,
     // readSandboxCredential() returns null for every path - it never falls back
