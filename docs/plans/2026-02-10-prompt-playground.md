@@ -2330,32 +2330,9 @@ git commit -m "docs: add playground screenshots and documentation"
 
 ---
 
-## Task 12: Update Roadmap
-
-**Files:**
-- Modify: `/Users/decimai/workspace/aim-roadmap/phase-1-foundation.md`
-
-**Step 1: Document playground as shipped feature**
-
-Add to completed features section:
-- Prompt Playground (test custom agents)
-- Best practices library (5 examples)
-- AI-powered recommendations
-- Integration with HackMyAgent attack suite
-
-**Step 2: Commit**
-
-```bash
-cd /Users/decimai/workspace/aim-roadmap
-git add phase-1-foundation.md
-git commit -m "docs: mark prompt playground as shipped in Phase 1"
-```
-
----
-
 ## Summary
 
-This plan builds the Prompt Playground in 12 tasks:
+This plan builds the Prompt Playground in 11 tasks:
 
 1. ✅ Setup dependencies and directory structure
 2. ✅ Create best practices library
@@ -2368,7 +2345,6 @@ This plan builds the Prompt Playground in 12 tasks:
 9. ✅ Integration testing and bug fixes
 10. ✅ Add integration with attack log
 11. ✅ Final testing and documentation
-12. ✅ Update roadmap
 
 **Estimated time:** 6-8 hours for full implementation
 
