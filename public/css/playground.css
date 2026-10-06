@@ -258,6 +258,24 @@
   color: var(--yellow);
 }
 
+.category-severity.unknown {
+  background: rgba(136, 146, 168, 0.15);
+  color: var(--text-muted);
+}
+
+.results-mode {
+  margin: 0 0 0.75rem;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.results-note {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  color: var(--amber);
+}
+
 .category-expand {
   color: var(--text-muted);
   transition: transform 0.2s;
@@ -322,6 +340,10 @@
   background: var(--green);
 }
 
+.attack-status.inconclusive {
+  background: var(--text-muted);
+}
+
 .attack-name {
   flex: 1;
   color: var(--text);
@@ -341,6 +363,14 @@
 
 .attack-result.blocked {
   color: var(--green);
+}
+
+.attack-result.inconclusive {
+  color: var(--text-muted);
+}
+
+.attack-error {
+  color: var(--amber);
 }
 
 .attack-item-expand {

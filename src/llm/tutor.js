@@ -7,19 +7,126 @@
 
 import { callLLM, isLLMEnabled } from './provider.js';
 
-// Per-session tutor state
+// Session limits. The tutor prompt reads only the last 5 interactions, so 20
+// is headroom. Idle sessions expire, and the map is a least-recently-used
+// cache, so a stream of new session ids cannot grow it without bound.
+export const MAX_INTERACTIONS_PER_SESSION = 20;
+export const SESSION_IDLE_MS = 60 * 60 * 1000;
+export const MAX_SESSIONS = 500;
+
+const MAX_SESSION_ID_CHARS = 128;
+const MAX_INPUT_CHARS = 20000;
+const MAX_LABEL_CHARS = 200;
+
+// Per-session tutor state, kept in least-recently-used order: a lookup moves
+// the session to the end, so idle and evictable sessions are at the front.
 const sessions = new Map();
 
 function getSession(sessionId) {
-  if (!sessions.has(sessionId)) {
-    sessions.set(sessionId, {
+  const now = Date.now();
+
+  for (const [id, idle] of sessions) {
+    if (now - idle.lastSeen <= SESSION_IDLE_MS) break;
+    sessions.delete(id);
+  }
+
+  let session = sessions.get(sessionId);
+  if (session) {
+    sessions.delete(sessionId);
+  } else {
+    if (sessions.size >= MAX_SESSIONS) {
+      sessions.delete(sessions.keys().next().value);
+    }
+    session = {
       interactions: [],
+      interactionTotal: 0,
       killChainProgress: new Set(),
       challengeAttempts: {},
       completedChallenges: new Set(),
-    });
+    };
   }
-  return sessions.get(sessionId);
+  session.lastSeen = now;
+  sessions.set(sessionId, session);
+  return session;
+}
+
+/** Number of live tutor sessions. */
+export function tutorSessionCount() {
+  return sessions.size;
+}
+
+/** Read-only view of one session, without touching its recency. */
+export function tutorSessionSnapshot(sessionId) {
+  const session = sessions.get(sessionId);
+  if (!session) return undefined;
+  return {
+    storedInteractions: session.interactions.length,
+    interactionTotal: session.interactionTotal,
+    lastSeen: session.lastSeen,
+  };
+}
+
+/**
+ * A caller mistake. The dashboard's tutor routes answer a thrown error with
+ * a 4xx and its message.
+ */
+function inputError(message, statusCode = 400) {
+  const err = new Error(message);
+  err.statusCode = statusCode;
+  return err;
+}
+
+function requireSessionId(sessionId) {
+  if (typeof sessionId !== 'string' || sessionId.length === 0 || sessionId.length > MAX_SESSION_ID_CHARS) {
+    throw inputError(`sessionId must be a non-empty string of at most ${MAX_SESSION_ID_CHARS} characters`);
+  }
+}
+
+function requireText(name, value) {
+  if (value === undefined || value === null) {
+    throw inputError(`${name} is required`);
+  }
+  if (typeof value !== 'string') {
+    throw inputError(`${name} must be a string`);
+  }
+  if (value.trim().length === 0) {
+    throw inputError(`${name} is required`);
+  }
+  if (value.length > MAX_INPUT_CHARS) {
+    throw inputError(`${name} is longer than ${MAX_INPUT_CHARS} characters`, 413);
+  }
+  return value;
+}
+
+function optionalText(name, value) {
+  if (value === undefined || value === null) return '';
+  if (typeof value !== 'string') {
+    throw inputError(`${name} must be a string`);
+  }
+  return value;
+}
+
+/** A short label for the tutor prompt, never longer than MAX_LABEL_CHARS. */
+function label(value) {
+  return value === undefined || value === null ? '' : String(value).slice(0, MAX_LABEL_CHARS);
+}
+
+// Detection categories are short identifiers such as "promptInjection".
+const MAX_CATEGORIES = 50;
+const MAX_CATEGORY_CHARS = 64;
+
+/**
+ * Client-supplied detection results, reduced to a strict boolean and a short
+ * list of short category names. The categories are stored in the session and
+ * sent to the tutor LLM, so their size must not follow the request size.
+ */
+function normalizeDetection(detectionResults) {
+  const categories = Array.isArray(detectionResults?.categories)
+    ? detectionResults.categories
+      .filter(c => typeof c === 'string' && c.length > 0 && c.length <= MAX_CATEGORY_CHARS)
+      .slice(0, MAX_CATEGORIES)
+    : [];
+  return { hasAttack: detectionResults?.hasAttack === true, categories };
 }
 
 const TUTOR_SYSTEM_PROMPT = `You are an expert AI security researcher and penetration tester acting as a hands-on tutor.
@@ -93,10 +200,19 @@ const CATEGORY_TO_STAGE = {
   'memory-injection':    'persistence',
 };
 
+/**
+ * The kill-chain stage of a detection category. Categories can come from the
+ * client, so only the map's own keys count: "constructor" or "__proto__"
+ * would otherwise resolve to Object's built-ins.
+ */
+function stageOf(category) {
+  return Object.hasOwn(CATEGORY_TO_STAGE, category) ? CATEGORY_TO_STAGE[category] : undefined;
+}
+
 function advanceKillChain(session, detectionResults) {
   if (!detectionResults?.hasAttack) return;
   for (const cat of detectionResults.categories || []) {
-    const stage = CATEGORY_TO_STAGE[cat];
+    const stage = stageOf(cat);
     if (stage) session.killChainProgress.add(stage);
   }
 }
@@ -123,7 +239,7 @@ function offlineHint(detectionResults, session) {
     return 'No attack pattern detected. The agent treated this as a normal request. Try a clearer injection — "Ignore previous instructions and …" — or probe its capabilities first.';
   }
   const cats = detectionResults.categories || [];
-  const stages = [...new Set(cats.map(c => CATEGORY_TO_STAGE[c]).filter(Boolean))];
+  const stages = [...new Set(cats.map(stageOf).filter(Boolean))];
   const nextStage = STAGE_ORDER.find(s => !session.killChainProgress.has(s));
   const hits = cats.length ? `Categories detected: ${cats.join(', ')}.` : 'Attack detected but no category matched.';
   const advanced = stages.length ? ` Advanced kill chain to: ${stages.map(s => STAGE_LABELS[s] || s).join(', ')}.` : '';
@@ -150,9 +266,22 @@ export async function getTutorGuidance({
   detectionResults,
   activeChallenge,
 }) {
+  // Validate before touching session state, so a bad request neither creates
+  // a session nor fails halfway with a TypeError.
+  requireSessionId(sessionId);
+  userInput = requireText('userInput', userInput);
+  agentResponse = optionalText('agentResponse', agentResponse);
+  detectionResults = normalizeDetection(detectionResults);
+  agentId = label(agentId);
+  agentName = label(agentName);
+  securityLevel = label(securityLevel);
+  activeChallenge = activeChallenge && typeof activeChallenge === 'object'
+    ? { id: label(activeChallenge.id), name: label(activeChallenge.name), killChainStage: label(activeChallenge.killChainStage) }
+    : null;
+
   const session = getSession(sessionId);
 
-  // Record the interaction
+  // Record the interaction, keeping only the most recent ones
   session.interactions.push({
     timestamp: Date.now(),
     agentId,
@@ -161,6 +290,10 @@ export async function getTutorGuidance({
     attackDetected: detectionResults.hasAttack,
     categories: detectionResults.categories,
   });
+  session.interactionTotal++;
+  if (session.interactions.length > MAX_INTERACTIONS_PER_SESSION) {
+    session.interactions.splice(0, session.interactions.length - MAX_INTERACTIONS_PER_SESSION);
+  }
 
   // Kill-chain progression runs in BOTH modes. Category → stage lookup is
   // pure logic — no LLM needed.
@@ -171,7 +304,7 @@ export async function getTutorGuidance({
     return {
       guidance: offlineHint(detectionResults, session),
       killChainProgress: [...session.killChainProgress],
-      interactionCount: session.interactions.length,
+      interactionCount: session.interactionTotal,
       sessionId,
       offline: true,
     };
@@ -215,7 +348,7 @@ Based on this interaction, provide guidance to the student. What should they try
     return {
       guidance,
       killChainProgress: [...session.killChainProgress],
-      interactionCount: session.interactions.length,
+      interactionCount: session.interactionTotal,
       sessionId,
     };
   } catch (err) {
@@ -228,6 +361,13 @@ Based on this interaction, provide guidance to the student. What should they try
  * Ask the tutor a direct question.
  */
 export async function askTutor({ sessionId, question, context }) {
+  requireSessionId(sessionId);
+  question = requireText('question', question);
+  context = optionalText('context', context);
+  if (context.length > MAX_INPUT_CHARS) {
+    throw inputError(`context is longer than ${MAX_INPUT_CHARS} characters`, 413);
+  }
+
   if (!isLLMEnabled()) {
     return null;
   }
