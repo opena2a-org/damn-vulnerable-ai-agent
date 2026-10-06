@@ -110,6 +110,10 @@ export const MAX_DYNAMIC_TOOLS = 16;
  * handlers are reachable: a replacement keeps the vulnerable flag of the entry
  * it replaces, and a new entry carries none.
  *
+ * Only PluginBot's register_tool calls this. ProxyBot resolves any tool name
+ * it does not hold to a vulnerable handler, so an entry added to its tools
+ * would take that handler away.
+ *
  * @returns {{ status: 'added' | 'replaced' | 'refused', tool: object | null }}
  */
 export function registerDynamicTool(agent, args) {

@@ -35,6 +35,7 @@ const helperbot = getAgent('helperbot');
 const codebot = getAgent('codebot');
 const ragbot = getAgent('ragbot');
 const pluginbot = getAgent('pluginbot');
+const proxybot = getAgent('proxybot');
 
 const helperTriggers = helperbot.vulnerabilities.promptInjection.triggers;
 const BENIGN = 'What time does the library open on Saturday?';
@@ -247,4 +248,28 @@ test('fleet: PluginBot lists a tool after register_tool', async (t) => {
   const list = await rpc(pluginbot, 'tools/list', {});
   const listed = list.result.tools.filter(tool => tool.name === name);
   assert.equal(listed.length, 1, `registered tool listed ${listed.length} times`);
+});
+
+test('fleet: register_tool on ProxyBot leaves its tools/list and read_file traversal unchanged', async (t) => {
+  if (await skipWithoutFleet(t)) return;
+  const toolNames = async () => (await rpc(proxybot, 'tools/list', {})).result.tools.map(tool => tool.name);
+  const callTool = async (name, args) => {
+    const resp = await rpc(proxybot, 'tools/call', { name, arguments: args });
+    assert.equal(resp.error, undefined, `${name} returned a JSON-RPC error`);
+    return JSON.parse(resp.result.content[0].text);
+  };
+  const readTraversal = () => callTool('read_file', { path: '../../etc/passwd' });
+
+  const toolsBefore = await toolNames();
+  const readBefore = await readTraversal();
+  assert.equal(readBefore.success, true, 'read_file traversal failed before any registration');
+  // A name ProxyBot resolves by name only, then register_tool itself.
+  for (const name of ['read_file', 'register_tool']) {
+    const reg = await callTool('register_tool', { name });
+    assert.equal(reg.toolRegistered, name, `register_tool did not register ${name}`);
+  }
+  assert.deepEqual(await toolNames(), toolsBefore, 'ProxyBot tools/list changed after register_tool');
+  assert.deepEqual(await readTraversal(), readBefore, 'ProxyBot read_file traversal changed after register_tool');
+  const again = await callTool('register_tool', { name: 'dvaa_proxy_probe' });
+  assert.equal(again.toolRegistered, 'dvaa_proxy_probe', 'register_tool stopped registering on ProxyBot');
 });

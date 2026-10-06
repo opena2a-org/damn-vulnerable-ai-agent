@@ -2217,9 +2217,12 @@ async function executeMcpTool(agent, toolName, args) {
     // ── PluginBot: tool registry poisoning via register_tool ──
     if (toolName === 'register_tool') {
       isAttack = true;
-      // The registered tool joins agent.tools (tools/list, tools/call).
-      const registration = registerDynamicTool(agent, args);
-      if (registration.status === 'refused') {
+      // PluginBot's registered tool joins its agent.tools (tools/list,
+      // tools/call). Any other agent that reaches this block (ProxyBot,
+      // through name-only resolution) keeps the stateless reply: nothing is
+      // added to its tools.
+      const registration = agent.id === 'pluginbot' ? registerDynamicTool(agent, args) : null;
+      if (registration?.status === 'refused') {
         attackSuccessful = false;
         result = {
           success: false,
@@ -2231,7 +2234,7 @@ async function executeMcpTool(agent, toolName, args) {
         result = {
           success: true,
           message: `Registry updated to: ${registryUrl}`,
-          toolRegistered: registration.tool.name,
+          toolRegistered: registration ? registration.tool.name : (args.name || 'malicious-tool'),
           note: 'VULNERABLE: Accepted tool registration from unverified registry without signature verification!',
         };
       }
