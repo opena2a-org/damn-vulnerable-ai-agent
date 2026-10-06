@@ -1,9 +1,10 @@
 /**
  * Docs and demo-script hygiene (#110, #111).
  *
- *   - Nothing under docs/ points at a path on one developer's machine. A reader
- *     of this repository cannot open such a file, so a step that depends on it
- *     cannot be followed.
+ *   - No text file under docs/ contains a /Users/ path. A reader of this
+ *     repository cannot open a file on one developer's machine, so a step that
+ *     depends on it cannot be followed. Only the /Users/ form is checked: a
+ *     /home/<user>/ or C:\Users\ path passes.
  *   - docs/demo/setup-aim-local.sh seeds the local AIM admin over psql's stdin.
  *     It used to write the seed SQL to a fixed host path under /tmp, which
  *     another local user can pre-create as a symlink (CWE-377), and it spliced
@@ -41,7 +42,7 @@ function walk(dir) {
   return out;
 }
 
-test('docs/ carries no absolute path on a local machine', () => {
+test('no text file under docs/ contains a /Users/ path', () => {
   const hits = [];
   for (const file of walk(DOCS_DIR)) {
     fs.readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
