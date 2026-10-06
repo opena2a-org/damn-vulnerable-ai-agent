@@ -37,9 +37,9 @@ Open the dashboard in a fresh browser (or incognito to avoid stale localStorage)
 | 1.2 | `/#attack-lab` | Agent dropdown populated with all 21. Kill-chain bar with 9 stages renders gray/dim. Tutor panel shows offline-mode hint. |
 | 1.3 | `/#challenges` | 22 challenges render grouped by difficulty. Click any → modal with description + verify box. |
 | 1.4 | `/#scenarios` | 86 scenario cards. Filter bar works (Auto-fixable narrows to ~10 cards). Progress bar at top shows `0 / 19,400 points`. |
-| 1.5 | `/#attack-log` | Empty state: `0 events`. Filter dropdowns (All agents / categories / results) render. `Clear All` button present. |
+| 1.5 | `/#attack-log` | Empty state: `0 events`. Filter dropdowns (All agents / categories / results) render. `Clear log` and `Reset all progress` buttons present; `Reset all progress` asks for confirmation first. |
 | 1.6 | `/#stats` | `0 Total Requests`, `0 Attacks Detected`, `0% Success Rate`, uptime ticks. Category bar chart shows all 11 categories at 0/0. |
-| 1.7 | `/#settings` | LLM Configuration card with Provider/API Key/Model. Privacy card with 5 green checkmarks. Status reads `Offline mode (default)`. |
+| 1.7 | `/#settings` | LLM Configuration card with Provider/API Key/Model. Privacy card with 6 items (telemetry on by default and its opt-outs, BYOK key handling, external requests) and a link to opena2a.org/telemetry. Status reads `LLM mode off (default)`. |
 
 If any page shows a console error, renders empty when data should be present,
 or contains literal `undefined`/`null` strings — fail.
