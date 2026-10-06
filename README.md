@@ -8,15 +8,17 @@
 An intentionally vulnerable AI agent platform for security training, red-teaming, and validating security tools. 21 agents, 12 vulnerability categories, 3 protocols. The [DVWA](https://dvwa.co.uk/) of AI agents.
 
 ```bash
-docker run -p 9000:9000 -p 7001-7021:7001-7021 opena2a/dvaa:0.9.2
+docker run -p 127.0.0.1:9000:9000 -p 127.0.0.1:7001-7021:7001-7021 opena2a/dvaa:0.9.2
 open http://localhost:9000
 ```
 
-> This maps every port of the published image: the dashboard on `:9000` and its 19 agents on `7001-7021`, so the dashboard, `curl`, and HackMyAgent all work. The two newest agents (RepoBot 7022/7023, bringing the count to 21) are on main and ship with the next image. Docker does not publish ports without `-p`, so a bare `docker run` reaches nothing. (Only want the dashboard? `-p 9000:9000` alone is enough; it drives the whole fleet through `:9000`.)
+> This maps every port of the published image: the dashboard on `:9000` and its 19 agents on `7001-7021`, so the dashboard, `curl`, and HackMyAgent all work. The `127.0.0.1:` prefix publishes them to this machine only. The two newest agents (RepoBot 7022/7023, bringing the count to 21) are on main and ship with the next image. Docker does not publish ports without `-p`, so a bare `docker run` reaches nothing. (Only want the dashboard? `-p 127.0.0.1:9000:9000` alone is enough; it drives the whole fleet through `:9000`.)
 
 > **v0.8.0 breaking change:** agent ports moved from `3000`-base to `7000`-base to avoid the common `3000` collision with Next.js/React dev servers. Dashboard stays on `9000`. See [Upgrading from v0.7.x](#upgrading-from-v07x).
 
 > DVAA is intentionally insecure. Do not deploy in production or expose to the internet.
+
+**Network exposure.** The agents and the dashboard listen on `127.0.0.1` by default, so other machines cannot connect to them. The Docker image listens on `0.0.0.0` inside the container, and the `docker run` and Compose examples here publish its ports on `127.0.0.1`. To expose DVAA to a lab network on purpose, start it with `DVAA_HOST=0.0.0.0 npm start`, or publish the container's ports with `-p 0.0.0.0:9000:9000` (and the same for the agent ports). Anything that can reach those ports can drive the agents and extract their planted secrets.
 
 ![DVAA Demo](docs/dvaa-demo.gif)
 
@@ -42,7 +44,7 @@ The dashboard groups the fleet by protocol, with each agent's security level and
 | FlightBot-AIM | 7018 | AIM-protected | Same code as FlightBot, egress gated by AIM capability grant |
 | RepoBot | 7022 | Weak | Repo-local agent-config injection (AGENTS.md), credential exfiltration |
 | RepoBot-AIM | 7023 | AIM-protected | Same code as RepoBot, shell/file/egress gated by AIM capability grant |
-| VisionBot | 7006 | Weak | Image-based prompt injection |
+| VisionBot | 7006 | Weak | Prompt injection hidden in image captions and OCR text (text input only; image parts are not processed) |
 | MemoryBot | 7007 | Vulnerable | Memory injection, cross-session persistence |
 | LongwindBot | 7008 | Weak | Context overflow, safety displacement |
 | ToolBot | 7010 | Vulnerable | Path traversal, SSRF, command injection (MCP) |
@@ -312,7 +314,7 @@ The dashboard at `http://localhost:9000` tracks challenge progress, shows live a
 # Docker Compose (with simulated LLM backend, zero external dependencies)
 git clone https://github.com/opena2a-org/damn-vulnerable-ai-agent.git
 cd damn-vulnerable-ai-agent
-docker compose up
+docker compose up        # publishes every port on 127.0.0.1 only
 open http://localhost:9000
 
 # Node.js (without Docker)
@@ -359,12 +361,12 @@ VERBOSE=true            # Detailed logging
 ```bash
 # Remap host ports 7001-7021 → 7501-7521. Container-internal ports stay unchanged.
 docker run -d -e HOST_PORT_OFFSET=500 \
-  -p 9000:9000 \
-  -p 7501-7521:7001-7021 \
+  -p 127.0.0.1:9000:9000 \
+  -p 127.0.0.1:7501-7521:7001-7021 \
   opena2a/dvaa:0.9.2
 ```
 
-`HOST_PORT_OFFSET` only affects what the dashboard **displays** (e.g. test commands, agent URLs). The container still binds internally to its agent ports (`7001-7021` on 0.9.2). You are responsible for the matching `-p` mappings. A naive `-p 8001:7001` without the env var means the dashboard will keep telling users to hit `7001` when the agent is actually on `8001`.
+`HOST_PORT_OFFSET` only affects what the dashboard **displays** (e.g. test commands, agent URLs). The container still binds internally to its agent ports (`7001-7021` on 0.9.2). You are responsible for the matching `-p` mappings. A naive `-p 127.0.0.1:8001:7001` without the env var means the dashboard will keep telling users to hit `7001` when the agent is actually on `8001`.
 
 **Dashboard shows stale data after upgrade.** Hard-reload (Cmd+Shift+R / Ctrl+Shift+R). The frontend is cached aggressively.
 
