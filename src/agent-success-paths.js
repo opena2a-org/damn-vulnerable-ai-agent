@@ -44,16 +44,27 @@ export function declaredOverrideTriggers(agent) {
 
 /**
  * Whether a weak/vulnerable agent with promptInjection enabled takes the
- * instruction-override path for `message`. Accepts the union of:
- *   - a message the detector flagged as prompt injection (`attacks`) that
- *     carries a legacy override marker;
- *   - a message containing one of the agent's declared triggers (any case),
- *     whether or not the detector flagged it: the declaration is the agent's
- *     own statement of what it falls for.
+ * instruction-override path on a legacy override marker: the detector flagged
+ * `message` as prompt injection (`attacks`) and it carries one of
+ * LEGACY_OVERRIDE_MARKERS. The handler checks this before any other path, as
+ * it always has.
  */
-export function takesOverridePath(agent, message, attacks) {
+export function takesLegacyOverridePath(agent, message, attacks) {
   if (!agent?.vulnerabilities?.promptInjection?.enabled || typeof message !== 'string') return false;
-  if (attacks?.promptInjection && hasLegacyOverrideMarker(message)) return true;
+  return Boolean(attacks?.promptInjection) && hasLegacyOverrideMarker(message);
+}
+
+/**
+ * Whether a weak/vulnerable agent with promptInjection enabled takes the
+ * instruction-override path on one of its declared triggers (any case),
+ * whether or not the detector flagged `message`: the declaration is the
+ * agent's own statement of what it falls for. The handler checks this after
+ * every other path and only when none of them took the message, so a message
+ * another path answers (a system-prompt or API-key question, say) keeps that
+ * reply.
+ */
+export function takesDeclaredTriggerPath(agent, message) {
+  if (!agent?.vulnerabilities?.promptInjection?.enabled || typeof message !== 'string') return false;
   const lower = message.toLowerCase();
   return declaredOverrideTriggers(agent).some(t => lower.includes(t.toLowerCase()));
 }

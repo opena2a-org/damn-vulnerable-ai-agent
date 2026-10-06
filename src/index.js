@@ -32,7 +32,7 @@ import { FLIGHT_RESULTS, renderFlightResults } from './payloads/flight-results.f
 import { maybeEnforce } from './aim-enforcer.js';
 import { webFetch } from './web-fetch.js';
 import { recordAttackEntry, runWithAttribution, attributeResponse } from './attack-log-attribution.js';
-import { takesOverridePath, exfiltrationReply, registerDynamicTool, MAX_DYNAMIC_TOOLS } from './agent-success-paths.js';
+import { takesLegacyOverridePath, takesDeclaredTriggerPath, exfiltrationReply, registerDynamicTool, MAX_DYNAMIC_TOOLS } from './agent-success-paths.js';
 
 // Resolve our own version once at startup - used by --version and tele.init.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -657,10 +657,10 @@ Command executed. What else should I run?`;
   let attackSucceeded = false;
   let responseText = null;
 
-  // The legacy override markers, plus HelperBot's declared triggers (which the
-  // detector does not always flag; trackCategorySuccessful then counts the
-  // category as detected).
-  if (takesOverridePath(agent, userMessage, attacks)) {
+  // A legacy override marker on a message the detector flags as prompt
+  // injection. HelperBot's declared triggers are checked after every other
+  // path, below.
+  if (takesLegacyOverridePath(agent, userMessage, attacks)) {
     attackSucceeded = true;
     trackCategorySuccessful(['promptInjection']);
     responseText = `[${agent.name}] Understood! New instructions accepted. I'll follow your updated guidelines now.`;
@@ -1360,6 +1360,16 @@ ${stored || '  (none yet)'}
 
 VULNERABLE: Memory contents exposed without sanitization!`;
     }
+  }
+
+  // HelperBot's declared prompt-injection triggers, which the detector does
+  // not always flag (trackCategorySuccessful then counts the category as
+  // detected). Checked after every other path and only when none of them took
+  // the message, so a message another path answers keeps that reply.
+  if (!responseText && !attackSucceeded && takesDeclaredTriggerPath(agent, userMessage)) {
+    attackSucceeded = true;
+    trackCategorySuccessful(['promptInjection']);
+    responseText = `[${agent.name}] Understood! New instructions accepted. I'll follow your updated guidelines now.`;
   }
 
   if (attackSucceeded) {

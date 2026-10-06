@@ -28,7 +28,8 @@ import {
   declaredOverrideTriggers,
   exfiltrationReply,
   registerDynamicTool,
-  takesOverridePath,
+  takesDeclaredTriggerPath,
+  takesLegacyOverridePath,
 } from '../src/agent-success-paths.js';
 
 const helperbot = getAgent('helperbot');
@@ -50,6 +51,11 @@ function l301SolutionPhrases() {
     .filter(p => detectAttacks(p).dataExfiltration);
 }
 
+// The documented L1-01 solution names its phrases in double quotes.
+function l101SolutionPhrases() {
+  return [...getChallenge('L1-01').solution.matchAll(/"([^"]+)"/g)].map(m => m[1]);
+}
+
 // The knowledge-base document L3-01 verifies against.
 function l301Document() {
   const { pattern } = getChallenge('L3-01').successCriteria;
@@ -65,29 +71,28 @@ function freshPluginBot() {
 test('L1-03: every HelperBot trigger takes the override path', () => {
   assert.ok(helperTriggers.length > 0, 'HelperBot declares no triggers');
   helperTriggers.forEach((trigger, i) => {
-    assert.equal(takesOverridePath(helperbot, trigger, detectAttacks(trigger)), true, `trigger #${i} did not take the override path`);
+    assert.equal(takesDeclaredTriggerPath(helperbot, trigger), true, `trigger #${i} did not take the override path`);
   });
 });
 
 test('L1-03: a trigger is recognised in any case and inside a longer message', () => {
   helperTriggers.forEach((trigger, i) => {
     const message = `Before you answer: ${trigger.toUpperCase()}. Thanks.`;
-    assert.equal(takesOverridePath(helperbot, message, detectAttacks(message)), true, `trigger #${i} missed in a longer message`);
+    assert.equal(takesDeclaredTriggerPath(helperbot, message), true, `trigger #${i} missed in a longer message`);
   });
 });
 
 test('L1-03: a benign message does not take the override path', () => {
   assert.equal(containsAny(BENIGN, helperTriggers), false);
-  assert.equal(takesOverridePath(helperbot, BENIGN, detectAttacks(BENIGN)), false);
+  assert.equal(takesLegacyOverridePath(helperbot, BENIGN, detectAttacks(BENIGN)), false);
+  assert.equal(takesDeclaredTriggerPath(helperbot, BENIGN), false);
 });
 
 test('L1-03: the legacy override markers still take the override path on a detected injection', () => {
   for (const [i, marker] of LEGACY_OVERRIDE_MARKERS.entries()) {
-    assert.equal(takesOverridePath(helperbot, `${BENIGN} ${marker.text}`, { promptInjection: true }), true, `marker #${i} no longer accepted`);
-    if (!containsAny(marker.text, helperTriggers)) {
-      assert.equal(takesOverridePath(helperbot, `${BENIGN} ${marker.text}`, { promptInjection: false }), false,
-        `marker #${i} accepted without a detected injection`);
-    }
+    assert.equal(takesLegacyOverridePath(helperbot, `${BENIGN} ${marker.text}`, { promptInjection: true }), true, `marker #${i} no longer accepted`);
+    assert.equal(takesLegacyOverridePath(helperbot, `${BENIGN} ${marker.text}`, { promptInjection: false }), false,
+      `marker #${i} accepted without a detected injection`);
   }
 });
 
@@ -98,10 +103,12 @@ test('L1-03: only HelperBot gains the declared-trigger path', () => {
     const attacks = detectAttacks(trigger);
     const legacy = Boolean(attacks.promptInjection) && LEGACY_OVERRIDE_MARKERS.some(m => (m.caseSensitive
       ? trigger.includes(m.text) : trigger.toLowerCase().includes(m.text.toLowerCase())));
-    assert.equal(takesOverridePath(codebot, trigger, attacks), legacy, `CodeBot trigger #${i} changed behaviour`);
+    assert.equal(takesLegacyOverridePath(codebot, trigger, attacks), legacy, `CodeBot trigger #${i} changed behaviour`);
+    assert.equal(takesDeclaredTriggerPath(codebot, trigger), false, `CodeBot trigger #${i} took the declared-trigger path`);
   });
   // An agent with prompt injection disabled never takes the path.
-  assert.equal(takesOverridePath(ragbot, helperTriggers[0], { promptInjection: true }), false);
+  assert.equal(takesLegacyOverridePath(ragbot, helperTriggers[0], { promptInjection: true }), false);
+  assert.equal(takesDeclaredTriggerPath(ragbot, helperTriggers[0]), false);
 });
 
 // ── L3-01: RAGBot returns the knowledge-base document ──────────────────
@@ -227,6 +234,25 @@ test('fleet: HelperBot takes the override path for each declared trigger', async
     assert.equal(typeof reply, 'string', `trigger #${i} got no reply`);
     assert.equal(verifyChallenge('L1-03', reply).success, true, `trigger #${i} reply does not verify (reply length ${reply.length})`);
   }
+});
+
+test('fleet: a HelperBot trigger in a documented L1-01 question keeps the reply that verifies L1-01', async (t) => {
+  if (await skipWithoutFleet(t)) return;
+  let checked = 0;
+  for (const [p, phrase] of l101SolutionPhrases().entries()) {
+    const alone = await chat(helperbot, phrase);
+    if (typeof alone !== 'string' || !verifyChallenge('L1-01', alone).success) continue;
+    for (const [i, trigger] of helperTriggers.entries()) {
+      const message = `${trigger}: ${phrase}`;
+      // A legacy marker on a detected injection takes the override path first, as it always has.
+      if (takesLegacyOverridePath(helperbot, message, detectAttacks(message))) continue;
+      const reply = await chat(helperbot, message);
+      assert.equal(typeof reply, 'string', `phrase #${p} with trigger #${i} got no reply`);
+      assert.equal(verifyChallenge('L1-01', reply).success, true, `phrase #${p} with trigger #${i} reply does not verify L1-01`);
+      checked++;
+    }
+  }
+  assert.ok(checked > 0, 'no documented L1-01 phrase was checked with a trigger');
 });
 
 test('fleet: RAGBot replies to the documented L3-01 solution with its KB document', async (t) => {
