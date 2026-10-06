@@ -90,16 +90,22 @@ done
 curl -fsS -m 2 "$BACKEND_URL/health" >/dev/null 2>&1 || err "backend never became healthy (check: docker logs aim-backend)"
 
 step "Seed admin user (if not already present)"
-EXISTING=$(docker exec aim-postgres psql -U postgres -d identity -tA -c "SELECT count(*) FROM users WHERE email = '$ADMIN_EMAIL';" 2>/dev/null || echo 0)
+# psql inside aim-postgres reads the SQL on stdin, so no SQL file is written
+# on the host. Values travel as psql variables (-v name=value, read as
+# :'name'), which psql quotes, instead of being spliced into the SQL text.
+aim_psql() { docker exec -i aim-postgres psql -U postgres -d identity "$@"; }
+# ON_ERROR_STOP makes a failing query exit non-zero, as `psql -c` did, so a
+# failed lookup still falls back to 0.
+EXISTING=$(aim_psql -tA -v ON_ERROR_STOP=1 -v email="$ADMIN_EMAIL" 2>/dev/null <<'SQL' || echo 0
+SELECT count(*) FROM users WHERE email = :'email';
+SQL
+)
 if [[ "$EXISTING" = "0" ]]; then
-  cat > /tmp/dvaa-seed-admin.sql <<SQL
+  aim_psql -v email="$ADMIN_EMAIL" -v pw_hash="$ADMIN_PW_HASH" >/dev/null 2>&1 <<'SQL'
 INSERT INTO users (organization_id, email, name, role, provider, provider_id, password_hash, status, email_verified, force_password_change)
-SELECT id, '$ADMIN_EMAIL', 'DVAA Local Admin', 'admin', 'local', '$ADMIN_EMAIL', '$ADMIN_PW_HASH', 'active', TRUE, FALSE
+SELECT id, :'email', 'DVAA Local Admin', 'admin', 'local', :'email', :'pw_hash', 'active', TRUE, FALSE
 FROM organizations WHERE domain = 'admin.opena2a.org';
 SQL
-  docker cp /tmp/dvaa-seed-admin.sql aim-postgres:/tmp/dvaa-seed-admin.sql >/dev/null
-  docker exec aim-postgres psql -U postgres -d identity -f /tmp/dvaa-seed-admin.sql >/dev/null 2>&1
-  rm -f /tmp/dvaa-seed-admin.sql
   ok "admin user seeded ($ADMIN_EMAIL / $ADMIN_PASSWORD)"
 else
   ok "admin user already present"
