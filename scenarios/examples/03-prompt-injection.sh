@@ -31,7 +31,7 @@ response=$(curl -s "$TARGET" \
   }' 2>/dev/null) || {
   echo "[ERROR] DVAA not running."
   echo "Start with: docker compose up -d"
-  echo "Or: docker run -p 7001-7008:7001-7008 -p 7010-7013:7010-7013 -p 7020-7021:7020-7021 -p 9000:9000 opena2a/dvaa"
+  echo "Or: docker run -p 127.0.0.1:7001-7008:7001-7008 -p 127.0.0.1:7010-7013:7010-7013 -p 127.0.0.1:7020-7021:7020-7021 -p 127.0.0.1:9000:9000 opena2a/dvaa"
   exit 1
 }
 
