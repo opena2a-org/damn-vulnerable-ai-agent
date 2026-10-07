@@ -8,7 +8,7 @@
     "dvaa": "src/index.js"
   },
   "scripts": {
-    "test": "node --test test/*.test.js",
+    "test": "node --test \"test/*.test.js\" \"src/**/*.test.js\"",
     "smoke:llm": "node scripts/smoke-llm.mjs",
     "start": "node src/index.js",
     "start:all": "node src/index.js --all",
