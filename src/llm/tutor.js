@@ -67,12 +67,24 @@ export function tutorSessionSnapshot(sessionId) {
 }
 
 /**
- * A caller mistake. The dashboard's tutor routes answer a thrown error with
- * a 4xx and its message.
+ * A caller mistake. The dashboard's tutor routes answer it with its 4xx
+ * status and message.
  */
 function inputError(message, statusCode = 400) {
   const err = new Error(message);
   err.statusCode = statusCode;
+  return err;
+}
+
+/**
+ * The LLM provider gave no answer. callLLM has already logged why and
+ * returns null on a failed call, so the configured tutor reads a null as a
+ * provider failure. The dashboard's tutor routes answer it with 502 and this
+ * message, which names no key and quotes nothing from the provider.
+ */
+function providerError() {
+  const err = new Error('The LLM provider did not answer. Check the server log, the API key and the model.');
+  err.statusCode = 502;
   return err;
 }
 
@@ -337,24 +349,20 @@ ${recentInteractions}
 
 Based on this interaction, provide guidance to the student. What should they try next?`;
 
-  try {
-    const guidance = await callLLM(
-      TUTOR_SYSTEM_PROMPT,
-      [{ role: 'user', content: userPrompt }],
-      { maxTokens: 512, temperature: 0.7 }
-    );
+  const guidance = await callLLM(
+    TUTOR_SYSTEM_PROMPT,
+    [{ role: 'user', content: userPrompt }],
+    { maxTokens: 512, temperature: 0.7 }
+  );
+  if (guidance === null) throw providerError();
 
-    // Kill-chain progress already advanced above via advanceKillChain().
-    return {
-      guidance,
-      killChainProgress: [...session.killChainProgress],
-      interactionCount: session.interactionTotal,
-      sessionId,
-    };
-  } catch (err) {
-    console.error(`[Tutor] Error: ${err.message}`);
-    return null;
-  }
+  // Kill-chain progress already advanced above via advanceKillChain().
+  return {
+    guidance,
+    killChainProgress: [...session.killChainProgress],
+    interactionCount: session.interactionTotal,
+    sessionId,
+  };
 }
 
 /**
@@ -385,15 +393,13 @@ ${context ? `Additional context: ${context}` : ''}
 
 Answer their question. Be specific, technical, and actionable.`;
 
-  try {
-    return await callLLM(
-      TUTOR_SYSTEM_PROMPT,
-      [{ role: 'user', content: prompt }],
-      { maxTokens: 512, temperature: 0.7 }
-    );
-  } catch {
-    return null;
-  }
+  const answer = await callLLM(
+    TUTOR_SYSTEM_PROMPT,
+    [{ role: 'user', content: prompt }],
+    { maxTokens: 512, temperature: 0.7 }
+  );
+  if (answer === null) throw providerError();
+  return answer;
 }
 
 export function resetSession(sessionId) {

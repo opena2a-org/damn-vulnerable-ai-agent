@@ -473,6 +473,46 @@ function refuseUnsafeStateChange(req) {
   return null;
 }
 
+// The statuses a tutor route answers with the error's own message: bad input
+// (400), input over a length limit (413) and a provider failure (502).
+const TUTOR_ERROR_STATUSES = new Set([400, 413, 502]);
+
+/**
+ * Read a tutor route's body: a JSON object, or a 400.
+ */
+async function readTutorBody(req) {
+  const body = await parseBody(req);
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    const err = new Error('Request body must be a JSON object');
+    err.statusCode = 400;
+    throw err;
+  }
+  return body;
+}
+
+/**
+ * Answer a tutor route with 200. The body is serialized before the status is
+ * sent, so a failure here still reaches sendTutorError as a 500.
+ */
+function sendTutorJson(res, payload) {
+  const body = JSON.stringify(payload);
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(body);
+}
+
+/**
+ * Answer a tutor route's error. Bad input and a provider failure keep their
+ * status and message, which are written to be shown. Anything else is a
+ * fault in the server: a 500 with a fixed message, logged here, so no stack
+ * trace or detail reaches the client.
+ */
+function sendTutorError(res, err, route) {
+  const status = TUTOR_ERROR_STATUSES.has(err?.statusCode) ? err.statusCode : 500;
+  if (status === 500) console.error(`[tutor] ${route} failed:`, err);
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ error: status === 500 ? 'Internal server error' : err.message }));
+}
+
 /**
  * Create the dashboard HTTP server
  *
@@ -1081,7 +1121,7 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
     // POST /api/tutor/guidance -- Get tutor feedback on an interaction
     if (req.method === 'POST' && pathname === '/api/tutor/guidance') {
       try {
-        const body = await parseBody(req);
+        const body = await readTutorBody(req);
         // Client sends detectionResults when it already has them (e.g. from
         // a proxied attack). The Attack Lab doesn't, so run detection server-
         // side against the user input so the kill-chain can advance without
@@ -1102,11 +1142,9 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
           detectionResults: detection,
           activeChallenge: body.activeChallenge,
         });
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(result || { guidance: null, message: 'LLM not configured' }));
+        sendTutorJson(res, result);
       } catch (err) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message }));
+        sendTutorError(res, err, '/api/tutor/guidance');
       }
       return;
     }
@@ -1114,17 +1152,15 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
     // POST /api/tutor/ask -- Ask the tutor a direct question
     if (req.method === 'POST' && pathname === '/api/tutor/ask') {
       try {
-        const body = await parseBody(req);
+        const body = await readTutorBody(req);
         const result = await askTutor({
           sessionId: body.sessionId,
           question: body.question,
           context: body.context,
         });
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ answer: result, message: result ? null : 'LLM not configured' }));
+        sendTutorJson(res, { answer: result, message: result ? null : 'LLM not configured' });
       } catch (err) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message }));
+        sendTutorError(res, err, '/api/tutor/ask');
       }
       return;
     }
@@ -1132,13 +1168,11 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
     // POST /api/tutor/reset -- Reset tutor session
     if (req.method === 'POST' && pathname === '/api/tutor/reset') {
       try {
-        const body = await parseBody(req);
+        const body = await readTutorBody(req);
         resetSession(body.sessionId);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'reset' }));
+        sendTutorJson(res, { status: 'reset' });
       } catch (err) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message }));
+        sendTutorError(res, err, '/api/tutor/reset');
       }
       return;
     }
