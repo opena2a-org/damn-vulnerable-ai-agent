@@ -16,7 +16,7 @@ git status    # must be clean
 docker build -t opena2a/dvaa:smoke .
 docker rm -f dvaa-smoke 2>/dev/null
 docker run -d --name dvaa-smoke \
-  -p 9000:9000 -p 7001-7023:7001-7023 \
+  -p 127.0.0.1:9000:9000 -p 127.0.0.1:7001-7023:7001-7023 \
   opena2a/dvaa:smoke
 sleep 5
 curl -s http://localhost:9000/health | jq    # expect {"status":"ok","agents":21,...}
