@@ -115,6 +115,11 @@ async function readJsonObject(req) {
     if (err?.statusCode === 400 || err instanceof SyntaxError) {
       throw requestError(400, 'Request body is not valid JSON');
     }
+    // The request stream failed, for example a client that disconnected
+    // mid-body. Logged here, once, by error class and code, never by message
+    // or body; sendError does not log the 400 again.
+    const code = typeof err?.code === 'string' && /^[A-Z_]{1,64}$/.test(err.code) ? err.code : '-';
+    console.error(`[playground] request body could not be read (errorClass=${err?.constructor?.name || typeof err} code=${code})`);
     throw requestError(400, 'Request body could not be read');
   }
   if (body === null || typeof body !== 'object' || Array.isArray(body)) {

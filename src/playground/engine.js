@@ -649,18 +649,47 @@ export class PlaygroundEngine {
 /** Per-request timeout for a provider call, in milliseconds. */
 const PROVIDER_TIMEOUT_MS = 30000;
 
+// An identifier such as "invalid_api_key", "authentication_error",
+// "ECONNREFUSED" or "AuthenticationError". OpenAI and Anthropic keys start
+// with "sk-", so a value of this shape cannot quote one.
+const LOG_TOKEN = /^[A-Za-z_]{1,64}$/;
+
+function logToken(value) {
+  return typeof value === 'string' && LOG_TOKEN.test(value) ? value : null;
+}
+
+/**
+ * The fields of a provider failure that help debugging and never carry the
+ * prompt, the reply, a header or any part of the key: the provider, the HTTP
+ * status, the error code and type the SDK reports, the SDK error class and
+ * how long the call took. OpenAI puts the code and type on the error; the
+ * Anthropic SDK keeps the type in the response body it attaches as `error`.
+ * A connection failure reports its code on the cause. A field the SDK does
+ * not report, or that is not a plain identifier, is "-".
+ */
+export function providerFailureFields(provider, error, elapsedMs) {
+  return {
+    provider: logToken(provider) ?? '-',
+    status: Number.isInteger(error?.status) ? error.status : '-',
+    code: logToken(error?.code) ?? logToken(error?.cause?.code) ?? '-',
+    type: logToken(error?.type) ?? logToken(error?.error?.error?.type) ?? '-',
+    errorClass: logToken(error?.constructor?.name) ?? typeof error,
+    elapsedMs: Number.isFinite(elapsedMs) ? Math.round(elapsedMs) : '-',
+  };
+}
+
 /**
  * Rethrow a provider failure as an error whose message is safe to log and to
  * show the learner. The provider's own message, which can quote part of the
  * key, is dropped. The error keeps only the status and a hint, and the log
- * line adds the error's class name.
+ * line adds the fields from providerFailureFields.
  */
-function providerFailure(provider, error) {
+function providerFailure(provider, error, startedAt) {
   const err = new Error(describeProviderError(provider, error));
   if (typeof error?.status === 'number') err.status = error.status;
-  // The error class (for example AuthenticationError or APIConnectionError)
-  // helps debugging and carries no part of the key.
-  console.error(`[playground] ${err.message} (${error?.constructor?.name || typeof error})`);
+  const fields = providerFailureFields(provider, error, performance.now() - startedAt);
+  const detail = Object.entries(fields).map(([name, value]) => `${name}=${value}`).join(' ');
+  console.error(`[playground] ${err.message} (${detail})`);
   return err;
 }
 
@@ -675,6 +704,7 @@ class OpenAIClient {
 
   async generate({ systemPrompt, userMessage }) {
     let response;
+    const startedAt = performance.now();
     try {
       response = await this.client.chat.completions.create({
         model: this.model,
@@ -688,7 +718,7 @@ class OpenAIClient {
         max_completion_tokens: 500
       });
     } catch (error) {
-      throw providerFailure('openai', error);
+      throw providerFailure('openai', error, startedAt);
     }
 
     // A reply without text is judged as an empty response, not reported as
@@ -708,6 +738,7 @@ class AnthropicClient {
 
   async generate({ systemPrompt, userMessage }) {
     let response;
+    const startedAt = performance.now();
     try {
       response = await this.client.messages.create({
         model: this.model,
@@ -718,7 +749,7 @@ class AnthropicClient {
         ]
       });
     } catch (error) {
-      throw providerFailure('anthropic', error);
+      throw providerFailure('anthropic', error, startedAt);
     }
 
     return response?.content?.[0]?.text || '';
