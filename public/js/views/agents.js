@@ -5,6 +5,26 @@
 import { el, PROTOCOL_LABELS, formatNumber, successRate } from '../utils.js';
 import { securityBadge, protocolBadge, agentStat, healthDot, codeBlock, openModal } from '../components.js';
 
+// Arguments for the MCP "Execute tool" example, keyed by tool name. Each uses
+// only parameters the tool declares, and shows the weakness that tool has.
+// read_file resolves a relative path against the sandbox home, two levels
+// below the sandbox root, so two ".." segments reach the sandbox's etc/passwd.
+// The examples go inside a single-quoted shell argument: no single quotes.
+const MCP_TOOL_EXAMPLES = {
+  read_file: { path: '../../etc/passwd' },
+  execute: { command: 'cat /etc/passwd' },
+  query_database: { query: 'SELECT name FROM products UNION SELECT password FROM users' },
+  fetch_data: { path: '../../etc/passwd' },
+  secure_query: { query: 'SELECT name FROM products UNION SELECT password FROM credentials' },
+};
+
+/**
+ * Example arguments for an MCP tool; a tool not listed gets none.
+ */
+export function mcpToolExample(tool) {
+  return { ...(MCP_TOOL_EXAMPLES[tool] || {}) };
+}
+
 /**
  * Build curl test examples for an agent
  */
@@ -36,7 +56,7 @@ function buildTestModal(agent) {
     body.appendChild(codeBlock(
       `curl -X POST http://localhost:${agent.port}/mcp/execute \\\n` +
       `  -H "Content-Type: application/json" \\\n` +
-      `  -d '{"tool":"${firstTool}","arguments":{"path":"../../etc/passwd"}}'`
+      `  -d '${JSON.stringify({ tool: firstTool, arguments: mcpToolExample(firstTool) })}'`
     ));
   } else {
     body.appendChild(el('p', { style: { fontWeight: '600', marginBottom: '0.25rem', fontSize: '0.85rem' } }, 'Send message:'));

@@ -9,7 +9,7 @@ dist/
 # Runtime artifacts
 # scoreboard + team state written by the server
 .dvaa/
-# per-agent AIM identity (Ed25519 private key), audit log, policy
+# per-agent AIM identity (Ed25519 private key), audit log, policy, cloud-agent cache
 .dvaa-aim/
 # HMA check-metadata cache used by the dashboard scanner
 .hackmyagent-cache/
@@ -21,6 +21,3 @@ dist/
 # Test/screenshot artifacts (session-local)
 .playwright-mcp/
 rc*-*.png
-
-# Local AIM runtime data - agent identity (private key), audit log, cloud-agent cache
-.dvaa-aim/

@@ -7,7 +7,7 @@
  * 401 "Public key mismatch". No real AIM server is contacted.
  */
 
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -145,7 +145,16 @@ async function mockRegistry({ existing, putStatus = 200 }) {
   return { apiBase: `http://127.0.0.1:${srv.address().port}`, calls, close: () => srv.close() };
 }
 
-const tmpCache = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'dvaa-aim-cache-')), 'cloud-agent.json');
+// Each cache file gets its own temporary directory, removed once the tests finish.
+const cacheDirs = [];
+after(() => {
+  for (const dir of cacheDirs) fs.rmSync(dir, { recursive: true, force: true });
+});
+const tmpCache = () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dvaa-aim-cache-'));
+  cacheDirs.push(dir);
+  return path.join(dir, 'cloud-agent.json');
+};
 
 test('an existing registration with the same key is reused and cached', async () => {
   const reg = await mockRegistry({ existing: { id: 'agent-1', name: 'dvaa-ragbot-aim', publicKey: 'LOCAL==' } });

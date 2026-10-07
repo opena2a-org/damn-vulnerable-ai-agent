@@ -408,6 +408,19 @@ Disclosure surfaces and opt-out:
 
 Telemetry is fire-and-forget with a 2-second timeout; network failures never block DVAA.
 
+## Running the tests
+
+```bash
+npm ci
+npm test                                         # no fleet needed
+npm run test:fleet                               # starts a fleet, runs the same files, stops it
+npm run test:fleet -- test/fleet-smoke.test.js   # only the files named
+```
+
+`npm test` runs `node --test` over `test/*.test.js` and `src/**/*.test.js`. It starts no fleet, so a test that needs running agents reports as skipped.
+
+`npm run test:fleet` (`scripts/test-fleet.mjs`) runs the same files against a live fleet. It needs port 9000 and the agent ports in 7001-7023 free on 127.0.0.1, and refuses to start when one is in use. It starts `node src/index.js --all` in a temporary working directory, with telemetry off and no provider key or cloud credential from your shell, waits until the dashboard and every agent accept connections, runs the tests, then stops the fleet and removes the directory. Its exit code is the test run's.
+
 ## Contributing
 
 Contributions are welcome: new vulnerability scenarios, agent personas, challenge ideas, MCP/A2A protocol implementations, and documentation improvements.
