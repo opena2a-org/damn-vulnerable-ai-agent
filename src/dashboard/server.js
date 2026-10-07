@@ -493,7 +493,7 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
   // the user's opt-out.
   const trackUserAction = createActionTracker({ track });
 
-  // HOST_PORT_OFFSET lets users remap container ports (e.g. -p 8001:7001) and have the
+  // HOST_PORT_OFFSET lets users remap container ports (e.g. -p 127.0.0.1:8001:7001) and have the
   // dashboard reflect the real host port. Container-internal binding stays on agent.port;
   // this offset is only applied to ports rendered for the user.
   const HOST_PORT_OFFSET = parseInt(process.env.HOST_PORT_OFFSET || '0', 10) || 0;

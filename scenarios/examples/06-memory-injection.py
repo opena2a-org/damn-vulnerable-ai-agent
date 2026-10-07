@@ -33,9 +33,9 @@ def chat(msg: str) -> str:
     except requests.ConnectionError:
         print("[ERROR] DVAA not running.")
         print("Start with: docker compose up -d")
-        print("Or: docker run -p 7001-7008:7001-7008 "
-              "-p 7010-7013:7010-7013 -p 7020-7021:7020-7021 "
-              "-p 9000:9000 opena2a/dvaa")
+        print("Or: docker run -p 127.0.0.1:7001-7008:7001-7008 "
+              "-p 127.0.0.1:7010-7013:7010-7013 -p 127.0.0.1:7020-7021:7020-7021 "
+              "-p 127.0.0.1:9000:9000 opena2a/dvaa")
         sys.exit(1)
     except (KeyError, json.JSONDecodeError) as e:
         print(f"[ERROR] Unexpected response format: {e}")
