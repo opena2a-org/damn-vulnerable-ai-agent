@@ -10,20 +10,28 @@
  * non-word character (so markdown or HTML markup does not hide it), with the
  * value after whitespace, after `=`, attached to the flag, or as the next
  * element of an argv array on the same line (`"-p", "<port>:<port>"`). A
- * container port alone counts only after `docker run`, `docker create` or the
- * podman equivalents on the same line, with no `&&`, `;` or `|` in between, and
- * only with whitespace or `=` before it, because `-p <number>` is also an
- * ordinary option of ssh, nc, ps, mysql and dev servers. A value that names a
- * host is allowed, including an explicit `0.0.0.0:` or `[::]:` written on
- * purpose (DOCKER_README.md documents one for lab use).
+ * container port alone counts only after `docker run`, `docker create`,
+ * `docker compose run` or the podman equivalents in the same command on the
+ * line, written with spaces or as argv-array elements, with any global options
+ * before the subcommand (`docker --context remote run`), and only with
+ * whitespace or `=` before it, because `-p <number>` is also an ordinary
+ * option of ssh, nc, ps, mysql and dev servers. `&&`, `;` and `|` end the
+ * command unless they sit inside a quoted argument after the subcommand. A
+ * value that goes on with `-<digit>` is not a port: a date such as
+ * `2026-10-07`, and also a three-part value such as `9000-9001-9002`, which
+ * is therefore not flagged. A value that names a host is allowed, including
+ * an explicit `0.0.0.0:` or `[::]:` written on purpose (DOCKER_README.md
+ * documents one for lab use).
  *
  * Not covered: combined short options (`-dp 9000:9000`), `-P` and
  * `--publish-all`, the long syntax (`--publish published=9000,target=9000`), a
  * port held in a variable, a flag and its value on separate lines (a `\`
  * continuation or a multi-line argv array), bash arrays (`("-p" "9000:9000")`),
- * and compose `ports:` entries. Still flagged although it is not a publish: a
- * lone `-p <number>` of a command run inside the container on a `docker run`
- * line (`docker run busybox nc -l -p <port>`).
+ * compose `ports:` entries, and a container port alone after `docker-compose
+ * run`. Still flagged although it is not a publish: a lone `-p <number>` of a
+ * command run inside the container on a `docker run` or `docker compose run`
+ * line (`docker run busybox nc -l -p <port>`, `docker compose run app nc -l -p
+ * <port>`, `docker run busybox mkdir -p <year>`).
  *
  * The tree is walked with fs rather than `git ls-files` so the test also runs
  * where .git is absent. Skipped: dependency and VCS directories, runtime state
@@ -53,7 +61,9 @@ const FIXTURE_TREE = 'vulnerable';
 // optionally `:<port or range>`. The lookahead rejects a value that goes on as
 // an IP address (127.0.0.1:..., also with escaped dots as in a regex), so a
 // value with a host address in front does not match.
-const ALL_INTERFACES = /(?<!\w)(?:-p|--publish)(?:\s+|=|["'`]\s*,\s*)?["'`]?(\d+(?:-\d+)?(?::\d+(?:-\d+)?)?)(?!\d|\\*\.\d)/g;
+// It also rejects a value that goes on with `-<digit>`, such as the date in
+// `mkdir -p 2026-10-07`: a port range is written `<first>-<last>`.
+const ALL_INTERFACES = /(?<!\w)(?:-p|--publish)(?:\s+|=|["'`]\s*,\s*)?["'`]?(\d+(?:-\d+)?(?::\d+(?:-\d+)?)?)(?!\d|-\d|\\*\.\d)/g;
 
 function isFixtureTree(rel) {
   const parts = rel.split(path.sep);
@@ -74,25 +84,118 @@ function walk(dir, out = []) {
   return out;
 }
 
-// A container port alone is a publish only as an option of `docker run` or
-// `docker create` (or podman's), so it counts only when such a command precedes
-// the flag on the line with no `&&`, `;` or `|` between them, and only with
-// whitespace or `=` before the value (`-p1234` is mysql's password form).
-const CONTAINER_RUN = /\b(?:docker|podman)\s+(?:container\s+)?(?:run|create)\b/gi;
+// A container port alone is a publish only as an option of `docker run`,
+// `docker create`, `docker compose run` (or podman's), so it counts only when
+// such a command precedes the flag on the line in the same command, and only
+// with whitespace or `=` before the value (`-p1234` is mysql's password form).
+// The line is split once into words and separators and walked with a small
+// state machine, so the check is linear in the line length:
+// - Words split on whitespace, `,`, `[`, `]`, `(` and `)`, so the argv-array
+//   form (`"docker", ["run", "-p", "<port>"]`) reads like the shell form. Quote
+//   characters are ignored when a word is compared.
+// - `&&`, `;` and `|` end the command, except inside a quoted argument that
+//   opens after the subcommand (`docker run -e "A=b;c"`). A quote opens only at
+//   the start of a word, so the apostrophe in `won't` is not a quote.
+// - Between `docker` or `podman` and the subcommand, a word starting with `-`
+//   is a global option. Without `=`, it takes the next word as its value unless
+//   that word starts with `-` or is the subcommand; a quoted value is taken
+//   whole (`docker compose -f "a b.yml" run`).
+const IDLE = 0;
+const CMD = 1;
+const SUB = 2;
+const RUN = 3;
+const CMD_WORD = /(?:^|\W)(?:docker|podman)\W*$/i;
+const RUN_WORD = /^[^\w-]*(?:run|create)(?!\w)/i;
+const SUB_WORD = /^[^\w-]*(?:compose|container)(?!\w)/i;
+const WORD_BREAK = /[\s,[\]()]/;
+const QUOTE_OPENS_AFTER = /[\s,[\]()=;|&]/;
 const ATTACHED = /^(?:-p|--publish)["'`]?\d/;
 
-function loneIsPublish(text, m) {
-  if (ATTACHED.test(m[0])) return false;
-  const before = text.slice(0, m.index);
-  const runs = [...before.matchAll(CONTAINER_RUN)];
-  if (runs.length === 0) return false;
-  const last = runs[runs.length - 1];
-  return !/&&|;|\|/.test(before.slice(last.index + last[0].length));
+function tokenize(line) {
+  const tokens = [];
+  const noClose = new Set();
+  let span = null;
+  let wordStart = -1;
+  let wordQuoteEnd = -1;
+  const flush = (end) => {
+    if (wordStart < 0) return;
+    const text = line.slice(wordStart, end).replace(/["'`]/g, '');
+    tokens.push({ sep: false, start: wordStart, end, text, quoteEnd: wordQuoteEnd });
+    wordStart = -1;
+    wordQuoteEnd = -1;
+  };
+  for (let i = 0; i < line.length; i++) {
+    if (span && i >= span.end) span = null;
+    const c = line[i];
+    let opened = -1;
+    if (!span && (c === '"' || c === "'") && !noClose.has(c)
+        && (i === 0 || QUOTE_OPENS_AFTER.test(line[i - 1]))) {
+      const close = line.indexOf(c, i + 1);
+      if (close < 0) noClose.add(c);
+      else { span = { start: i, end: close + 1 }; opened = span.end; }
+    }
+    const pair = c === '&' && line[i + 1] === '&';
+    if (WORD_BREAK.test(c)) {
+      flush(i);
+    } else if (c === ';' || c === '|' || pair) {
+      flush(i);
+      tokens.push({ sep: true, start: i, end: i + (pair ? 2 : 1), spanStart: span ? span.start : -1 });
+      if (pair) i++;
+    } else if (wordStart < 0) {
+      wordStart = i;
+      wordQuoteEnd = opened;
+    }
+  }
+  flush(line.length);
+  return tokens;
+}
+
+// For each token, whether a docker or podman run subcommand precedes it in the
+// same command.
+function runStates(tokens) {
+  const inRun = new Array(tokens.length).fill(false);
+  let state = IDLE;
+  let runEnd = -1;
+  for (let k = 0; k < tokens.length; k++) {
+    const tok = tokens[k];
+    inRun[k] = state === RUN;
+    if (tok.sep) {
+      if (!(state === RUN && tok.spanStart >= runEnd)) state = IDLE;
+      continue;
+    }
+    if (state === RUN) continue;
+    const w = tok.text;
+    if (CMD_WORD.test(w)) { state = CMD; continue; }
+    if (state === CMD || state === SUB) {
+      if (w.startsWith('-')) {
+        const next = tokens[k + 1];
+        if (!w.includes('=') && next && !next.sep && !next.text.startsWith('-')
+            && !RUN_WORD.test(next.text)) {
+          const valueEnd = next.quoteEnd >= 0 ? next.quoteEnd : next.end;
+          while (k + 1 < tokens.length && tokens[k + 1].start < valueEnd) inRun[++k] = false;
+        }
+        continue;
+      }
+      if (RUN_WORD.test(w)) { state = RUN; runEnd = tok.end; continue; }
+      if (state === CMD && SUB_WORD.test(w)) { state = SUB; continue; }
+    }
+    state = IDLE;
+  }
+  return inRun;
 }
 
 function findHits(text) {
+  let tokens = null;
+  let inRun = null;
+  let k = 0;
+  const loneIsPublish = (m) => {
+    if (ATTACHED.test(m[0])) return false;
+    if (!tokens) { tokens = tokenize(text); inRun = runStates(tokens); }
+    while (k < tokens.length && tokens[k].end <= m.index) k++;
+    return k < tokens.length && tokens[k].start <= m.index && inRun[k];
+  };
   return [...text.matchAll(ALL_INTERFACES)]
-    .filter((m) => m[1].includes(':') || loneIsPublish(text, m))
+    .filter((m) => m[1].includes(':') || loneIsPublish(m))
     .map((m) => m[1]);
 }
 
@@ -129,6 +232,22 @@ test('the pattern flags a publish with no host address in the forms it covers', 
     [`spawn("docker", ["run", "${p}", "9000:9000", "opena2a/dvaa"])`, '9000:9000'],
     [`subprocess.run(['docker', 'run', '${pub}', '7001-7008:7001-7008'])`, '7001-7008:7001-7008'],
     [`["run", "${p}9000:9000"]`, '9000:9000'],
+    // A container port alone after global options, compose run, in argv form,
+    // or after a quoted argument that holds `;` or `|` (#144).
+    [`docker --context remote run ${p} 9000 opena2a/dvaa`, '9000'],
+    [`docker -H tcp://host:2375 run ${p} 9000 opena2a/dvaa`, '9000'],
+    [`podman --remote run ${p} 9000 opena2a/dvaa`, '9000'],
+    [`docker compose run ${p} 9000 dvaa`, '9000'],
+    [`spawn("docker", ["run", "${p}", "9000"])`, '9000'],
+    [`execFile('docker',['run','${p}','9000'])`, '9000'],
+    [`docker run -e "A=b;c" ${p} 9000 opena2a/dvaa`, '9000'],
+    [`docker run --label 'a|b' ${p} 9000 opena2a/dvaa`, '9000'],
+    // A quoted global-option value is taken whole; an option never takes
+    // another option as its value.
+    [`docker --context "remote" run ${p} 9000 opena2a/dvaa`, '9000'],
+    [`docker compose -f "a b.yml" run ${p} 9000 dvaa`, '9000'],
+    [`docker --debug --context remote run ${p} 9000 opena2a/dvaa`, '9000'],
+    [`docker -H tcp://docker-host:2375 run ${p} 9000 opena2a/dvaa`, '9000'],
   ];
   for (const [line, value] of cases) {
     assert.deepEqual(findHits(line), [value], `not flagged as it should be: ${line}`);
@@ -165,9 +284,39 @@ test('the pattern passes -p <number> options that are not a docker or podman run
     'docker run --rm opena2a/dvaa && ssh -p 2222 user@host',
     'docker run --rm opena2a/dvaa; ssh -p 2222 user@host',
     'docker run --rm opena2a/dvaa | nc -l -p 4444',
+    // A date is not a port range (#144).
+    'docker run --rm busybox mkdir -p 2026-10-07',
+    // A separator is never the value of a global option.
+    'docker --version && run -p 3000',
+    // An apostrophe inside a word does not open a quote.
+    "docker run img won't stop; it's fine, ssh -p 2222 user@host",
+    // A separator inside a quote that opened before the subcommand still counts,
+    // as does one after a quote that never closes.
+    'echo "docker run --rm img; ssh -p 2222 user@host"',
+    'docker run -e "unclosed; ssh -p 2222 user@host',
   ];
   for (const line of lines) {
     assert.deepEqual(findHits(line), [], `flagged but is not a container publish: ${line}`);
+  }
+});
+
+test('the check stays fast on long adversarial lines', () => {
+  const size = 200 * 1024;
+  const fill = (head, unit, tail) => head + unit.repeat(Math.ceil(size / unit.length)) + tail;
+  const p = '-p';
+  const lines = [
+    // Global options in argv form, the shape that made a regex backtrack.
+    fill('"docker"', ', "-a", "b"', `, "${p}", "9000"`),
+    fill('docker', ' -a b', ` run ${p} 9000`),
+    // Many lone ports after one run.
+    fill('docker run', ` ${p} 9000`, ''),
+    fill('', `docker run -e "a;" ${p} 9000 `, ''),
+  ];
+  for (const line of lines) {
+    const t = performance.now();
+    findHits(line);
+    const ms = performance.now() - t;
+    assert.ok(ms < 2000, `${ms.toFixed(0)} ms on a ${line.length}-byte line starting ${line.slice(0, 30)}`);
   }
 });
 
