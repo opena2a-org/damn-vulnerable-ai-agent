@@ -9,6 +9,7 @@
   },
   "scripts": {
     "test": "node --test \"test/*.test.js\" \"src/**/*.test.js\"",
+    "test:fleet": "node scripts/test-fleet.mjs",
     "smoke:llm": "node scripts/smoke-llm.mjs",
     "start": "node src/index.js",
     "start:all": "node src/index.js --all",
