@@ -6,7 +6,7 @@
  * mock backend - no live AIM cloud needed.
  */
 
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert';
 import http from 'node:http';
 import os from 'node:os';
@@ -15,6 +15,17 @@ import fs from 'node:fs';
 
 const { readLoginCredentials, resolveApiBase, registerOrLoadAgent, isSafeApiBase } =
   await import('../src/aim-cloud-register.js');
+
+// Every temporary directory this file creates, removed once its tests finish.
+const tmpDirs = [];
+function makeTmpDir(prefix) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  tmpDirs.push(dir);
+  return dir;
+}
+after(() => {
+  for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true });
+});
 
 test('isSafeApiBase rejects plaintext to a remote host and bad schemes', () => {
   assert.equal(isSafeApiBase('https://api.aim.opena2a.org'), true);
@@ -28,7 +39,7 @@ test('isSafeApiBase rejects plaintext to a remote host and bad schemes', () => {
 });
 
 test('readLoginCredentials parses the aim-sdk login file', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aim-cred-'));
+  const dir = makeTmpDir('aim-cred-');
   const f = path.join(dir, 'creds.json');
   fs.writeFileSync(f, JSON.stringify({ accessToken: 'jwt-123', aimUrl: 'https://aim.opena2a.org/', userEmail: 'a@b.c' }));
   const c = readLoginCredentials(f);
@@ -63,7 +74,7 @@ test('registerOrLoadAgent registers a new agent, then loads from cache', async (
   });
   await new Promise((r) => srv.listen(0, '127.0.0.1', r));
   const apiBase = `http://127.0.0.1:${srv.address().port}`;
-  const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aim-cache-'));
+  const cacheDir = makeTmpDir('aim-cache-');
   const cacheFile = path.join(cacheDir, 'cloud-agent.json');
 
   const first = await registerOrLoadAgent({ apiBase, jwt: 'jwt-abc', publicKey: 'PUBKEY==', cacheFile });
