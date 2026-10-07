@@ -1,11 +1,29 @@
 // ===== Playground State =====
 let currentLibrary = [];
 let currentResults = null;
+// Saved in localStorage: the provider and model only.
 let llmSettings = {
   provider: 'simulated',
-  apiKey: '',
   model: ''
 };
+// The API key is kept in memory (this variable and the settings field) and is
+// never written to browser storage. Reloading or closing the tab clears it.
+let sessionApiKey = '';
+
+const SETTINGS_KEY = 'dvaa-llm-settings';
+const PROVIDER_LABELS = { simulated: 'Simulated', openai: 'OpenAI', anthropic: 'Anthropic' };
+const VERDICT_LABELS = { blocked: 'Blocked', vulnerable: 'Vulnerable', inconclusive: 'Inconclusive' };
+// CSS classes per verdict; "success" means the attack succeeded.
+const VERDICT_CLASSES = { blocked: 'blocked', vulnerable: 'success', inconclusive: 'inconclusive' };
+
+function providerLabel(provider) {
+  return PROVIDER_LABELS[provider] || provider;
+}
+
+function verdictOf(attack) {
+  if (VERDICT_LABELS[attack.verdict]) return attack.verdict;
+  return attack.blocked ? 'blocked' : attack.succeeded ? 'vulnerable' : 'inconclusive';
+}
 
 // ===== DOM Elements =====
 const librarySelect = document.getElementById('library-select');
@@ -20,6 +38,8 @@ const statusText = document.getElementById('status-text');
 const emptySection = document.getElementById('empty-section');
 const loadingSection = document.getElementById('loading-section');
 const resultsSection = document.getElementById('results-section');
+const resultsMode = document.getElementById('results-mode');
+const resultsNote = document.getElementById('results-note');
 const scoreValue = document.getElementById('score-value');
 const scoreFill = document.getElementById('score-fill');
 const categoriesList = document.getElementById('categories-list');
@@ -49,7 +69,8 @@ async function init() {
     const response = await fetch('/health');
     if (response.ok) {
       statusDot.classList.add('online');
-      statusText.textContent = 'Online';
+      // The status text names the testing mode (see updateStatusText).
+      updateStatusText();
     } else {
       throw new Error('Server not responding');
     }
@@ -110,6 +131,13 @@ async function testPrompt() {
     return;
   }
 
+  // The key is not kept across reloads, so a saved real provider can be
+  // missing its key.
+  if (llmSettings.provider !== 'simulated' && !sessionApiKey) {
+    alert(`Enter your ${providerLabel(llmSettings.provider)} API key in Settings, or switch to Simulated. The key is not kept after the page reloads.`);
+    return;
+  }
+
   // Show loading state
   emptySection.style.display = 'none';
   resultsSection.style.display = 'none';
@@ -125,7 +153,7 @@ async function testPrompt() {
     if (llmSettings.provider !== 'simulated') {
       requestBody.llmProvider = llmSettings.provider;
       requestBody.llmModel = llmSettings.model;
-      requestBody.llmApiKey = llmSettings.apiKey;
+      requestBody.llmApiKey = sessionApiKey;
     }
 
     const response = await fetch('/playground/test', {
@@ -136,11 +164,11 @@ async function testPrompt() {
       body: JSON.stringify(requestBody),
     });
 
-    if (!response.ok) {
-      throw new Error('Test failed');
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.success) {
+      // The server explains client errors and failed runs in `error`.
+      throw new Error(data?.error || `Test failed with HTTP ${response.status}`);
     }
-
-    const data = await response.json();
     currentResults = data.results;
 
     // Debug: Log the response
@@ -164,6 +192,9 @@ function displayResults(results) {
   loadingSection.style.display = 'none';
   resultsSection.style.display = 'block';
 
+  // Which backend produced these verdicts
+  displayMode(results);
+
   // Update score meter
   updateScoreMeter(results.overallScore);
 
@@ -172,6 +203,27 @@ function displayResults(results) {
 
   // Display AI recommendations
   displayRecommendations(results.recommendations);
+}
+
+// ===== Display Backend Mode =====
+function displayMode(results) {
+  if (results.mode === 'real') {
+    const model = results.model ? ` (${results.model})` : '';
+    resultsMode.textContent = `Backend: ${providerLabel(results.provider)}${model}`;
+  } else {
+    resultsMode.textContent = 'Backend: Simulated (pattern-based, no provider calls)';
+  }
+
+  const counts = results.counts || {};
+  const total = (results.attacks || []).length;
+  let note = '';
+  if (counts.errors) {
+    note = `${counts.errors} of ${total} attacks failed to run (the error is shown on each). They count as not blocked, so the score is a lower bound.`;
+  } else if (counts.inconclusive) {
+    note = `${counts.inconclusive} of ${total} responses were inconclusive and count as not blocked.`;
+  }
+  resultsNote.textContent = note;
+  resultsNote.hidden = !note;
 }
 
 // ===== Update Score Meter =====
@@ -230,17 +282,24 @@ function createCategoryItem(category) {
   const item = document.createElement('div');
   item.className = 'category-item';
 
-  // Count successful vs blocked attacks
-  const successCount = category.attacks.filter(a => a.succeeded).length;
+  // Count verdicts. Inconclusive covers an ambiguous reply and an attack
+  // that failed to run; neither is evidence that the prompt blocked it.
+  const verdicts = category.attacks.map(verdictOf);
+  const successCount = verdicts.filter(v => v === 'vulnerable').length;
+  const inconclusiveCount = verdicts.filter(v => v === 'inconclusive').length;
   const totalCount = category.attacks.length;
 
-  const severityClass = successCount > totalCount * 0.5 ? 'high' : successCount > 0 ? 'medium' : 'low';
+  let severityClass = successCount > totalCount * 0.5 ? 'high' : successCount > 0 ? 'medium' : 'low';
+  if (successCount === 0 && inconclusiveCount === totalCount && totalCount > 0) {
+    severityClass = 'unknown';
+  }
+  const inconclusiveText = inconclusiveCount ? `, ${inconclusiveCount} inconclusive` : '';
 
   item.innerHTML = `
     <div class="category-header">
-      <span class="category-name">${category.name}</span>
+      <span class="category-name">${escapeHtml(category.name)}</span>
       <div class="category-stats">
-        <span class="category-count">${successCount}/${totalCount} vulnerable</span>
+        <span class="category-count">${successCount}/${totalCount} vulnerable${inconclusiveText}</span>
         <span class="category-severity ${severityClass}">${severityClass}</span>
         <span class="category-expand">▶</span>
       </div>
@@ -250,10 +309,10 @@ function createCategoryItem(category) {
         ${category.attacks.map((attack, idx) => `
           <li class="attack-item" data-attack-id="${idx}">
             <div class="attack-item-header">
-              <span class="attack-status ${attack.succeeded ? 'success' : 'blocked'}"></span>
-              <span class="attack-name">${attack.name}</span>
-              <span class="attack-result ${attack.succeeded ? 'success' : 'blocked'}">
-                ${attack.succeeded ? 'Vulnerable' : 'Blocked'}
+              <span class="attack-status ${VERDICT_CLASSES[verdicts[idx]]}"></span>
+              <span class="attack-name">${escapeHtml(attack.name)}</span>
+              <span class="attack-result ${VERDICT_CLASSES[verdicts[idx]]}">
+                ${VERDICT_LABELS[verdicts[idx]]}
               </span>
               <span class="attack-item-expand">▼</span>
             </div>
@@ -262,6 +321,11 @@ function createCategoryItem(category) {
                 <div class="attack-detail-label">Attack Payload:</div>
                 <div class="attack-detail-content">${escapeHtml(attack.payload)}</div>
               </div>
+              ${attack.error ? `
+              <div class="attack-detail-section">
+                <div class="attack-detail-label">Error:</div>
+                <div class="attack-detail-content attack-error">${escapeHtml(attack.error)}</div>
+              </div>` : ''}
               <div class="attack-detail-section">
                 <div class="attack-detail-label">LLM Response:</div>
                 <div class="attack-detail-content">${escapeHtml(attack.response || 'No response')}</div>
@@ -325,22 +389,35 @@ function displayRecommendations(recommendations) {
 }
 
 // ===== Apply Recommendations =====
-function applyRecommendations() {
-  if (!currentResults || !currentResults.recommendations) {
+// The server turns each recommendation into the instruction itself: it
+// strips the "Add:" / "Add preamble:" wrapper and puts a preamble first.
+async function applyRecommendations() {
+  if (!currentResults || !currentResults.recommendations || currentResults.recommendations.length === 0) {
+    alert('No actionable recommendations to apply.');
     return;
   }
 
-  // Combine all suggested fixes into the prompt
-  const fixes = currentResults.recommendations
-    .map(rec => rec.fix)
-    .filter(fix => fix)
-    .join('\n\n');
-
-  if (fixes) {
-    promptInput.value = promptInput.value + '\n\n' + fixes;
+  applyRecommendationsBtn.disabled = true;
+  try {
+    const response = await fetch('/playground/apply-recommendations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemPrompt: promptInput.value,
+        recommendations: currentResults.recommendations
+      })
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.success) {
+      throw new Error(data?.error || `HTTP ${response.status}`);
+    }
+    promptInput.value = data.enhanced;
     alert('Recommendations applied to prompt. Review and test again.');
-  } else {
-    alert('No actionable recommendations to apply.');
+  } catch (error) {
+    console.error('Error applying recommendations:', error);
+    alert(`Could not apply recommendations: ${error.message}`);
+  } finally {
+    applyRecommendationsBtn.disabled = false;
   }
 }
 
@@ -418,19 +495,32 @@ const MODEL_OPTIONS = {
 };
 
 function loadSettings() {
-  const saved = localStorage.getItem('dvaa-llm-settings');
-  if (saved) {
-    try {
-      llmSettings = JSON.parse(saved);
-    } catch (e) {
-      console.error('Error loading settings:', e);
-    }
+  let saved = null;
+  try {
+    saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+  } catch (e) {
+    // Unreadable entry: drop it, since it may hold a key from an older version.
+    try { localStorage.removeItem(SETTINGS_KEY); } catch { /* storage unavailable */ }
+  }
+
+  if (saved && typeof saved === 'object') {
+    if (PROVIDER_LABELS[saved.provider]) llmSettings.provider = saved.provider;
+    if (typeof saved.model === 'string') llmSettings.model = saved.model;
+    // Earlier versions saved the API key here. Rewrite the entry without it.
+    if ('apiKey' in saved) saveSettings();
   }
   updateStatusText();
 }
 
 function saveSettings() {
-  localStorage.setItem('dvaa-llm-settings', JSON.stringify(llmSettings));
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+      provider: llmSettings.provider,
+      model: llmSettings.model
+    }));
+  } catch (e) {
+    // Storage unavailable: the settings still apply to this page.
+  }
   updateStatusText();
 }
 
@@ -438,16 +528,19 @@ function updateStatusText() {
   if (llmSettings.provider === 'simulated') {
     statusText.textContent = 'Learning Mode';
     statusText.style.color = 'var(--green)';
+  } else if (!sessionApiKey) {
+    statusText.textContent = `${providerLabel(llmSettings.provider)}: API key needed`;
+    statusText.style.color = 'var(--amber)';
   } else {
-    const providerText = llmSettings.provider === 'openai' ? 'OpenAI' : 'Claude';
-    statusText.textContent = `Production: ${providerText}`;
+    statusText.textContent = `Production: ${providerLabel(llmSettings.provider)}`;
     statusText.style.color = 'var(--amber)';
   }
 }
 
 function openSettings() {
   llmProvider.value = llmSettings.provider;
-  apiKeyInput.value = llmSettings.apiKey;
+  apiKeyInput.value = sessionApiKey;
+  connectionStatus.textContent = '';
   updateProviderFields();
   settingsModal.style.display = 'flex';
 }
@@ -482,14 +575,30 @@ function updateProviderFields() {
 }
 
 function saveSettingsFromForm() {
+  const provider = llmProvider.value;
+  const apiKey = apiKeyInput.value.trim();
+
+  // A real provider without a key cannot run; refuse it here instead of
+  // letting the test request fail.
+  if (provider !== 'simulated' && !apiKey) {
+    connectionStatus.textContent = 'Enter an API key, or choose Simulated.';
+    connectionStatus.className = 'connection-status error';
+    apiKeyInput.focus();
+    return;
+  }
+
   llmSettings = {
-    provider: llmProvider.value,
-    apiKey: apiKeyInput.value.trim(),
-    model: llmModel.value
+    provider,
+    model: provider === 'simulated' ? '' : llmModel.value
   };
+  // Simulated makes no provider calls, so the key is dropped from memory.
+  sessionApiKey = provider === 'simulated' ? '' : apiKey;
+  if (provider === 'simulated') {
+    apiKeyInput.value = '';
+  }
   saveSettings();
   closeSettings();
-  alert('Settings saved. You can now test prompts with ' + llmSettings.provider);
+  alert(`Settings saved. Tests now run against: ${providerLabel(provider)}.`);
 }
 
 // Settings event listeners
@@ -539,7 +648,7 @@ async function testConnection() {
 
     clearTimeout(timeoutId);
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
 
     if (data.success) {
       connectionStatus.textContent = '[OK] Connection successful';
