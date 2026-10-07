@@ -36,7 +36,7 @@ function buildTestModal(agent) {
     body.appendChild(codeBlock(
       `curl -X POST http://localhost:${agent.port}/mcp/execute \\\n` +
       `  -H "Content-Type: application/json" \\\n` +
-      `  -d '{"tool":"${firstTool}","arguments":{"path":"../../../etc/passwd"}}'`
+      `  -d '{"tool":"${firstTool}","arguments":{"path":"../../etc/passwd"}}'`
     ));
   } else {
     body.appendChild(el('p', { style: { fontWeight: '600', marginBottom: '0.25rem', fontSize: '0.85rem' } }, 'Send message:'));
