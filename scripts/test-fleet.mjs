@@ -6,8 +6,9 @@
  * starts one (`node src/index.js --all`), waits until the dashboard and every
  * agent it lists accept connections, runs `node --test`, and stops the fleet
  * on pass, fail, error, SIGINT, SIGTERM or SIGHUP. Its exit code is the test
- * run's. SIGKILL cannot be caught, so a fleet outlives this script killed that
- * way; see the note at the 'exit' handler below.
+ * run's. A fleet outlives this script when a signal it does not handle ends
+ * it: SIGKILL, which cannot be caught, or one such as SIGQUIT (Ctrl-\); see
+ * the note at the 'exit' handler below.
  *
  *   npm run test:fleet                                # the files npm test runs
  *   npm run test:fleet -- test/fleet-smoke.test.js    # only the files named
@@ -122,11 +123,13 @@ function stopFleet() {
 
 // Last resort if this process exits some other way (an uncaught error, a
 // process.exit elsewhere): kill the fleet's process group. No handler runs
-// when this process itself is killed with SIGKILL. The fleet, in its own
-// process group, then keeps running and its dvaa-test-fleet-* directory stays
-// in the temp directory. The next run refuses to start because the ports are
-// in use: stop that fleet with `kill <pid>`, using the pid that
-// `lsof -iTCP:9000 -sTCP:LISTEN` prints, and remove the directory by hand.
+// when a signal this process does not handle ends it: SIGKILL, which cannot
+// be caught, or one with no listener below, such as SIGQUIT (Ctrl-\),
+// SIGUSR2, SIGALRM or SIGABRT. The fleet, in its own process group, then keeps
+// running and its dvaa-test-fleet-* directory stays in the temp directory. The
+// next run refuses to start because the ports are in use: stop that fleet with
+// `kill <pid>`, using the pid that `lsof -iTCP:9000 -sTCP:LISTEN` prints, and
+// remove the directory by hand.
 process.on('exit', () => signalFleet('SIGKILL'));
 
 let runner = null;
