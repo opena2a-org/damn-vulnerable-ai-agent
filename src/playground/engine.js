@@ -658,20 +658,36 @@ function logToken(value) {
   return typeof value === 'string' && LOG_TOKEN.test(value) ? value : null;
 }
 
+// How many causes deep a connection failure's code is looked for. Both SDKs
+// wrap fetch's TypeError, and the socket error under it carries the code.
+const CAUSE_DEPTH = 3;
+
+/** The first plain-identifier code among the error's causes, or null. */
+function causeCode(error) {
+  let cause = error?.cause;
+  for (let depth = 0; depth < CAUSE_DEPTH && cause != null; depth += 1) {
+    const code = logToken(cause.code);
+    if (code) return code;
+    cause = cause.cause;
+  }
+  return null;
+}
+
 /**
  * The fields of a provider failure that help debugging and never carry the
  * prompt, the reply, a header or any part of the key: the provider, the HTTP
  * status, the error code and type the SDK reports, the SDK error class and
  * how long the call took. OpenAI puts the code and type on the error; the
  * Anthropic SDK keeps the type in the response body it attaches as `error`.
- * A connection failure reports its code on the cause. A field the SDK does
- * not report, or that is not a plain identifier, is "-".
+ * A connection failure reports its code on the socket error in its chain of
+ * causes, such as ECONNREFUSED. A field the SDK does not report, or that is
+ * not a plain identifier, is "-".
  */
 export function providerFailureFields(provider, error, elapsedMs) {
   return {
     provider: logToken(provider) ?? '-',
     status: Number.isInteger(error?.status) ? error.status : '-',
-    code: logToken(error?.code) ?? logToken(error?.cause?.code) ?? '-',
+    code: logToken(error?.code) ?? causeCode(error) ?? '-',
     type: logToken(error?.type) ?? logToken(error?.error?.error?.type) ?? '-',
     errorClass: logToken(error?.constructor?.name) ?? typeof error,
     elapsedMs: Number.isFinite(elapsedMs) ? Math.round(elapsedMs) : '-',

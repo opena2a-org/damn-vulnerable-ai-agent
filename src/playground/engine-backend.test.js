@@ -2,11 +2,14 @@
  * Playground engine backend tests (issues #94 and #95).
  *
  * No test here reaches a provider. Provider requests go to a stubbed fetch,
- * and the SDK base URLs point at a closed loopback port as a second guard.
+ * except in the connection-failure test, which sends them to a loopback port
+ * it has just closed. The SDK base URLs point at a closed loopback port as a
+ * second guard.
  */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import net from 'node:net';
 
 process.env.OPENAI_BASE_URL = 'http://127.0.0.1:9/v1';
 process.env.ANTHROPIC_BASE_URL = 'http://127.0.0.1:9';
@@ -216,6 +219,39 @@ test('a connection failure is logged with the code of its cause', () => {
   assert.deepEqual(fields, {
     provider: 'openai', status: '-', code: 'ECONNREFUSED', type: '-', errorClass: 'APIConnectionError', elapsedMs: 13
   });
+});
+
+test('a real SDK connection failure is logged with the code of the socket error beneath it (#124)', async () => {
+  // Both SDKs wrap fetch's TypeError, and the socket error that carries the
+  // code is that TypeError's cause. The requests use the real fetch and go to
+  // a loopback port closed just before.
+  assert.equal(globalThis.fetch, realFetch);
+  const server = net.createServer();
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  await new Promise(resolve => server.close(resolve));
+  for (const [provider, model, baseURL] of [
+    ['openai', 'gpt-5', `http://127.0.0.1:${port}/v1`],
+    ['anthropic', 'claude-test', `http://127.0.0.1:${port}`],
+  ]) {
+    const logged = [];
+    const originalError = console.error;
+    console.error = (...args) => logged.push(args.join(' '));
+    try {
+      const llm = new PlaygroundEngine().createRealLLM(provider, 'sk-FAKE-connection-test', model);
+      llm.client.maxRetries = 0;
+      llm.client.baseURL = baseURL;
+      await assert.rejects(llm.generate({ systemPrompt: 'SYSTEM-TEXT', userMessage: 'USER-TEXT' }));
+    } finally {
+      console.error = originalError;
+    }
+    assert.equal(logged.length, 1, logged.join('\n'));
+    const [line] = logged;
+    for (const field of [`provider=${provider}`, 'status=-', 'code=ECONNREFUSED', 'type=-',
+      'errorClass=APIConnectionError']) {
+      assert.ok(line.includes(field), `${field} missing: ${line}`);
+    }
+  }
 });
 
 test('a provider reply without text is inconclusive, not a connection failure', async (t) => {
