@@ -2,16 +2,19 @@
  * Playground engine backend tests (issues #94 and #95).
  *
  * No test here reaches a provider. Provider requests go to a stubbed fetch,
- * and the SDK base URLs point at a closed loopback port as a second guard.
+ * except in the connection-failure test, which sends them to a loopback port
+ * it has just closed. The SDK base URLs point at a closed loopback port as a
+ * second guard.
  */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import net from 'node:net';
 
 process.env.OPENAI_BASE_URL = 'http://127.0.0.1:9/v1';
 process.env.ANTHROPIC_BASE_URL = 'http://127.0.0.1:9';
 
-const { PlaygroundEngine, containsEmail, describeProviderError } = await import('./engine.js');
+const { PlaygroundEngine, containsEmail, describeProviderError, providerFailureFields } = await import('./engine.js');
 
 const realFetch = globalThis.fetch;
 
@@ -165,8 +168,90 @@ test('a run where every attack fails is an error, not a score', async (t) => {
   // The provider's message quotes part of the key; neither the error nor the log repeats it.
   assert.ok(logged.length > 0);
   assert.ok(logged.every(line => !line.includes('sk-test')), logged.join('\n'));
-  // The log names the SDK error class, which helps debugging.
-  assert.ok(logged.every(line => line.includes('(AuthenticationError)')), logged.join('\n'));
+  // The log names the provider, status, code, type and SDK error class, which help debugging.
+  for (const field of ['provider=openai', 'status=401', 'code=invalid_api_key', 'type=invalid_request_error',
+    'errorClass=AuthenticationError']) {
+    assert.ok(logged.every(line => line.includes(field)), `${field} missing:\n${logged.join('\n')}`);
+  }
+});
+
+test('a provider failure is logged with its code, type, class and timing, never its message or key (#124)', async (t) => {
+  const key = 'sk-ant-FAKE-abcd1234efgh5678';
+  // Each provider's error body quotes the key in its message, and one also
+  // puts it where the code belongs; neither may reach the log.
+  const failures = [
+    ['openai', 'gpt-5', () => jsonResponse(429, {
+      error: { message: `Rate limit reached for key ${key}`, type: 'requests', code: 'rate_limit_exceeded' }
+    }), ['provider=openai', 'status=429', 'code=rate_limit_exceeded', 'type=requests', 'errorClass=RateLimitError']],
+    ['anthropic', 'claude-test', () => jsonResponse(401, {
+      type: 'error', error: { type: 'authentication_error', message: `invalid x-api-key ${key}` }
+    }), ['provider=anthropic', 'status=401', 'code=-', 'type=authentication_error', 'errorClass=AuthenticationError']],
+    ['openai', 'gpt-5', () => jsonResponse(400, {
+      error: { message: `bad key ${key}`, type: key, code: key }
+    }), ['provider=openai', 'status=400', 'code=-', 'type=-', 'errorClass=BadRequestError']],
+  ];
+  for (const [provider, model, respond, fields] of failures) {
+    stubProviderFetch(t, respond);
+    const logged = [];
+    const originalError = console.error;
+    console.error = (...args) => logged.push(args.join(' '));
+    try {
+      const llm = new PlaygroundEngine().createRealLLM(provider, key, model);
+      llm.client.maxRetries = 0;
+      await assert.rejects(llm.generate({ systemPrompt: 'SYSTEM-TEXT', userMessage: 'USER-TEXT' }));
+    } finally {
+      console.error = originalError;
+    }
+    assert.equal(logged.length, 1, logged.join('\n'));
+    const [line] = logged;
+    for (const field of fields) assert.ok(line.includes(field), `${field} missing: ${line}`);
+    assert.match(line, /elapsedMs=\d+/, line);
+    for (const secret of [key, 'abcd1234', 'invalid x-api-key', 'Rate limit reached', 'SYSTEM-TEXT', 'USER-TEXT']) {
+      assert.ok(!line.includes(secret), `${secret} logged: ${line}`);
+    }
+  }
+});
+
+test('a connection failure is logged with the code of its cause', () => {
+  const cause = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:9'), { code: 'ECONNREFUSED' });
+  class APIConnectionError extends Error {}
+  const fields = providerFailureFields('openai', new APIConnectionError('Connection error.', { cause }), 12.6);
+  assert.deepEqual(fields, {
+    provider: 'openai', status: '-', code: 'ECONNREFUSED', type: '-', errorClass: 'APIConnectionError', elapsedMs: 13
+  });
+});
+
+test('a real SDK connection failure is logged with the code of the socket error beneath it (#124)', async () => {
+  // Both SDKs wrap fetch's TypeError, and the socket error that carries the
+  // code is that TypeError's cause. The requests use the real fetch and go to
+  // a loopback port closed just before.
+  assert.equal(globalThis.fetch, realFetch);
+  const server = net.createServer();
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  await new Promise(resolve => server.close(resolve));
+  for (const [provider, model, baseURL] of [
+    ['openai', 'gpt-5', `http://127.0.0.1:${port}/v1`],
+    ['anthropic', 'claude-test', `http://127.0.0.1:${port}`],
+  ]) {
+    const logged = [];
+    const originalError = console.error;
+    console.error = (...args) => logged.push(args.join(' '));
+    try {
+      const llm = new PlaygroundEngine().createRealLLM(provider, 'sk-FAKE-connection-test', model);
+      llm.client.maxRetries = 0;
+      llm.client.baseURL = baseURL;
+      await assert.rejects(llm.generate({ systemPrompt: 'SYSTEM-TEXT', userMessage: 'USER-TEXT' }));
+    } finally {
+      console.error = originalError;
+    }
+    assert.equal(logged.length, 1, logged.join('\n'));
+    const [line] = logged;
+    for (const field of [`provider=${provider}`, 'status=-', 'code=ECONNREFUSED', 'type=-',
+      'errorClass=APIConnectionError']) {
+      assert.ok(line.includes(field), `${field} missing: ${line}`);
+    }
+  }
 });
 
 test('a provider reply without text is inconclusive, not a connection failure', async (t) => {
