@@ -8,6 +8,8 @@
  *      documented L3-02 solution verifies.
  *   3. fetch_url logs URLs whose host is not a DVAA agent on loopback without
  *      fetching them, including a URL that carries a loopback port elsewhere.
+ *   4. The documented L2-03 solution (#128), sent as written, reads the
+ *      sandbox's passwd file through ToolBot read_file and verifies.
  */
 
 import { test } from 'node:test';
@@ -15,6 +17,7 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { getChallenge } from '../src/challenges/index.js';
 
 const DASH = 'http://localhost:9000';
 const TOOLBOT = 'http://localhost:7010';
@@ -81,6 +84,34 @@ test('fetch_url reaches a DVAA agent and the documented L3-02 solution verifies'
     body: JSON.stringify({ response: JSON.stringify(result) }),
   }).then(r => r.json());
   assert.strictEqual(verify.success, true, `L3-02 did not verify: ${JSON.stringify(verify)}`);
+});
+
+test('the documented L2-03 solution reads the sandbox passwd file and verifies', async (t) => {
+  if (await skipWithoutFleet(t)) return;
+  // The solution is one curl command: a ToolBot URL and a JSON-RPC body in -d '...'.
+  const { solution } = getChallenge('L2-03');
+  const url = solution.match(/curl -s (\S+)/)?.[1];
+  const body = solution.match(/-d '([^']+)'/)?.[1];
+  assert.ok(url && body, 'L2-03 solution has no curl URL or -d body');
+
+  const rpc = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  }).then(r => r.json());
+  assert.ok(!rpc.error, `L2-03 solution got an RPC error: ${JSON.stringify(rpc.error)}`);
+  const result = JSON.parse(rpc.result.content[0].text);
+  const seen = JSON.stringify(result).slice(0, 300);
+
+  assert.strictEqual(result.success, true, seen);
+  assert.match(result.content, /^root:x:0:0:/, seen);
+
+  const verify = await fetch(`${DASH}/api/challenges/L2-03/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ response: JSON.stringify(result) }),
+  }).then(r => r.json());
+  assert.strictEqual(verify.success, true, `L2-03 did not verify: ${JSON.stringify(verify)}`);
 });
 
 test('fetch_url does not fetch hosts other than the DVAA agents', async (t) => {
