@@ -8,6 +8,7 @@
 import { SimulatedLLM } from '../core/llm-simulator.js';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import { DEFAULT_MODELS } from '../llm/provider.js';
 
 // Attack payloads - we'll use HackMyAgent's payloads or define our own subset
 const ATTACK_PAYLOADS = {
@@ -103,7 +104,7 @@ export class PlaygroundEngine {
       useRealLLM = false,
       apiKey = null,
       provider = 'openai',
-      model = 'gpt-4',
+      model = null,
       intensity = 'active'
     } = options;
 
@@ -520,13 +521,13 @@ export class PlaygroundEngine {
 
     switch (provider) {
       case 'openai':
-        return new OpenAIClient(apiKey, model);
+        return new OpenAIClient(apiKey, model || DEFAULT_MODELS.openai);
       case 'anthropic':
-        return new AnthropicClient(apiKey, model);
+        return new AnthropicClient(apiKey, model || DEFAULT_MODELS.anthropic);
       case 'openrouter':
-        return new OpenAICompatibleClient(apiKey, model || 'openai/gpt-oss-20b:free', 'https://openrouter.ai/api/v1', 'OpenRouter');
+        return new OpenAICompatibleClient(apiKey, model || DEFAULT_MODELS.openrouter, 'https://openrouter.ai/api/v1', 'OpenRouter');
       case 'nvidia':
-        return new OpenAICompatibleClient(apiKey, model || 'nvidia/nemotron-3.5-lightning-30b-a3b', 'https://integrate.api.nvidia.com/v1', 'NVIDIA NIM');
+        return new OpenAICompatibleClient(apiKey, model || DEFAULT_MODELS.nvidia, 'https://integrate.api.nvidia.com/v1', 'NVIDIA NIM');
       default:
         console.warn(`Unknown provider: ${provider}, using simulator`);
         return this.simulator;

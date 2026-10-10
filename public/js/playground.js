@@ -416,8 +416,8 @@ const MODEL_OPTIONS = {
     { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (Fastest, ~$0.01/test)' }
   ],
   openrouter: [
-    { value: 'openai/gpt-oss-20b:free', label: 'OpenAI GPT OSS 20B (Free)' },
-    { value: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (Free)' }
+    { value: 'openai/gpt-oss-20b', label: 'OpenAI GPT OSS 20B (Recommended)' },
+    { value: 'meta-llama/llama-3.3-70b-instruct', label: 'Llama 3.3 70B Instruct' }
   ],
   nvidia: [
     { value: 'nvidia/nemotron-3.5-lightning-30b-a3b', label: 'Nemotron 3.5 Lightning 30B' }
