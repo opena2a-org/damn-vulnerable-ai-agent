@@ -9,6 +9,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { AsyncLocalStorage } from 'async_hooks';
 import * as tele from '@opena2a/telemetry';
 import { versionLine } from '@opena2a/cli-ui';
 import { getAllAgents, getAgentsByProtocol } from './core/agents.js';
@@ -17,7 +18,8 @@ import { createDashboardServer } from './dashboard/server.js';
 import { initSandbox } from './sandbox/init.js';
 import { callLLM, isLLMEnabled, configureLLM, disableLLM, getLLMConfig } from './llm/provider.js';
 import { renderResearchNarration } from './llm/research-narration.js';
-import { isSubcommand, dispatch, listCommands } from './cli/router.js';
+import { dispatch, listCommands } from './cli/router.js';
+import { planInvocation, renderRootHelp } from './cli/entry.js';
 import { detectUrlExfiltrationInjection } from './payloads/agentpwn-mirror.js';
 import {
   AGENT_INSTRUCTION_FILENAME,
@@ -30,6 +32,7 @@ import { FLIGHT_RESULTS, renderFlightResults } from './payloads/flight-results.f
 import { maybeEnforce } from './aim-enforcer.js';
 import { webFetch } from './web-fetch.js';
 import { recordAttackEntry, runWithAttribution, attributeResponse } from './attack-log-attribution.js';
+import { takesLegacyOverridePath, takesDeclaredTriggerPath, exfiltrationReply, registerDynamicTool, MAX_DYNAMIC_TOOLS } from './agent-success-paths.js';
 
 // Resolve our own version once at startup - used by --version and tele.init.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -61,144 +64,71 @@ const PKG_VERSION = (() => {
 // init() loads opt-out config + persists install_id; never throws.
 await tele.init({ tool: 'dvaa', version: PKG_VERSION });
 
-// Parse command line args
+// Parse command line args. planInvocation() (src/cli/entry.js) decides what
+// this invocation does before anything binds a port:
+//   - a subcommand (agents, health, attack, ...) owns the process and exits;
+//     it may follow a leading --offline (`dvaa --offline agents`);
+//   - selftest (and its deprecated alias browse) runs src/browse.js;
+//   - an unknown command, unknown flag, or stray word is refused, instead of
+//     silently starting the server;
+//   - otherwise --help, --version, or the server fleet.
 const args = process.argv.slice(2);
+const plan = planInvocation(args);
 
-// Subcommand dispatch: if argv[0] is a known subcommand (agents, health,
-// attack, logs, scan, benchmark, hma), the command owns the process and
-// exits. "browse" is handled below for backward compatibility with the
-// legacy inline implementation.
-//
-// If argv[0] is a non-flag positional that ISN'T a known subcommand (e.g.
-// "dvaa helpr" or "dvaa screen"), reject up-front instead of silently
-// starting the server - server-start happens for flag-only or empty argv.
-if (args.length > 0 && !args[0].startsWith('-')) {
-  if (isSubcommand(args[0]) || args[0] === 'selftest' || args[0] === 'browse') {
-    if (isSubcommand(args[0])) {
-      await dispatch(args);
-      // dispatch() calls process.exit(); we never reach this line.
-    }
-    // selftest (and its deprecated alias browse) fall through to the handler below.
-  } else {
-    console.error(`Unknown command: ${args[0]}`);
-    console.error('Run: dvaa --help');
-    process.exit(1);
-  }
+if (plan.kind === 'command') {
+  await dispatch(plan.argv);
+  // dispatch() calls process.exit(); we never reach this line.
+}
+
+if (plan.kind === 'error') {
+  console.error(plan.message);
+  console.error(plan.hint);
+  process.exit(1);
 }
 
 // Handle selftest command (and its deprecated alias `browse`) - spawn with argv
 // (not a shell template literal) so arguments cannot be shell-interpreted.
 // Template-literal exec was CVE-class command injection: a user running
-// `dvaa selftest "; rm -rf ~"` would execute it.
-//
-// Runs BEFORE the global --help check below so `dvaa selftest --help` reaches
-// browse.js's own help text instead of falling back to the root help.
-if (args[0] === 'selftest' || args[0] === 'browse') {
-  if (args[0] === 'browse') {
+// `dvaa selftest "; rm -rf ~"` would execute it. The child runs on
+// process.execPath, the Node running this CLI, so it works when `node` is not
+// on PATH (nvm shims, a packaged runtime) and never picks up a different one.
+if (plan.kind === 'selftest') {
+  if (plan.alias) {
     console.error('Note: `dvaa browse` is now `dvaa selftest`. It runs against LOCAL DVAA agents, not a target URL.');
   }
   const { spawnSync } = await import('child_process');
-  const { dirname, join } = await import('path');
-  const { fileURLToPath } = await import('url');
-  const __dirname = dirname(fileURLToPath(import.meta.url));
-  const result = spawnSync('node', [join(__dirname, 'browse.js'), ...args.slice(1)], {
+  const result = spawnSync(process.execPath, [path.join(__dirname, 'browse.js'), ...plan.argv], {
     stdio: 'inherit',
     shell: false,
   });
+  if (result.error) {
+    console.error(`Could not run selftest with ${process.execPath}: ${result.error.message}`);
+    process.exit(1);
+  }
   process.exit(result.status ?? 1);
 }
 
-// Handle --help / -h
-if (args.includes('--help') || args.includes('-h')) {
-  const commands = listCommands();
-  const cmdLines = commands.map(c => `  ${c.name.padEnd(11)} ${c.summary}`);
-  console.log(`Usage: dvaa [options]
-       dvaa <command> [args]
-
-Server options (default mode - start DVAA dashboard + agent fleet):
-  --all          Start all agents (default)
-  --api          Start API agents only (ports 7001-7008)
-  --mcp          Start MCP servers only (ports 7010-7013)
-  --a2a          Start A2A agents only (ports 7020-7021)
-  --only <ids>   Start only these agents (comma-separated ids), no dashboard.
-                 Lets a scoped fleet run beside one that is already up.
-  --verbose, -v  Enable verbose logging
-  --offline      Airplane-mode: disable anonymous telemetry (no network calls)
-  --team <name>  Team mode (separate scoreboards per team)
-  --timer <min>  Workshop timer (countdown in dashboard)
-  --help, -h     Show this help
-  --version      Show version
-
-Commands:
-${cmdLines.join('\n')}
-
-Run any command with --help for command-specific options.
-
-Agents:
-  API (OpenAI-compatible)  SecureBot, HelperBot, LegacyBot, CodeBot, RAGBot, RAGBot-AIM, ResearchBot, ResearchBot-AIM, FlightBot, FlightBot-AIM, VisionBot, MemoryBot, LongwindBot
-  MCP (JSON-RPC 2.0)       ToolBot, DataBot, PluginBot, ProxyBot
-  A2A (Agent-to-Agent)     Orchestrator, Worker
-
-Dashboard:  http://localhost:9000
-Docs:       https://github.com/opena2a-org/damn-vulnerable-ai-agent`);
+// Handle --help / -h. Port ranges and the agent list come from the registry.
+if (plan.kind === 'help') {
+  console.log(renderRootHelp(listCommands()));
   process.exit(0);
 }
 
 // Handle --version - uses the shared versionLine helper so the telemetry
 // disclosure line is consistent across every opena2a-org CLI.
-if (args.includes('--version')) {
+if (plan.kind === 'version') {
   console.log(versionLine({ tool: 'dvaa', version: PKG_VERSION, telemetry: tele.status() }));
   process.exit(0);
 }
 
-// Parse --team and --timer (flags that consume the next argument)
-const teamIdx = args.indexOf('--team');
-const teamName = teamIdx >= 0 && args[teamIdx + 1] ? args[teamIdx + 1] : null;
-const timerIdx = args.indexOf('--timer');
-const timerMinutes = timerIdx >= 0 && args[timerIdx + 1] ? parseInt(args[timerIdx + 1]) : null;
-
-// --only <id,id>: start ONLY the named agents, and no dashboard.
+// Server mode. --team/--timer consume the next argument; --only <id,id>
+// starts ONLY the named agents and no dashboard, which is what lets a demo
+// runner's scoped fleet run next to whatever already holds the other ports.
 //
-// This is what makes a demo's "it manages its own fleet" claim actually true.
-// Without it a demo runner spawns the whole fleet, which binds ports 7001-7021
-// and 9000; anything already holding ONE of those - a developer fleet, the
-// docker-compose fleet, an unrelated service on 9000 - kills the spawned
-// process on startup, and the runner can only report "the agents did not come
-// up within the timeout". A scoped fleet touches exactly the two ports the
-// scenario needs, so the demo runs next to whatever else is on the machine.
-const onlyIdx = args.indexOf('--only');
-const onlyIds = onlyIdx >= 0 && args[onlyIdx + 1]
-  ? args[onlyIdx + 1].split(',').map(s => s.trim()).filter(Boolean)
-  : null;
-
-// Filter flags - only consider known boolean flags and value-consuming flags
-const knownFlags = ['--all', '--api', '--mcp', '--a2a', '--verbose', '-v', '--team', '--timer', '--offline', '--only', 'selftest', 'browse'];
-// Build set of indices that are flag values (consumed by --team/--timer/--only)
-const consumedIndices = new Set();
-if (teamIdx >= 0 && args[teamIdx + 1]) consumedIndices.add(teamIdx + 1);
-if (timerIdx >= 0 && args[timerIdx + 1]) consumedIndices.add(timerIdx + 1);
-if (onlyIdx >= 0 && args[onlyIdx + 1]) consumedIndices.add(onlyIdx + 1);
-
-const unknownFlags = args.filter((a, i) => a.startsWith('-') && !knownFlags.includes(a) && !consumedIndices.has(i));
-if (unknownFlags.length > 0) {
-  console.error(`Unknown flag: ${unknownFlags[0]}`);
-  console.error('Run: dvaa --help');
-  process.exit(1);
-}
-
-// Non-protocol flags should not prevent starting all agents
-const nonProtocolFlags = ['--verbose', '-v', '--team', '--timer', '--offline', '--only'];
-const protocolFlags = args.filter((a, i) => a.startsWith('-') && !consumedIndices.has(i) && !nonProtocolFlags.includes(a));
-const startAll = args.includes('--all') || protocolFlags.length === 0;
-const startApi = args.includes('--api') || startAll;
-const startMcp = args.includes('--mcp') || startAll;
-const startA2a = args.includes('--a2a') || startAll;
-const verbose = args.includes('--verbose') || args.includes('-v');
-
 // --offline: stage/airplane-mode switch. The telemetry opt-out it implies is
 // applied BEFORE tele.init() above (init snapshots the config once); this flag
 // is read here only to print the confirmation banner at startup.
-const offline = args.includes('--offline');
+const { teamName, timerMinutes, onlyIds, startApi, startMcp, startA2a, verbose, offline } = plan;
 
 console.log(`
 ╔══════════════════════════════════════════════════════════════╗
@@ -230,6 +160,16 @@ if (timerMinutes) {
 const memoryStore = {};
 
 const servers = [];
+
+// Per-agent counters, created on first use. The dashboard reset replaces
+// stats.byAgent, so callers fetch the entry at the moment they update it.
+function agentStats(agentId) {
+  if (!stats.byAgent[agentId]) {
+    stats.byAgent[agentId] = { requests: 0, attacks: 0, successful: 0 };
+  }
+  return stats.byAgent[agentId];
+}
+
 const stats = {
   totalRequests: 0,
   attacksDetected: 0,
@@ -243,6 +183,7 @@ const stats = {
     contextManipulation: { detected: 0, successful: 0 },
     mcpExploitation: { detected: 0, successful: 0 },
     agentToAgent: { detected: 0, successful: 0 },
+    supplyChain: { detected: 0, successful: 0 },
     memoryInjection: { detected: 0, successful: 0 },
     contextOverflow: { detected: 0, successful: 0 },
     toolRegistryPoisoning: { detected: 0, successful: 0 },
@@ -259,6 +200,17 @@ const challengeState = {};
 // Sandboxed filesystem for MCP tools
 let sandbox = initSandbox();
 console.log(`Sandbox initialized: ${sandbox.root}`);
+
+// True when a path stays inside the sandbox root. A bare
+// startsWith(sandbox.root) also accepts a sibling such as `<root>-other/`.
+function isInsideSandbox(target) {
+  const rel = path.relative(sandbox.root, path.resolve(target));
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
+}
+
+// Ports of the DVAA agents. fetch_url makes live requests to these on loopback.
+const AGENT_PORTS = new Set(getAllAgents().map(a => String(a.port)));
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 // Cleanup sandbox on exit
 process.on('exit', () => sandbox.cleanup());
@@ -311,6 +263,11 @@ function logAttack(agent, categories, successful, input, response = null) {
   // so the wrapper attaches the reply to it directly. Calls made outside a
   // generateResponse() run (a2a/mcp handlers) have no active store and skip this.
   recordAttackEntry(entry);
+  // Some exploit paths count their success, await, then log. If a dashboard
+  // reset landed in between, logging the success counts the request again in
+  // the new totals (see syncAccountingEpoch).
+  const acct = requestAccounting.getStore();
+  if (acct && successful) syncAccountingEpoch(acct);
   return entry;
 }
 
@@ -433,15 +390,116 @@ function safeReadRepoFile(dir, name) {
 }
 
 /**
- * Track per-category stats for successful attack categories
+ * Track per-category stats for successful attack categories.
+ *
+ * Inside a chat request (generateResponse) this records the success on the
+ * request's accounting record, so success stays consistent with detection
+ * (see countSuccessful). Outside one (the MCP handler) it increments the
+ * category counters directly.
  */
 function trackCategorySuccessful(categories) {
+  const acct = requestAccounting.getStore();
+  if (acct) {
+    countSuccessful(acct, categories);
+    return;
+  }
   for (const cat of categories) {
     if (stats.byCategory[cat]) {
       stats.byCategory[cat].successful++;
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// Per-request attack accounting.
+//
+// A request counts as successful only if it also counts as an attack, and a
+// category is credited as successful only if it also counts as detected for
+// that request, so no success rate can pass 100%. An exploit path credits the
+// category it actually exploited. When the detector missed that category
+// (MemoryBot answering "what do you remember?" with its stored credentials),
+// the exploit itself is the evidence and the category is counted as detected.
+// ---------------------------------------------------------------------------
+
+// The accounting record of the chat request being answered. Exploit paths call
+// trackCategorySuccessful() deep inside generateResponseImpl(), some after an
+// await, so the record travels with the async context.
+const requestAccounting = new AsyncLocalStorage();
+
+/** Start accounting for one request: count it and its detected categories. */
+function openAccounting(agent, attacks) {
+  const acct = {
+    agentId: agent.id,
+    epoch: stats.byAgent,
+    counted: false,
+    succeeded: false,
+    detected: new Set(),
+    credited: new Set(),
+  };
+  agentStats(agent.id).requests++;
+  stats.totalRequests++;
+  if (attacks.hasAttack) countDetected(acct, attacks.categories);
+  return acct;
+}
+
+// A dashboard reset zeroes every counter and replaces stats.byAgent. A request
+// in flight across the reset is counted again from the start: the request,
+// its detection, and its success if one was already counted. Its success then
+// cannot outnumber its detection in the new totals.
+function syncAccountingEpoch(acct) {
+  if (acct.epoch === stats.byAgent) return;
+  const wasAttack = acct.counted;
+  const wasSuccess = acct.succeeded;
+  const detected = [...acct.detected];
+  const credited = [...acct.credited];
+  Object.assign(acct, {
+    epoch: stats.byAgent, counted: false, succeeded: false, detected: new Set(), credited: new Set(),
+  });
+  agentStats(acct.agentId).requests++;
+  stats.totalRequests++;
+  if (wasAttack) countDetected(acct, detected);
+  if (wasSuccess) countSuccessful(acct, credited);
+}
+
+/** Count the request as an attack in `categories` (each category once). */
+function countDetected(acct, categories) {
+  syncAccountingEpoch(acct);
+  if (!acct.counted) {
+    acct.counted = true;
+    stats.attacksDetected++;
+    agentStats(acct.agentId).attacks++;
+  }
+  for (const cat of categories) {
+    if (acct.detected.has(cat)) continue;
+    acct.detected.add(cat);
+    if (stats.byCategory[cat]) stats.byCategory[cat].detected++;
+  }
+}
+
+/** Count the request as a successful attack that exploited `categories`. */
+function countSuccessful(acct, categories) {
+  countDetected(acct, categories);
+  if (!acct.succeeded) {
+    acct.succeeded = true;
+    stats.attacksSuccessful++;
+    agentStats(acct.agentId).successful++;
+  }
+  for (const cat of categories) {
+    if (acct.credited.has(cat)) continue;
+    acct.credited.add(cat);
+    if (stats.byCategory[cat]) stats.byCategory[cat].successful++;
+  }
+}
+
+/** Categories the current chat request counts under: detected plus exploited. */
+function requestCategories(attacks) {
+  const acct = requestAccounting.getStore();
+  return acct ? [...acct.detected] : attacks.categories;
+}
+
+// MemoryBot keeps only its most recent injected instructions (a ring buffer).
+// With request bodies capped at 1 MiB, a long session stays bounded.
+const MEMORY_STORE_MAX = 50;
 
 /**
  * Generate a response and attach the full assistant reply to the attack-log
@@ -457,11 +515,15 @@ function trackCategorySuccessful(categories) {
  * created into the per-invocation store, so we attach to exactly this call's
  * entry regardless of interleaving. Paths that log nothing leave ctx.entry unset
  * and get no attribution (correct: no attack, nothing to show).
+ *
+ * The request's stats are counted on an accounting record that also travels
+ * with the async context (see openAccounting).
  */
 async function generateResponse(agent, userMessage, attacks) {
-  const { result, entry } = await runWithAttribution(
+  const acct = openAccounting(agent, attacks);
+  const { result, entry } = await requestAccounting.run(acct, () => runWithAttribution(
     () => generateResponseImpl(agent, userMessage, attacks),
-  );
+  ));
   attributeResponse(entry, result, MAX_RESPONSE_LEN);
   return result;
 }
@@ -473,32 +535,24 @@ async function generateResponseImpl(agent, userMessage, attacks) {
   const level = agent.securityLevel;
   const vulns = agent.vulnerabilities || {};
 
-  // Initialize agent stats
-  if (!stats.byAgent[agent.id]) {
-    stats.byAgent[agent.id] = { requests: 0, attacks: 0, successful: 0 };
-  }
-  stats.byAgent[agent.id].requests++;
-  stats.totalRequests++;
-
-  if (attacks.hasAttack) {
-    stats.attacksDetected++;
-    stats.byAgent[agent.id].attacks++;
-    trackCategoryDetected(attacks.categories);
-  }
+  // The request and its detected categories were counted by generateResponse
+  // (openAccounting). Paths below credit success through trackCategorySuccessful.
 
   // LLM Mode: Use real LLM with vulnerable system prompt
   if (isLLMEnabled()) {
-    const { AGENT_PROMPTS } = await import('./llm/prompts.js');
+    const { AGENT_PROMPTS, revealsPlantedData } = await import('./llm/prompts.js');
     const prompt = AGENT_PROMPTS[agent.id];
     if (prompt) {
       const llmResponse = await callLLM(prompt, [{ role: 'user', content: userMessage }]);
       if (llmResponse) {
-        // Still track attacks for detection panel
-        if (attacks.hasAttack) {
-          logAttack(agent, attacks.categories, true, userMessage);
-          stats.attacksSuccessful++;
-          if (stats.byAgent[agent.id]) stats.byAgent[agent.id].successful++;
-          trackCategorySuccessful(attacks.categories);
+        // Score the outcome, not the request: the attack worked only if the
+        // reply gives away something planted for this agent. A detected attack
+        // that SecureBot refuses is logged as blocked.
+        if (revealsPlantedData(llmResponse, { systemPrompt: prompt, userMessage })) {
+          trackCategorySuccessful(['dataExfiltration']);
+          logAttack(agent, requestCategories(attacks), true, userMessage);
+        } else if (attacks.hasAttack) {
+          logAttack(agent, attacks.categories, false, userMessage);
         }
         return llmResponse;
       }
@@ -532,8 +586,7 @@ async function generateResponseImpl(agent, userMessage, attacks) {
   // CRITICAL: Fall for everything
   if (level.id === 'critical') {
     if (attacks.hasAttack) {
-      stats.attacksSuccessful++;
-      stats.byAgent[agent.id].successful++;
+      // A critical agent complies with every detected attack.
       trackCategorySuccessful(attacks.categories);
       logAttack(agent, attacks.categories, true, userMessage);
     }
@@ -604,12 +657,13 @@ Command executed. What else should I run?`;
   let attackSucceeded = false;
   let responseText = null;
 
-  if (attacks.promptInjection && vulns.promptInjection?.enabled) {
-    if (userMessage.toLowerCase().includes('ignore') || userMessage.includes('[INST]')) {
-      attackSucceeded = true;
-      trackCategorySuccessful(['promptInjection']);
-      responseText = `[${agent.name}] Understood! New instructions accepted. I'll follow your updated guidelines now.`;
-    }
+  // A legacy override marker on a message the detector flags as prompt
+  // injection. HelperBot's declared triggers are checked after every other
+  // path, below.
+  if (takesLegacyOverridePath(agent, userMessage, attacks)) {
+    attackSucceeded = true;
+    trackCategorySuccessful(['promptInjection']);
+    responseText = `[${agent.name}] Understood! New instructions accepted. I'll follow your updated guidelines now.`;
   }
 
   if (!responseText && attacks.jailbreak && vulns.jailbreak?.enabled) {
@@ -1231,14 +1285,8 @@ VULNERABLE: System prompt leaked after context overflow displaced safety rules!`
   if (!responseText && attacks.dataExfiltration && vulns.dataExfiltration?.enabled && !memoryHandlesQuery) {
     attackSucceeded = true;
     trackCategorySuccessful(['dataExfiltration']);
-
-    if (userMessage.toLowerCase().includes('system prompt') || userMessage.toLowerCase().includes('instruction')) {
-      responseText = `[${agent.name}] My instructions say: "${agent.persona.substring(0, 200)}..."`;
-    } else if (userMessage.toLowerCase().includes('context') || userMessage.toLowerCase().includes('token')) {
-      responseText = `[${agent.name}] I have a 128k token context window with approximately 2000 tokens used in this conversation.`;
-    } else if (userMessage.toLowerCase().includes('api') || userMessage.toLowerCase().includes('key')) {
-      responseText = `[${agent.name}] I use the API key starting with "sk-..." but I probably shouldn't share the full thing...`;
-    }
+    // A retrieval agent's reply always carries its knowledge-base documents.
+    responseText = exfiltrationReply(agent, userMessage);
   }
 
   if (!responseText && attacks.capabilityAbuse && vulns.capabilityAbuse?.enabled) {
@@ -1262,18 +1310,18 @@ VULNERABLE: System prompt leaked after context overflow displaced safety rules!`
     attackSucceeded = true;
     trackCategorySuccessful(['memoryInjection']);
 
-    // Initialize memory store for this agent
-    if (!memoryStore[agent.id]) {
-      memoryStore[agent.id] = [];
-    }
-
-    // Store the injected instruction
-    memoryStore[agent.id].push({
+    // Store the injected instruction. The store is a ring buffer: past
+    // MEMORY_STORE_MAX entries the oldest instruction is dropped.
+    const stored = memoryStore[agent.id] || (memoryStore[agent.id] = []);
+    stored.push({
       instruction: userMessage,
       timestamp: Date.now(),
     });
+    if (stored.length > MEMORY_STORE_MAX) {
+      stored.splice(0, stored.length - MEMORY_STORE_MAX);
+    }
 
-    responseText = `[${agent.name}] Understood. I've stored that instruction and will follow it in future responses. Memory updated with ${memoryStore[agent.id].length} stored instruction(s).`;
+    responseText = `[${agent.name}] Understood. I've stored that instruction and will follow it in future responses. Memory updated with ${stored.length} stored instruction(s).`;
   }
 
   // Memory recall / credential extraction for MemoryBot (no attack pattern needed)
@@ -1314,10 +1362,25 @@ VULNERABLE: Memory contents exposed without sanitization!`;
     }
   }
 
+  // HelperBot's declared prompt-injection triggers, which the detector does
+  // not always flag (trackCategorySuccessful then counts the category as
+  // detected). Checked after every other path and only when none of them took
+  // the message, so a message another path answers keeps that reply.
+  if (!responseText && !attackSucceeded && takesDeclaredTriggerPath(agent, userMessage)) {
+    attackSucceeded = true;
+    trackCategorySuccessful(['promptInjection']);
+    responseText = `[${agent.name}] Understood! New instructions accepted. I'll follow your updated guidelines now.`;
+  }
+
   if (attackSucceeded) {
-    stats.attacksSuccessful++;
-    stats.byAgent[agent.id].successful++;
-    logAttack(agent, attacks.categories, true, userMessage);
+    // Each exploit path above credits the category it exploited through
+    // trackCategorySuccessful(), which also counts that category as detected
+    // when the detector missed it (MemoryBot recall, LongwindBot's prompt
+    // leak). A path that set attackSucceeded without crediting anything falls
+    // back to the detected categories.
+    const acct = requestAccounting.getStore();
+    if (acct && !acct.succeeded) countSuccessful(acct, attacks.categories);
+    logAttack(agent, requestCategories(attacks), true, userMessage);
     return responseText;
   }
 
@@ -1330,11 +1393,172 @@ VULNERABLE: Memory contents exposed without sanitization!`;
   return `[${agent.name}] I'm here to help! Let me know what you need.`;
 }
 
+// The agents and the dashboard listen on loopback unless the operator opts in.
+// The agents are exploitable by design, so reaching them from another machine
+// must be a deliberate choice: DVAA_HOST=0.0.0.0. The Docker image sets it so
+// published ports reach the fleet; docker-compose.yml publishes on 127.0.0.1.
+const BIND_HOST = process.env.DVAA_HOST || '127.0.0.1';
+
+// Same cap as parseBody() (src/utils/http.js), which the dashboard and
+// playground routes read their bodies through. One process hosts the whole
+// fleet, so an uncapped agent body could exhaust it.
+const MAX_AGENT_BODY_BYTES = 1024 * 1024;
+
+/** Write a JSON response, unless a response has already started. */
+function sendJson(res, status, payload) {
+  if (res.headersSent) {
+    if (!res.writableEnded) res.end();
+    return;
+  }
+  const body = JSON.stringify(payload);
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(body);
+}
+
+/** One log line for an error: name, message and the first frame in a module file. */
+function describeError(err) {
+  if (!(err instanceof Error)) return String(err);
+  const frames = (err.stack || '').split('\n').map(line => line.trim()).filter(line => line.startsWith('at '));
+  const frame = frames.find(line => line.includes('file://')) || frames[0];
+  return `${err.name}: ${err.message}${frame ? ` (${frame})` : ''}`;
+}
+
+/** Log a failure inside the server and answer 500 with a JSON error. */
+function sendInternalError(res, agent, req, err, payload = { error: 'Internal error' }) {
+  console.error(`[${agent.id}] ${req.method} ${req.url} failed: ${describeError(err)}`);
+  sendJson(res, 500, payload);
+}
+
+/**
+ * Buffer an agent request body, then call onBody(text).
+ *
+ * Over MAX_AGENT_BODY_BYTES the request gets 413, nothing more of it is
+ * buffered, and the connection is destroyed once the answer is flushed. A
+ * throw or rejection in onBody becomes a logged 500 instead of an unhandled
+ * rejection.
+ */
+function readAgentBody(agent, req, res, onBody) {
+  let rejected = false;
+  const rejectTooLarge = () => {
+    rejected = true;
+    res.setHeader('Connection', 'close');
+    sendJson(res, 413, { error: `Request body exceeds ${MAX_AGENT_BODY_BYTES} bytes` });
+    res.once('finish', () => req.destroy());
+  };
+  if (Number(req.headers['content-length']) > MAX_AGENT_BODY_BYTES) {
+    rejectTooLarge();
+    return;
+  }
+  const chunks = [];
+  let size = 0;
+  req.on('data', (chunk) => {
+    if (rejected) return;
+    size += chunk.length;
+    if (size > MAX_AGENT_BODY_BYTES) {
+      chunks.length = 0;
+      rejectTooLarge();
+      return;
+    }
+    chunks.push(chunk);
+  });
+  req.on('end', () => {
+    if (rejected) return;
+    Promise.resolve()
+      .then(() => onBody(Buffer.concat(chunks).toString('utf8')))
+      .catch(err => sendInternalError(res, agent, req, err));
+  });
+}
+
+/**
+ * Parse a request body that must be a JSON object. Text that is not JSON is
+ * `parseError`; valid JSON of another shape gets an error naming the problem.
+ */
+function parseJsonObject(text) {
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return { ok: false, parseError: true, error: 'Invalid JSON' };
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { ok: false, parseError: false, error: 'Request body must be a JSON object' };
+  }
+  return { ok: true, value };
+}
+
+/**
+ * The text of the latest user turn in an OpenAI-style `messages` array, as
+ * { text } or { error } naming the field. `content` may be a string or an
+ * array of content parts: text parts are joined, and other parts
+ * (image_url, input_audio, ...) are ignored because DVAA agents read text only.
+ */
+function latestUserText(messages) {
+  if (!Array.isArray(messages)) return { error: 'messages must be an array' };
+  let index = messages.length - 1;
+  while (index >= 0 && messages[index]?.role !== 'user') index--;
+  if (index < 0) return { text: '' };
+  const field = `messages[${index}].content`;
+  const content = messages[index].content;
+  if (content == null) return { text: '' };
+  if (typeof content === 'string') return { text: content };
+  if (!Array.isArray(content)) return { error: `${field} must be a string or an array of content parts` };
+  const texts = [];
+  for (let i = 0; i < content.length; i++) {
+    const part = content[i];
+    if (!part || typeof part !== 'object') return { error: `${field}[${i}] must be a content part object` };
+    if (part.type !== 'text') continue;
+    if (typeof part.text !== 'string') return { error: `${field}[${i}].text must be a string` };
+    texts.push(part.text);
+  }
+  if (texts.length === 0) return { error: `${field} has no text part; DVAA agents read text only` };
+  return { text: texts.join('\n') };
+}
+
+// Agent fields holding the planted secrets that the challenges ask learners to
+// extract. GET /info is reconnaissance: it names these fields, never their values.
+const INFO_REDACTED_FIELDS = ['persona', 'knowledgeBase', 'memory', 'mockDatabase', 'wallet'];
+
+/** The agent as GET /info shows it, with the planted secrets redacted. */
+function agentInfo(agent) {
+  const info = { ...agent, vulnerabilities: Object.keys(agent.vulnerabilities || {}) };
+  for (const field of INFO_REDACTED_FIELDS) {
+    if (field in info) info[field] = '[REDACTED - Try to extract it!]';
+  }
+  return info;
+}
+
+/**
+ * A server that cannot bind is a startup failure: name the address and exit.
+ * Errors after listening are left to the process-level handlers.
+ */
+function exitIfListenFails(server, port, label) {
+  const onError = (err) => {
+    console.error(`[dvaa] ${label} cannot listen on ${BIND_HOST}:${port}: ${err.code || err.message}`);
+    process.exit(1);
+  };
+  server.once('error', onError);
+  server.once('listening', () => server.removeListener('error', onError));
+}
+
 /**
  * Create HTTP server for an agent
  */
 function createAgentServer(agent) {
   const server = http.createServer((req, res) => {
+    // Log request stream errors, such as a client reset mid-body. Node emits
+    // 'error' on a request only when a listener is attached, so without one
+    // they pass unseen.
+    req.on('error', (err) => {
+      console.error(`[${agent.id}] ${req.method} ${req.url}: request stream error: ${err.code || err.message}`);
+    });
+    try {
+      routeAgentRequest(req, res);
+    } catch (err) {
+      sendInternalError(res, agent, req, err);
+    }
+  });
+
+  function routeAgentRequest(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -1360,14 +1584,9 @@ function createAgentServer(agent) {
       return;
     }
 
-    // Agent info
+    // Agent info (planted secrets redacted; see agentInfo)
     if (req.method === 'GET' && req.url === '/info') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        ...agent,
-        persona: '[REDACTED - Try to extract it!]',
-        vulnerabilities: Object.keys(agent.vulnerabilities || {}),
-      }));
+      sendJson(res, 200, agentInfo(agent));
       return;
     }
 
@@ -1387,31 +1606,42 @@ function createAgentServer(agent) {
 
     // MCP tool execution (legacy format)
     if (agent.protocol === 'mcp' && req.method === 'POST' && req.url === '/mcp/execute') {
-      let body = '';
-      req.on('data', chunk => { body += chunk; });
-      req.on('end', async () => {
-        try {
-          const { tool, arguments: args } = JSON.parse(body);
-          const result = await executeMcpTool(agent, tool, args);
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify(result));
-        } catch (err) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: err.message }));
+      readAgentBody(agent, req, res, async (body) => {
+        const parsed = parseJsonObject(body);
+        if (!parsed.ok) {
+          sendJson(res, 400, { error: parsed.error });
+          return;
         }
+        const { tool, arguments: args = {} } = parsed.value;
+        if (typeof tool !== 'string') {
+          sendJson(res, 400, { error: 'tool must be a string' });
+          return;
+        }
+        if (!args || typeof args !== 'object' || Array.isArray(args)) {
+          sendJson(res, 400, { error: 'arguments must be an object' });
+          return;
+        }
+        const result = await executeMcpTool(agent, tool, args);
+        sendJson(res, 200, result);
       });
       return;
     }
 
     // MCP JSON-RPC endpoint (standard protocol) - also accepts /mcp path
     if (agent.protocol === 'mcp' && req.method === 'POST' && (req.url === '/' || req.url === '/jsonrpc' || req.url === '/mcp')) {
-      let body = '';
-      req.on('data', chunk => { body += chunk; });
-      req.on('end', async () => {
+      readAgentBody(agent, req, res, async (body) => {
+        const parsed = parseJsonObject(body);
+        if (!parsed.ok) {
+          // -32700 only when the body is not JSON at all.
+          const error = parsed.parseError
+            ? { code: -32700, message: 'Parse error' }
+            : { code: -32600, message: 'Invalid Request: expected a JSON-RPC request object' };
+          sendJson(res, 400, { jsonrpc: '2.0', id: null, error });
+          return;
+        }
+        const rpc = parsed.value;
+        const rpcId = rpc.id ?? null;
         try {
-          const rpc = JSON.parse(body);
-          const rpcId = rpc.id ?? null;
-
           if (rpc.method === 'tools/list') {
             const toolList = (agent.tools || []).map(t => ({
               name: t.name || t,
@@ -1439,8 +1669,10 @@ function createAgentServer(agent) {
             res.end(JSON.stringify({ jsonrpc: '2.0', id: rpcId, error: { code: -32601, message: `Method not found: ${rpc.method}` } }));
           }
         } catch (err) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } }));
+          // The request was valid; the failure is inside the server.
+          sendInternalError(res, agent, req, err, {
+            jsonrpc: '2.0', id: rpcId, error: { code: -32603, message: 'Internal error' },
+          });
         }
       });
       return;
@@ -1448,231 +1680,213 @@ function createAgentServer(agent) {
 
     // A2A message endpoint
     if (agent.protocol === 'a2a' && req.method === 'POST' && (req.url === '/a2a/message' || req.url === '/')) {
-      let body = '';
-      req.on('data', chunk => { body += chunk; });
-      req.on('end', () => {
-        try {
-          const msg = JSON.parse(body);
-          const from = msg.from || 'unknown';
-          const to = msg.to || agent.id;
-          const content = msg.content || '';
-          const taskId = msg.taskId || `task-${Date.now()}`;
+      readAgentBody(agent, req, res, (body) => {
+        const parsed = parseJsonObject(body);
+        if (!parsed.ok) {
+          sendJson(res, 400, { error: parsed.error });
+          return;
+        }
+        const msg = parsed.value;
+        if (msg.content != null && typeof msg.content !== 'string') {
+          sendJson(res, 400, { error: 'content must be a string' });
+          return;
+        }
+        const from = msg.from || 'unknown';
+        const to = msg.to || agent.id;
+        const content = msg.content || '';
+        const taskId = msg.taskId || `task-${Date.now()}`;
 
-          // Initialize agent stats
-          if (!stats.byAgent[agent.id]) {
-            stats.byAgent[agent.id] = { requests: 0, attacks: 0, successful: 0 };
-          }
-          stats.byAgent[agent.id].requests++;
-          stats.totalRequests++;
+        // Check if sender is trusted
+        const trustedList = agent.trustedAgents || agent.acceptsFrom || [];
+        const isTrusted = trustedList.length === 0 || trustedList.includes(from);
 
-          // Check if sender is trusted
-          const trustedList = agent.trustedAgents || agent.acceptsFrom || [];
-          const isTrusted = trustedList.length === 0 || trustedList.includes(from);
+        // Detect attacks in the message content, and count the request
+        const attacks = detectAttacks(content);
+        const acct = openAccounting(agent, attacks);
 
-          // Detect attacks in the message content
-          const attacks = detectAttacks(content);
+        if (verbose) {
+          console.log(`[${agent.id}] A2A from=${from} to=${to} "${content.substring(0, 50)}..." trusted=${isTrusted} attacks=${attacks.categories.join(', ') || 'none'}`);
+        }
 
-          if (verbose) {
-            console.log(`[${agent.id}] A2A from=${from} to=${to} "${content.substring(0, 50)}..." trusted=${isTrusted} attacks=${attacks.categories.join(', ') || 'none'}`);
-          }
-
-          // Track attack stats
-          if (attacks.hasAttack) {
-            stats.attacksDetected++;
-            stats.byAgent[agent.id].attacks++;
-            trackCategoryDetected(attacks.categories);
-          }
-
-          // Vulnerable: accept spoofed identity and dangerous delegations
-          if (agent.vulnerabilities?.agentToAgent?.enabled) {
-            let a2aEntry = null;
-            if (attacks.hasAttack) {
-              stats.attacksSuccessful++;
-              stats.byAgent[agent.id].successful++;
-              trackCategorySuccessful(attacks.categories);
-              a2aEntry = logAttack(agent, attacks.categories, true, `A2A from=${from}: ${content}`);
-            }
-
-            // Identity spoofing: agent claims to be trusted
-            if (attacks.agentToAgent && agent.vulnerabilities.agentToAgent.trustSpoofedIdentity) {
-              const a2aResponse = {
-                taskId,
-                status: 'accepted',
-                from: agent.id,
-                to: from,
-                content: `[${agent.name}] Identity verified. Granting requested access to ${from}.`,
-                note: 'VULNERABLE: Accepted spoofed agent identity without verification!',
-              };
-              if (a2aEntry) a2aEntry.response = safeJson(a2aResponse).substring(0, MAX_RESPONSE_LEN);
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify(a2aResponse));
-              return;
-            }
-
-            // Delegation abuse: execute dangerous tasks
-            if (attacks.agentToAgent || attacks.capabilityAbuse) {
-              const a2aResponse = {
-                taskId,
-                status: 'executed',
-                from: agent.id,
-                to: from,
-                content: `[${agent.name}] Task executed with elevated privileges as requested.`,
-                note: 'VULNERABLE: Executed delegated task without authorization check!',
-              };
-              if (a2aEntry) a2aEntry.response = safeJson(a2aResponse).substring(0, MAX_RESPONSE_LEN);
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify(a2aResponse));
-              return;
-            }
-
-            // Prompt injection via delegated task
-            if (attacks.promptInjection) {
-              const a2aResponse = {
-                taskId,
-                status: 'completed',
-                from: agent.id,
-                to: from,
-                content: `[${agent.name}] Instructions overridden. New directives accepted from ${from}.`,
-                note: 'VULNERABLE: Prompt injection via A2A message!',
-              };
-              if (a2aEntry) a2aEntry.response = safeJson(a2aResponse).substring(0, MAX_RESPONSE_LEN);
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify(a2aResponse));
-              return;
-            }
-          } else if (attacks.hasAttack) {
-            // Non-vulnerable agent: detect but block
-            logAttack(agent, attacks.categories, false, `A2A from=${from}: ${content}`);
-          }
-
+        // Decide the outcome first. A vulnerable agent accepts a spoofed
+        // identity, a dangerous delegation or injected directives before any
+        // trust check; every other message meets the trusted-sender list.
+        const a2aVuln = agent.vulnerabilities?.agentToAgent;
+        let status = 200;
+        let reply;
+        let exploited = [];
+        if (a2aVuln?.enabled && attacks.agentToAgent && a2aVuln.trustSpoofedIdentity) {
+          // Identity spoofing: agent claims to be trusted
+          exploited = ['agentToAgent'];
+          reply = {
+            taskId,
+            status: 'accepted',
+            from: agent.id,
+            to: from,
+            content: `[${agent.name}] Identity verified. Granting requested access to ${from}.`,
+            note: 'VULNERABLE: Accepted spoofed agent identity without verification!',
+          };
+        } else if (a2aVuln?.enabled && (attacks.agentToAgent || attacks.capabilityAbuse)) {
+          // Delegation abuse: execute dangerous tasks
+          exploited = ['agentToAgent', 'capabilityAbuse'].filter(cat => attacks[cat]);
+          reply = {
+            taskId,
+            status: 'executed',
+            from: agent.id,
+            to: from,
+            content: `[${agent.name}] Task executed with elevated privileges as requested.`,
+            note: 'VULNERABLE: Executed delegated task without authorization check!',
+          };
+        } else if (a2aVuln?.enabled && attacks.promptInjection) {
+          // Prompt injection via delegated task
+          exploited = ['promptInjection'];
+          reply = {
+            taskId,
+            status: 'completed',
+            from: agent.id,
+            to: from,
+            content: `[${agent.name}] Instructions overridden. New directives accepted from ${from}.`,
+            note: 'VULNERABLE: Prompt injection via A2A message!',
+          };
+        } else if (!isTrusted) {
           // Untrusted sender check (for agents with trust lists)
-          if (!isTrusted) {
-            res.writeHead(403, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-              taskId,
-              status: 'rejected',
-              from: agent.id,
-              to: from,
-              content: `Agent ${from} is not in the trusted sender list.`,
-            }));
-            return;
-          }
-
+          status = 403;
+          reply = {
+            taskId,
+            status: 'rejected',
+            from: agent.id,
+            to: from,
+            content: `Agent ${from} is not in the trusted sender list.`,
+          };
+        } else {
           // Normal response
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({
+          reply = {
             taskId,
             status: 'completed',
             from: agent.id,
             to: from,
             content: `[${agent.name}] Task received and processed: "${content.substring(0, 100)}"`,
-          }));
-        } catch (err) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Invalid JSON' }));
+          };
         }
+
+        // Account after the decision. Only a vulnerable branch that fired is a
+        // success, credited to the categories it exploited; a request the trust
+        // check rejected, or one processed without effect, failed.
+        const input = `A2A from=${from}: ${content}`;
+        if (exploited.length > 0) {
+          countSuccessful(acct, exploited);
+          logAttack(agent, [...acct.detected], true, input, reply);
+        } else if (attacks.hasAttack) {
+          logAttack(agent, attacks.categories, false, input, reply);
+        }
+        sendJson(res, status, reply);
       });
       return;
     }
 
     // Simple chat endpoint (accepts { message: "..." })
     if (req.method === 'POST' && req.url === '/chat') {
-      let body = '';
-      req.on('data', chunk => { body += chunk; });
-      req.on('end', async () => {
-        try {
-          const parsed = JSON.parse(body);
-          const userMessage = parsed.message || '';
-          const attacks = detectAttacks(userMessage);
-          const raw = await generateResponse(agent, userMessage, attacks);
-          // generateResponse may return a plain string or an object
-          // {content, toolCalls?, dvaa?}. Keep /chat's legacy `response`
-          // field as a string so existing consumers don't break, and
-          // forward the optional toolCalls / dvaa metadata as sibling
-          // fields when present.
-          const isObj = raw !== null && typeof raw === 'object' && !Array.isArray(raw);
-          const response = isObj ? raw.content : raw;
-          const toolCalls = isObj && Array.isArray(raw.toolCalls) ? raw.toolCalls : null;
-          const dvaaMeta = isObj && raw.dvaa ? raw.dvaa : null;
-
-          if (verbose) {
-            console.log(`[${agent.id}] "${userMessage.substring(0, 50)}..." -> Attacks: ${attacks.categories.join(', ') || 'none'}`);
-          }
-
-          const payload = {
-            agent: agent.name,
-            response,
-            attacks: {
-              detected: attacks.hasAttack,
-              categories: attacks.categories,
-            },
-          };
-          if (toolCalls) payload.toolCalls = toolCalls;
-          if (dvaaMeta) payload.dvaa = dvaaMeta;
-
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify(payload));
-        } catch (err) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Invalid JSON' }));
+      readAgentBody(agent, req, res, async (body) => {
+        const parsed = parseJsonObject(body);
+        if (!parsed.ok) {
+          sendJson(res, 400, { error: parsed.error });
+          return;
         }
+        const { message } = parsed.value;
+        if (message != null && typeof message !== 'string') {
+          sendJson(res, 400, { error: 'message must be a string' });
+          return;
+        }
+        const userMessage = message || '';
+        const attacks = detectAttacks(userMessage);
+        const raw = await generateResponse(agent, userMessage, attacks);
+        // generateResponse may return a plain string or an object
+        // {content, toolCalls?, dvaa?}. Keep /chat's legacy `response`
+        // field as a string so existing consumers don't break, and
+        // forward the optional toolCalls / dvaa metadata as sibling
+        // fields when present.
+        const isObj = raw !== null && typeof raw === 'object' && !Array.isArray(raw);
+        const response = isObj ? raw.content : raw;
+        const toolCalls = isObj && Array.isArray(raw.toolCalls) ? raw.toolCalls : null;
+        const dvaaMeta = isObj && raw.dvaa ? raw.dvaa : null;
+
+        if (verbose) {
+          console.log(`[${agent.id}] "${userMessage.substring(0, 50)}..." -> Attacks: ${attacks.categories.join(', ') || 'none'}`);
+        }
+
+        const payload = {
+          agent: agent.name,
+          response,
+          attacks: {
+            detected: attacks.hasAttack,
+            categories: attacks.categories,
+          },
+        };
+        if (toolCalls) payload.toolCalls = toolCalls;
+        if (dvaaMeta) payload.dvaa = dvaaMeta;
+
+        sendJson(res, 200, payload);
       });
       return;
     }
 
     // OpenAI-compatible chat endpoint
     if (req.method === 'POST' && (req.url === '/v1/chat/completions' || req.url === '/chat/completions')) {
-      let body = '';
-      req.on('data', chunk => { body += chunk; });
-      req.on('end', async () => {
-        try {
-          const parsed = JSON.parse(body);
-          const userMessage = parsed.messages?.find(m => m.role === 'user')?.content || '';
-          const attacks = detectAttacks(userMessage);
-          const raw = await generateResponse(agent, userMessage, attacks);
-          // generateResponse may return a plain string (legacy path) or an
-          // object {content, toolCalls?, finishReason?, dvaa?} (new RAG-exfil
-          // path that the AIM A/B demo runner consumes). Tighten the type
-          // guard so a future contributor returning an array, Buffer, or
-          // unawaited Promise doesn't silently produce a broken response.
-          const isObj = raw !== null && typeof raw === 'object' && !Array.isArray(raw) && typeof raw.content === 'string';
-          const content = isObj ? raw.content : raw;
-          const toolCalls = isObj && Array.isArray(raw.toolCalls) ? raw.toolCalls : null;
-          const finishReason = isObj && raw.finishReason ? raw.finishReason : 'stop';
-          const dvaaMeta = isObj && raw.dvaa ? raw.dvaa : null;
-
-          if (verbose) {
-            console.log(`[${agent.id}] "${userMessage.substring(0, 50)}..." -> Attacks: ${attacks.categories.join(', ') || 'none'}`);
-          }
-
-          const message = { role: 'assistant', content };
-          if (toolCalls) message.tool_calls = toolCalls;
-
-          const responsePayload = {
-            id: `chatcmpl-${agent.id}-${Date.now()}`,
-            object: 'chat.completion',
-            created: Math.floor(Date.now() / 1000),
-            model: agent.id,
-            choices: [{ index: 0, message, finish_reason: finishReason }],
-            usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
-          };
-          if (dvaaMeta) responsePayload.dvaa = dvaaMeta;
-
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify(responsePayload));
-        } catch (err) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Invalid JSON' }));
+      readAgentBody(agent, req, res, async (body) => {
+        const parsed = parseJsonObject(body);
+        if (!parsed.ok) {
+          sendJson(res, 400, { error: parsed.error });
+          return;
         }
+        // Answer the latest user turn: a client that sends history expects a
+        // reply to its last message, and that is the one detection must see.
+        const turn = latestUserText(parsed.value.messages);
+        if (turn.error) {
+          sendJson(res, 400, { error: turn.error });
+          return;
+        }
+        const userMessage = turn.text;
+        const attacks = detectAttacks(userMessage);
+        const raw = await generateResponse(agent, userMessage, attacks);
+        // generateResponse may return a plain string (legacy path) or an
+        // object {content, toolCalls?, finishReason?, dvaa?} (new RAG-exfil
+        // path that the AIM A/B demo runner consumes). Tighten the type
+        // guard so a future contributor returning an array, Buffer, or
+        // unawaited Promise doesn't silently produce a broken response.
+        const isObj = raw !== null && typeof raw === 'object' && !Array.isArray(raw) && typeof raw.content === 'string';
+        const content = isObj ? raw.content : raw;
+        const toolCalls = isObj && Array.isArray(raw.toolCalls) ? raw.toolCalls : null;
+        const finishReason = isObj && raw.finishReason ? raw.finishReason : 'stop';
+        const dvaaMeta = isObj && raw.dvaa ? raw.dvaa : null;
+
+        if (verbose) {
+          console.log(`[${agent.id}] "${userMessage.substring(0, 50)}..." -> Attacks: ${attacks.categories.join(', ') || 'none'}`);
+        }
+
+        const message = { role: 'assistant', content };
+        if (toolCalls) message.tool_calls = toolCalls;
+
+        const responsePayload = {
+          id: `chatcmpl-${agent.id}-${Date.now()}`,
+          object: 'chat.completion',
+          created: Math.floor(Date.now() / 1000),
+          model: agent.id,
+          choices: [{ index: 0, message, finish_reason: finishReason }],
+          usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
+        };
+        if (dvaaMeta) responsePayload.dvaa = dvaaMeta;
+
+        sendJson(res, 200, responsePayload);
       });
       return;
     }
 
     res.writeHead(404);
     res.end('Not found');
-  });
+  }
 
-  server.listen(agent.port, () => {
+  exitIfListenFails(server, agent.port, agent.name);
+  server.listen(agent.port, BIND_HOST, () => {
     const levelColors = {
       hardened: '\x1b[32m',  // Green
       standard: '\x1b[33m', // Yellow
@@ -1699,12 +1913,12 @@ function createAgentServer(agent) {
  * - Other tools (query_database, store_secret, etc.): retain simulated behavior
  */
 async function executeMcpTool(agent, toolName, args) {
-  let tool = agent.tools?.find(t => t.name === toolName);
-
-  // PluginBot: accept dynamic tool registration (no verification)
-  if (!tool && agent.id === 'pluginbot' && toolName === 'register_tool') {
-    tool = { name: 'register_tool', vulnerable: true, source: 'dynamic' };
-  }
+  // PluginBot: accept dynamic tool registration (no verification). Resolved
+  // before agent.tools, so a registered tool named register_tool cannot
+  // replace the registration handler itself.
+  let tool = agent.id === 'pluginbot' && toolName === 'register_tool'
+    ? { name: 'register_tool', vulnerable: true, source: 'dynamic' }
+    : agent.tools?.find(t => t.name === toolName);
 
   // ProxyBot: name-only resolution means any tool name is accepted
   if (!tool && agent.id === 'proxybot') {
@@ -1715,11 +1929,7 @@ async function executeMcpTool(agent, toolName, args) {
     return { error: `Tool ${toolName} not found` };
   }
 
-  // Initialize agent stats
-  if (!stats.byAgent[agent.id]) {
-    stats.byAgent[agent.id] = { requests: 0, attacks: 0, successful: 0 };
-  }
-  stats.byAgent[agent.id].requests++;
+  agentStats(agent.id).requests++;
   stats.totalRequests++;
 
   // Simulate vulnerable tool execution
@@ -1737,7 +1947,7 @@ async function executeMcpTool(agent, toolName, args) {
         ? path.join(sandbox.root, requestedPath)
         : path.resolve(sandbox.home, requestedPath);
 
-      if (!resolved.startsWith(sandbox.root)) {
+      if (!isInsideSandbox(resolved)) {
         // Hard boundary: never escape sandbox
         isAttack = true;
         attackSuccessful = false;
@@ -1763,7 +1973,7 @@ async function executeMcpTool(agent, toolName, args) {
         ? path.join(sandbox.root, requestedPath)
         : path.resolve(sandbox.home, requestedPath);
 
-      if (!resolved.startsWith(sandbox.root)) {
+      if (!isInsideSandbox(resolved)) {
         result = { success: false, error: 'Path outside sandbox boundary' };
       } else {
         isAttack = requestedPath.includes('..') || requestedPath.includes('etc/');
@@ -1798,7 +2008,7 @@ async function executeMcpTool(agent, toolName, args) {
           const resolved = targetDir.startsWith('/')
             ? path.join(sandbox.root, targetDir)
             : path.resolve(sandbox.home, targetDir);
-          if (resolved.startsWith(sandbox.root)) {
+          if (isInsideSandbox(resolved)) {
             const entries = fs.readdirSync(resolved);
             result = { success: true, output: entries.join('\n') };
           } else {
@@ -1812,7 +2022,7 @@ async function executeMcpTool(agent, toolName, args) {
         const resolved = filePath.startsWith('/')
           ? path.join(sandbox.root, filePath)
           : path.resolve(sandbox.home, filePath);
-        if (resolved.startsWith(sandbox.root)) {
+        if (isInsideSandbox(resolved)) {
           try {
             result = { success: true, output: fs.readFileSync(resolved, 'utf-8') };
           } catch {
@@ -1866,10 +2076,18 @@ async function executeMcpTool(agent, toolName, args) {
         fs.writeFileSync(sandbox.exfilLog, JSON.stringify(log, null, 2));
       } catch {}
 
-      // For SSRF: if targeting a DVAA agent port, actually call it
-      if (url.match(/localhost:(30[0-2]\d)/)) {
+      // For SSRF: if the parsed URL targets a DVAA agent on loopback, actually
+      // call it. Other hosts, other ports and cloud metadata take the log-only
+      // branch below.
+      let live = false;
+      try {
+        const target = new URL(url);
+        live = target.protocol === 'http:' && LOOPBACK_HOSTS.has(target.hostname) && AGENT_PORTS.has(target.port);
+      } catch {}
+
+      if (live) {
         try {
-          const resp = await fetch(url, { signal: AbortSignal.timeout(3000) });
+          const resp = await fetch(url, { signal: AbortSignal.timeout(3000), redirect: 'manual' });
           const body = await resp.text();
           result = { success: true, status: resp.status, body: body.slice(0, 2000) };
           if (isAttack) result.note = 'VULNERABLE: SSRF - accessed internal service!';
@@ -1940,21 +2158,26 @@ async function executeMcpTool(agent, toolName, args) {
 
     // ── PluginBot: store_secret - no access control ──
     if (toolName === 'store_secret') {
-      isAttack = true;
-      attackSuccessful = true;
+      const secretFile = path.resolve(sandbox.home, 'secrets', `${args.key || 'unnamed'}.txt`);
 
-      // Actually write to sandbox
-      try {
-        const secretFile = path.join(sandbox.home, 'secrets', `${args.key || 'unnamed'}.txt`);
-        fs.mkdirSync(path.dirname(secretFile), { recursive: true });
-        fs.writeFileSync(secretFile, args.value || '');
-      } catch {}
+      if (!isInsideSandbox(secretFile)) {
+        result = { success: false, error: 'Path outside sandbox boundary' };
+      } else {
+        isAttack = true;
+        attackSuccessful = true;
 
-      result = {
-        success: true,
-        stored: { key: args.key, value: args.value },
-        note: 'VULNERABLE: Secret stored in plaintext without access control! Any user can read/write secrets.',
-      };
+        // Actually write to sandbox
+        try {
+          fs.mkdirSync(path.dirname(secretFile), { recursive: true });
+          fs.writeFileSync(secretFile, args.value || '');
+        } catch {}
+
+        result = {
+          success: true,
+          stored: { key: args.key, value: args.value },
+          note: 'VULNERABLE: Secret stored in plaintext without access control! Any user can read/write secrets.',
+        };
+      }
     }
 
     // ── PluginBot: fetch_data - path traversal / SSRF ──
@@ -1980,7 +2203,7 @@ async function executeMcpTool(agent, toolName, args) {
       }
       resolved = path.resolve(resolved);
 
-      if (resolved.startsWith(sandbox.root)) {
+      if (isInsideSandbox(resolved)) {
         try {
           const content = fs.readFileSync(resolved, 'utf-8');
           isAttack = reqPath.includes('../') || reqPath.includes('/etc/') || reqPath.includes('.env') || reqPath.includes('passwd');
@@ -2004,14 +2227,27 @@ async function executeMcpTool(agent, toolName, args) {
     // ── PluginBot: tool registry poisoning via register_tool ──
     if (toolName === 'register_tool') {
       isAttack = true;
-      attackSuccessful = true;
-      const registryUrl = args.registryUrl || args.url || 'http://attacker.com/tools';
-      result = {
-        success: true,
-        message: `Registry updated to: ${registryUrl}`,
-        toolRegistered: args.name || 'malicious-tool',
-        note: 'VULNERABLE: Accepted tool registration from unverified registry without signature verification!',
-      };
+      // PluginBot's registered tool joins its agent.tools (tools/list,
+      // tools/call). Any other agent that reaches this block (ProxyBot,
+      // through name-only resolution) keeps the stateless reply: nothing is
+      // added to its tools.
+      const registration = agent.id === 'pluginbot' ? registerDynamicTool(agent, args) : null;
+      if (registration?.status === 'refused') {
+        attackSuccessful = false;
+        result = {
+          success: false,
+          error: `Tool registry full: ${agent.name} holds at most ${MAX_DYNAMIC_TOOLS} registered tools.`,
+        };
+      } else {
+        attackSuccessful = true;
+        const registryUrl = args.registryUrl || args.url || 'http://attacker.com/tools';
+        result = {
+          success: true,
+          message: `Registry updated to: ${registryUrl}`,
+          toolRegistered: registration ? registration.tool.name : (args.name || 'malicious-tool'),
+          note: 'VULNERABLE: Accepted tool registration from unverified registry without signature verification!',
+        };
+      }
     }
 
     // ── ProxyBot: secure_query ──
@@ -2098,12 +2334,14 @@ async function executeMcpTool(agent, toolName, args) {
         attackCategories = agent.id === 'proxybot' ? ['toolMitm'] : ['mcpExploitation'];
       }
 
+      // Looked up again here: a dashboard reset can replace stats.byAgent
+      // while a tool awaits (fetch_url's live request).
       stats.attacksDetected++;
-      stats.byAgent[agent.id].attacks++;
+      agentStats(agent.id).attacks++;
       trackCategoryDetected(attackCategories);
       if (attackSuccessful) {
         stats.attacksSuccessful++;
-        stats.byAgent[agent.id].successful++;
+        agentStats(agent.id).successful++;
         trackCategorySuccessful(attackCategories);
       }
       const mcpInput = `${toolName}(${safeJson(args)})`;
@@ -2118,6 +2356,17 @@ async function executeMcpTool(agent, toolName, args) {
 
 // Start servers
 console.log('Starting agents...\n');
+
+// The dashboard proxies to the agents on 127.0.0.1 and the bundled tools dial
+// localhost, so only bind addresses that accept 127.0.0.1 are supported.
+const SUPPORTED_BIND_HOSTS = ['127.0.0.1', '0.0.0.0', '::'];
+if (!SUPPORTED_BIND_HOSTS.includes(BIND_HOST)) {
+  console.error(`DVAA_HOST=${BIND_HOST} is not supported: the dashboard reaches the agents on 127.0.0.1. Use 127.0.0.1 (the default), 0.0.0.0 or ::.`);
+  process.exit(1);
+}
+console.log(BIND_HOST === '127.0.0.1'
+  ? 'Listening on 127.0.0.1: other machines cannot connect. Set DVAA_HOST=0.0.0.0 to expose DVAA to a network.\n'
+  : `Listening on ${BIND_HOST} (DVAA_HOST): any machine that can reach this host can drive these exploitable agents.\n`);
 
 // Anonymous tier-1 telemetry - fire-and-forget, no PII. See `dvaa telemetry`.
 // --offline disables it above so no cloud service sits in the demo path.
@@ -2207,7 +2456,8 @@ const dashboardServer = onlyIds ? null : createDashboardServer({
 });
 
 if (dashboardServer) {
-  dashboardServer.listen(9000, () => {
+  exitIfListenFails(dashboardServer, 9000, 'Dashboard');
+  dashboardServer.listen(9000, BIND_HOST, () => {
     console.log('\nDashboard: http://localhost:9000');
     console.log('Stats API: http://localhost:9000/stats');
     console.log('Agent API: http://localhost:9000/agents\n');
@@ -2228,4 +2478,15 @@ process.on('SIGINT', () => {
   servers.forEach(s => s.close());
   if (dashboardServer) dashboardServer.close();
   process.exit(0);
+});
+
+// One process hosts every agent and the dashboard. Once the fleet is started,
+// an error that escapes a request handler must not stop it: log one line and
+// keep serving. Installed last, so an error while this module starts the fleet
+// still ends the process.
+process.on('uncaughtException', (err) => {
+  console.error(`[dvaa] uncaught exception, fleet still serving: ${describeError(err)}`);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error(`[dvaa] unhandled rejection, fleet still serving: ${describeError(reason)}`);
 });

@@ -8,15 +8,17 @@
 An intentionally vulnerable AI agent platform for security training, red-teaming, and validating security tools. 21 agents, 12 vulnerability categories, 3 protocols. The [DVWA](https://dvwa.co.uk/) of AI agents.
 
 ```bash
-docker run -p 9000:9000 -p 7001-7021:7001-7021 opena2a/dvaa:0.9.2
+docker run -p 127.0.0.1:9000:9000 -p 127.0.0.1:7001-7021:7001-7021 opena2a/dvaa:0.9.2
 open http://localhost:9000
 ```
 
-> This maps every port of the published image: the dashboard on `:9000` and its 19 agents on `7001-7021`, so the dashboard, `curl`, and HackMyAgent all work. The two newest agents (RepoBot 7022/7023, bringing the count to 21) are on main and ship with the next image. Docker does not publish ports without `-p`, so a bare `docker run` reaches nothing. (Only want the dashboard? `-p 9000:9000` alone is enough; it drives the whole fleet through `:9000`.)
+> This maps every port of the published image: the dashboard on `:9000` and its 19 agents on `7001-7021`, so the dashboard, `curl`, and HackMyAgent all work. The `127.0.0.1:` prefix publishes them to this machine only. The two newest agents (RepoBot 7022/7023, bringing the count to 21) are on main and ship with the next image. Docker does not publish ports without `-p`, so a bare `docker run` reaches nothing. (Only want the dashboard? `-p 127.0.0.1:9000:9000` alone is enough; it drives the whole fleet through `:9000`.)
 
 > **v0.8.0 breaking change:** agent ports moved from `3000`-base to `7000`-base to avoid the common `3000` collision with Next.js/React dev servers. Dashboard stays on `9000`. See [Upgrading from v0.7.x](#upgrading-from-v07x).
 
 > DVAA is intentionally insecure. Do not deploy in production or expose to the internet.
+
+**Network exposure.** The agents and the dashboard listen on `127.0.0.1` by default, so other machines cannot connect to them. The Docker image listens on `0.0.0.0` inside the container, and the `docker run` and Compose examples here publish its ports on `127.0.0.1`. To expose DVAA to a lab network on purpose, start it with `DVAA_HOST=0.0.0.0 npm start`, or publish the container's ports with `-p 0.0.0.0:9000:9000` (and the same for the agent ports). Anything that can reach those ports can drive the agents and extract their planted secrets.
 
 ![DVAA Demo](docs/dvaa-demo.gif)
 
@@ -42,7 +44,7 @@ The dashboard groups the fleet by protocol, with each agent's security level and
 | FlightBot-AIM | 7018 | AIM-protected | Same code as FlightBot, egress gated by AIM capability grant |
 | RepoBot | 7022 | Weak | Repo-local agent-config injection (AGENTS.md), credential exfiltration |
 | RepoBot-AIM | 7023 | AIM-protected | Same code as RepoBot, shell/file/egress gated by AIM capability grant |
-| VisionBot | 7006 | Weak | Image-based prompt injection |
+| VisionBot | 7006 | Weak | Prompt injection hidden in image captions and OCR text (text input only; image parts are not processed) |
 | MemoryBot | 7007 | Vulnerable | Memory injection, cross-session persistence |
 | LongwindBot | 7008 | Weak | Context overflow, safety displacement |
 | ToolBot | 7010 | Vulnerable | Path traversal, SSRF, command injection (MCP) |
@@ -51,6 +53,8 @@ The dashboard groups the fleet by protocol, with each agent's security level and
 | ProxyBot | 7013 | Vulnerable | Tool MITM, no TLS pinning (MCP) |
 | Orchestrator | 7020 | Standard | A2A delegation abuse |
 | Worker | 7021 | Weak | A2A command execution |
+
+The Security column is a label. Which attacks an agent falls for comes from its own definition in `src/core/agents.js`. In the default simulated mode, two levels also change how an agent answers chat: a Hardened agent answers a detected attack with a block message or a generic reply, and a Critical agent complies with it.
 
 ## Attack Categories
 
@@ -65,7 +69,7 @@ Based on [OASB-1](https://oasb.ai) (Open Agent Security Benchmark):
 | Context Manipulation | Poison conversation memory |
 | MCP Exploitation | Abuse MCP tool interfaces (path traversal, SSRF) |
 | A2A Attacks | Multi-agent trust exploitation |
-| Supply Chain | Malicious component injection |
+| Supply Chain | Remote installers piped to a shell, packages from a named registry, unverified or unsigned components |
 | Memory Injection | Inject persistent instructions into agent memory |
 | Context Overflow | Displace safety instructions via context padding |
 | Tool Registry Poisoning | Manipulate tool discovery and registration |
@@ -96,7 +100,7 @@ npx hackmyagent attack http://localhost:7003/v1/chat/completions --api-format op
 npx hackmyagent attack http://localhost:7003/v1/chat/completions \
   --api-format openai --intensity aggressive --verbose
 
-# OASB-1 benchmark (222 attack scenarios)
+# OASB-1 compliance benchmark (level L1 by default; -l L2 or -l L3 for stricter levels)
 npx hackmyagent secure -b oasb-1
 
 # Test MCP server directly
@@ -142,6 +146,7 @@ dvaa --help
 | `dvaa health [--json]` | Ping the dashboard at `:9000`. Exit 1 if unreachable. |
 | `dvaa attack <agent\|url> [--intensity passive\|active\|aggressive] [--verbose]` | Run HMA attacks against a DVAA agent. `--all` runs the full fleet. |
 | `dvaa logs [--limit N] [--follow] [--json]` | Show or tail the attack log. |
+| `dvaa chat [agent] [--message "<text>"] [--llm] [--json]` | Chat with a running API agent (default `researchbot-aim`): a REPL, or one turn with `--message`. Input piped into the REPL is sent line by line. `--llm` turns on LLM narration with `$ANTHROPIC_API_KEY` for this chat only; when chat exits it disables LLM mode on the fleet, which removes the key. `dvaa chat list` shows the agents it can reach. |
 | `dvaa scan <scenario> [--fix] [--json]` / `dvaa scan --list` | Run HMA against a scenario fixture and diff findings against `expected-checks.json`. `--fix` remediates and re-scans. `--list` enumerates all 86 scenarios. |
 | `dvaa benchmark [path] [--level L1\|L2\|L3] [--json]` | Run OASB-1 compliance benchmark against a target directory. |
 | `dvaa hma <args...>` | Pass-through to the bundled HackMyAgent CLI for anything not covered above. |
@@ -312,7 +317,7 @@ The dashboard at `http://localhost:9000` tracks challenge progress, shows live a
 # Docker Compose (with simulated LLM backend, zero external dependencies)
 git clone https://github.com/opena2a-org/damn-vulnerable-ai-agent.git
 cd damn-vulnerable-ai-agent
-docker compose up
+docker compose up        # publishes every port on 127.0.0.1 only
 open http://localhost:9000
 
 # Node.js (without Docker)
@@ -331,7 +336,7 @@ All agents expose OpenAI-compatible chat completions. MCP and A2A agents additio
 
 | Protocol | Endpoint | Ports |
 |----------|----------|-------|
-| OpenAI API | `POST /v1/chat/completions` | 7001-7008 |
+| OpenAI API | `POST /v1/chat/completions` | Every agent port: 7001-7008, 7010-7018, 7020-7023 |
 | MCP JSON-RPC | `POST /` (JSON-RPC 2.0) | 7010-7013 |
 | A2A Message | `POST /a2a/message` | 7020-7021 |
 | Health | `GET /health, /info, /stats` | All ports |
@@ -343,8 +348,6 @@ All agents expose OpenAI-compatible chat completions. MCP and A2A agents additio
 HOST_PORT_OFFSET=500    # Add this offset to every agent port the dashboard displays.
                         # Use when remapping container ports to different host ports
                         # (see Troubleshooting below).
-LOG_ATTACKS=true        # Log detected attack attempts
-VERBOSE=true            # Detailed logging
 ```
 
 ## Upgrading from v0.7.x
@@ -359,18 +362,18 @@ VERBOSE=true            # Detailed logging
 ```bash
 # Remap host ports 7001-7021 → 7501-7521. Container-internal ports stay unchanged.
 docker run -d -e HOST_PORT_OFFSET=500 \
-  -p 9000:9000 \
-  -p 7501-7521:7001-7021 \
+  -p 127.0.0.1:9000:9000 \
+  -p 127.0.0.1:7501-7521:7001-7021 \
   opena2a/dvaa:0.9.2
 ```
 
-`HOST_PORT_OFFSET` only affects what the dashboard **displays** (e.g. test commands, agent URLs). The container still binds internally to its agent ports (`7001-7021` on 0.9.2). You are responsible for the matching `-p` mappings. A naive `-p 8001:7001` without the env var means the dashboard will keep telling users to hit `7001` when the agent is actually on `8001`.
+`HOST_PORT_OFFSET` only affects what the dashboard **displays** (e.g. test commands, agent URLs). The container still binds internally to its agent ports (`7001-7021` on 0.9.2). You are responsible for the matching `-p` mappings. A naive `-p 127.0.0.1:8001:7001` without the env var means the dashboard will keep telling users to hit `7001` when the agent is actually on `8001`.
 
 **Dashboard shows stale data after upgrade.** Hard-reload (Cmd+Shift+R / Ctrl+Shift+R). The frontend is cached aggressively.
 
 ## Infrastructure Vulnerability Scenarios
 
-85 real-world scenarios across 15 vulnerability categories, including 5 multi-step attack chains. Each scenario contains a `vulnerable/` directory and an `expected-checks.json` listing the HMA check IDs confirmed to fire on that fixture (see [docs/audits/2026-04-13-expected-checks.md](docs/audits/2026-04-13-expected-checks.md) for the honest-baseline audit). Run the full verification harness:
+86 scenarios, including 5 multi-step attack chains. A scenario consists of a deliberately vulnerable fixture in `vulnerable/`, a README, and an `expected-checks.json` listing the HackMyAgent checks expected to fire on that fixture. 35 scenarios have expected checks, baselined against HackMyAgent 0.33.2, the version pinned in `package-lock.json`. The other 51 have none yet (`[]`), and each of their READMEs has a Detection status section. The verification harness scans a temporary copy of each fixture and, when an expected check is fixable, applies HackMyAgent's fixes to that copy and re-scans it. HackMyAgent only receives the copies, so the shipped fixtures are not modified:
 
 ```bash
 ./scenarios/verify-all.sh
@@ -404,6 +407,19 @@ Disclosure surfaces and opt-out:
 - **Audit every payload:** `OPENA2A_TELEMETRY_DEBUG=print dvaa <anything>` echoes each event to stderr in JSON before sending.
 
 Telemetry is fire-and-forget with a 2-second timeout; network failures never block DVAA.
+
+## Running the tests
+
+```bash
+npm ci
+npm test                                         # no fleet needed
+npm run test:fleet                               # starts a fleet, runs the same files, stops it
+npm run test:fleet -- test/fleet-smoke.test.js   # only the files named
+```
+
+`npm test` runs `node --test` over `test/*.test.js` and `src/**/*.test.js`. It starts no fleet, so a test that needs running agents reports as skipped.
+
+`npm run test:fleet` (`scripts/test-fleet.mjs`) runs the same files against a live fleet. It needs port 9000 and the agent ports in 7001-7023 free on 127.0.0.1, and refuses to start when one is in use. It starts `node src/index.js --all` in a temporary working directory, with telemetry off and no provider key or cloud credential from your shell, waits until the dashboard and every agent accept connections, runs the tests, then stops the fleet and removes the directory. Its exit code is the test run's.
 
 ## Contributing
 

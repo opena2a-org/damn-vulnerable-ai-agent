@@ -24,12 +24,13 @@ const COMMANDS = {
   attack:    { run: runAttack,    summary: 'Run HackMyAgent attacks against a DVAA agent (or URL).' },
   logs:      { run: runLogs,      summary: 'Show recent attack log entries; --follow to tail.' },
   scan:      { run: runScan,      summary: 'Run HackMyAgent against a scenario fixture; --fix to remediate.' },
-  benchmark: { run: runBenchmark, summary: 'Run OASB-1 benchmark against a DVAA agent.' },
+  benchmark: { run: runBenchmark, summary: 'Run the OASB-1 compliance benchmark against a directory (default: current).' },
   hma:       { run: runHma,       summary: 'Pass-through to the bundled HackMyAgent CLI.' },
   telemetry: { run: runTelemetry, summary: 'Inspect or toggle anonymous usage telemetry: on | off | status.' },
-  demo:      { run: runDemo,      summary: 'Run a scripted A/B demo (aim-ab: vulnerable vs AIM-secured agent).' },
+  demo:      { run: runDemo,      summary: 'Run a scripted AIM demo: aim-ab, flight, or repo (vulnerable vs AIM-secured agent).' },
   chat:      { run: runChat,      summary: 'Interactive REPL against a DVAA agent (default: researchbot-aim).' },
-  selftest:  { run: null,         summary: 'Run the local DVAA agent fleet against the bundled payload mirror and report the pwn matrix (handled in index.js).' },
+  // selftest runs src/browse.js; src/index.js dispatches it.
+  selftest:  { run: null,         summary: 'Run the local DVAA agent fleet against the bundled payload mirror and report the pwn matrix.' },
   browse:    { run: null },  // deprecated alias for selftest; hidden (no summary) but still dispatched in index.js
 };
 

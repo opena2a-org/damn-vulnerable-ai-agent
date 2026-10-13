@@ -11,17 +11,21 @@
 
 import { resolveTarget, listAgents } from '../agents.js';
 import { runHmaInherit } from '../hma.js';
-import { splitArgs, fail } from '../format.js';
+import { parseCommandArgs, fail } from '../format.js';
 
 export default async function run(argv) {
-  const { positional, flags, values } = splitArgs(argv);
-  if (flags.has('help') || flags.has('h')) {
+  const { positional, flags, values } = parseCommandArgs('attack', argv, {
+    all: { type: 'boolean' },
+    intensity: { type: 'string' },
+    verbose: { type: 'boolean', short: 'v' },
+  }, { maxPositionals: 1 });
+  if (flags.has('help')) {
     console.log(USAGE);
     return 0;
   }
 
   const intensity = values.intensity || 'active';
-  const verbose = flags.has('verbose') || flags.has('v');
+  const verbose = flags.has('verbose');
 
   if (flags.has('all')) {
     const agents = listAgents().filter(a => a.protocol === 'api');

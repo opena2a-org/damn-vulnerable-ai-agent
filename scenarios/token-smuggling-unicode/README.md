@@ -2,7 +2,7 @@
 
 **Category:** Injection
 **Severity:** Critical
-**Check IDs:** None (see Detection status)
+**Check IDs:** UNICODE-STEGO-001
 **OASB Control:** 1.2
 
 ## Description
@@ -50,10 +50,4 @@ npx hackmyagent secure scenarios/token-smuggling-unicode/vulnerable
 
 ## Detection status
 
-**Automated static detection not yet implemented in HMA for this scenario.**
-
-**Deferred (future work):**
-
-- `PROMPT-002` — real HMA check (fires on other fixtures); this fixture does not trigger it
-
-See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.
+Detected by `UNICODE-STEGO-001` (HackMyAgent 0.33.2, static scan): it reports the zero-width characters (U+200B to U+200D) in `system-prompt.md`.

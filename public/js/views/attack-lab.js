@@ -6,8 +6,29 @@ import { el } from '../utils.js';
 import { codeBlock } from '../components.js';
 import { renderMarkdown } from '../markdown.js';
 
+// One tutor session per browser tab. The id is kept in sessionStorage so a
+// reload reuses the server-side session instead of opening a new one (the
+// server caps and expires sessions). It is random (128 bits), so two tabs do
+// not share one by accident.
+const TUTOR_SESSION_KEY = 'dvaa-tutor-session';
+
+function tutorSessionId() {
+  try {
+    const saved = sessionStorage.getItem(TUTOR_SESSION_KEY);
+    if (saved && /^session-[0-9a-f]{32}$/.test(saved)) return saved;
+  } catch { /* storage unavailable: use a fresh id */ }
+
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  const id = 'session-' + Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+  try {
+    sessionStorage.setItem(TUTOR_SESSION_KEY, id);
+  } catch { /* not persisted; the id still works for this page */ }
+  return id;
+}
+
 // Session state
-let sessionId = 'session-' + Date.now();
+let sessionId = tutorSessionId();
 let chatHistory = [];
 let selectedAgent = null;
 let tutorMessages = [];

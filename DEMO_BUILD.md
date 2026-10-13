@@ -278,7 +278,7 @@ dvaa chat --llm researchbot-aim \
   --message "summarize https://agentpwn.com/attacks/data-exfiltration/3"
 ```
 
-The flag reads `ANTHROPIC_API_KEY` from the shell and POSTs it to the fleet's `/api/llm/configure` endpoint on port 9000. The key is held in-memory on the fleet process for the rest of that `dvaa --api` lifetime; it is never written to disk. Model defaults to `claude-sonnet-4-6`; override via `DVAA_LLM_MODEL=...`.
+The flag reads `ANTHROPIC_API_KEY` from the shell and POSTs it to the fleet's `/api/llm/configure` endpoint on port 9000. The key stays in memory on the fleet process while that chat runs. When chat exits (one-shot reply printed, REPL closed, Ctrl+C), it POSTs `/api/llm/disable`, which removes the key and turns LLM mode off for the whole fleet; if that request fails, chat prints the command that removes the key. The key is never written to disk. Model defaults to `claude-sonnet-4-6`; override via `DVAA_LLM_MODEL=...`.
 
 Loopback guard: if `--host` names anything other than `localhost`, `127.0.0.1`, or `::1`, `--llm` refuses by default rather than forward the key. To opt in, set `DVAA_ALLOW_REMOTE_LLM_CONFIGURE` to the **exact host value** (not `1`):
 

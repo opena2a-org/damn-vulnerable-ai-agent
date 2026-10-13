@@ -31,7 +31,7 @@ permissions:
 
 jobs:
   review:
-    name: Claude Code Review
+    name: Automated code review
     runs-on: ubuntu-latest
     env:
       PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -141,7 +141,7 @@ jobs:
             cat /tmp/pr_diff.txt
           } > /tmp/user_msg.txt
 
-      - name: Run Claude review
+      - name: Run automated review
         id: review
         # The model call is shared across the org. It held three defects at once
         # — an anthropic-version the API rejected, an extraction that read only
@@ -255,7 +255,7 @@ jobs:
           esac
 
           {
-            echo "## Claude Code Review — $VERDICT"
+            echo "## Automated code review — $VERDICT"
             echo ""
             cat "$REVIEW_FILE"
             echo ""

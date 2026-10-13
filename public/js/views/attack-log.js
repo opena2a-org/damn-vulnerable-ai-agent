@@ -4,8 +4,12 @@
 
 import { el, relativeTime, CATEGORY_LABELS } from '../utils.js';
 import { categoryBadge, resultBadge, codeBlock, openModal } from '../components.js';
-import { resetAll } from '../api.js';
+import { clearAttackLog, resetAll } from '../api.js';
 import { teachFor, findLeaks } from '../teach.js';
+
+// Browser copy of challenge progress kept by earlier dashboard versions. The
+// server's scores file is the source of truth, so a full reset drops it too.
+const LEGACY_PROGRESS_KEY = 'dvaa-challenge-state';
 
 // Filter state (module-level)
 let filterAgent = '';
@@ -196,12 +200,44 @@ export function renderAttackLog(state) {
   controls.appendChild(el('span', { style: { color: 'var(--text-muted)', fontSize: '0.8rem', marginLeft: 'auto' } },
     `${filtered.length} event${filtered.length !== 1 ? 's' : ''}`));
 
-  // Clear button
-  const clearBtn = el('button', { className: 'btn btn-danger btn-sm' }, 'Clear All');
+  // Clear the log only: challenge progress and scores stay.
+  const clearBtn = el('button', {
+    className: 'btn btn-sm',
+    title: 'Remove every event from the attack log. Challenge progress and scores are kept.',
+  }, 'Clear log');
   clearBtn.addEventListener('click', async () => {
-    await resetAll();
+    try {
+      await clearAttackLog();
+    } catch (err) {
+      alert(`Could not clear the attack log: ${err.message}`);
+      return;
+    }
+    state.attackLog = [];
+    rerender();
   });
   controls.appendChild(clearBtn);
+
+  // The full reset erases progress, so it asks first.
+  const resetBtn = el('button', {
+    className: 'btn btn-danger btn-sm',
+    title: 'Clear the attack log, stats, challenge and scenario progress, and the saved scores file.',
+  }, 'Reset all progress');
+  resetBtn.addEventListener('click', async () => {
+    const confirmed = confirm('Reset all progress?\n\n'
+      + 'This clears the attack log, the stats, every completed challenge and scenario, '
+      + 'and the saved scores file. It cannot be undone.');
+    if (!confirmed) return;
+    try {
+      await resetAll();
+    } catch (err) {
+      alert(`Could not reset progress: ${err.message}`);
+      return;
+    }
+    try { localStorage.removeItem(LEGACY_PROGRESS_KEY); } catch { /* storage unavailable */ }
+    state.attackLog = [];
+    rerender();
+  });
+  controls.appendChild(resetBtn);
 
   wrap.appendChild(controls);
 

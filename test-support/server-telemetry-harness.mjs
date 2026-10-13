@@ -62,7 +62,7 @@ const port = server.address().port;
 
 await new Promise((resolve) => {
   const req = http.request(
-    { hostname: '127.0.0.1', port, path: route, method, agent: false, timeout: 5000 },
+    { hostname: '127.0.0.1', port, path: route, method, agent: false, timeout: 5000, headers: { 'Content-Type': 'application/json' } },
     (res) => {
       res.resume();
       res.on('end', resolve);

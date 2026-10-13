@@ -1,6 +1,6 @@
 # TOCTOU Race Between Verify and Apply
 
-**Check:** TOCTOU-001 | **Severity:** High | **Auto-Fix:** No
+**Check:** None (see Detection status) | **Severity:** High | **Auto-Fix:** No
 
 A configuration file is read and verified, then read again and applied as a separate operation. Between the two reads, an attacker can swap the file contents to bypass validation.
 
@@ -10,7 +10,7 @@ The pipeline reads the config, validates it (rejects `dangerousMode: true`), the
 
 ## Which HMA Check Detects It
 
-TOCTOU-001 detects patterns where the same file path is read multiple times in a function without file locking, atomic operations, or content caching between the reads.
+TOCTOU-001 is designed to detect patterns where the same file path is read multiple times in a function without file locking, atomic operations, or content caching between the reads. It does not fire on this fixture in HackMyAgent 0.33.2; see Detection status.
 
 ## How to Fix It
 
@@ -23,3 +23,7 @@ TOCTOU-001 detects patterns where the same file path is read multiple times in a
 
 **References:**
 - [CWE-367: Time-of-check Time-of-use (TOCTOU) Race Condition](https://cwe.mitre.org/data/definitions/367.html)
+
+## Detection status
+
+No check detects this fixture as of HackMyAgent 0.33.2 (static scan). `TOCTOU-001` detected it in HackMyAgent 0.11.15; in 0.33.2 the check still exists but does not fire on `pipeline.ts`.

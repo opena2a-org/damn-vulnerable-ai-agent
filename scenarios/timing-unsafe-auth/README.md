@@ -1,11 +1,11 @@
 # Timing-Unsafe Token Comparison
 
-**Check:** None (see Detection status) | **Severity:** Medium | **Auto-Fix:** Yes
+**Check:** None (see Detection status) | **Severity:** Medium | **Auto-Fix:** No
 
 Authentication token compared using JavaScript `!==` instead of `crypto.timingSafeEqual()`. Enables timing side-channel attacks to extract token values byte-by-byte. Discovered in OpenClaw's webhook hook handler.
 
 **Detect:** `npx hackmyagent secure vulnerable/`
-**Fix:** `npx hackmyagent secure vulnerable/ --fix` (replaces with timingSafeEqual)
+**Fix:** Compare tokens with `crypto.timingSafeEqual()` on equal-length buffers instead of `!==`.
 
 **References:**
 - [CWE-208: Observable Timing Discrepancy](https://cwe.mitre.org/data/definitions/208.html)

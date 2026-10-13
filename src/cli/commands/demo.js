@@ -15,18 +15,26 @@
 import http from 'http';
 import path from 'node:path';
 import readline from 'node:readline';
-import { emit, isJsonMode, fail, splitArgs } from '../format.js';
+import { emit, isJsonMode, fail, parseCommandArgs } from '../format.js';
 import { buildRagPoisonedDocument, APWN_DE_003_URL_EXFILTRATION } from '../../payloads/agentpwn-mirror.js';
 import { postVerification } from '../../aim-cloud-reporter.js';
-import { readLoginCredentials, resolveApiBase, checkHealth, registerOrLoadAgent, isSafeApiBase } from '../../aim-cloud-register.js';
+import { readLoginCredentials, resolveApiBase, checkHealth, registerOrLoadAgent, isSafeApiBase, forgetCachedAgent } from '../../aim-cloud-register.js';
 
 const DEFAULT_BASE = process.env.DVAA_BASE || 'http://localhost';
 const RAGBOT_PORT = Number(process.env.DVAA_RAGBOT_PORT || 7005);
 const RAGBOT_AIM_PORT = Number(process.env.DVAA_RAGBOT_AIM_PORT || 7014);
 
 export default async function run(argv) {
-  const { positional, flags } = splitArgs(argv);
-  if (flags.has('help') || flags.has('h')) {
+  // Declared options only: `dvaa demo --live flight` must run the flight
+  // scenario with --live, not read "flight" as the value of --live.
+  const { positional, flags } = parseCommandArgs('demo', argv, {
+    interactive: { type: 'boolean', short: 'i' },
+    live: { type: 'boolean' },
+    cloud: { type: 'boolean' },
+    json: { type: 'boolean' },
+    verbose: { type: 'boolean', short: 'v' },
+  }, { maxPositionals: 1 });
+  if (flags.has('help')) {
     console.log(USAGE);
     return 0;
   }
@@ -50,7 +58,7 @@ export default async function run(argv) {
 }
 
 async function runAimAb(argv, flags) {
-  const verbose = flags.has('verbose') || flags.has('v');
+  const verbose = flags.has('verbose');
   const jsonMode = isJsonMode(argv);
 
   // 1. Pre-flight: both target agents must be reachable.
@@ -79,8 +87,7 @@ async function runAimAb(argv, flags) {
   // in their dashboard. Best-effort - never blocks the local proof.
   const cloudCtx = (flags.has('cloud') && !jsonMode) ? await prepareCloud() : null;
 
-  const interactive = (flags.has('interactive') || flags.has('i'))
-    && process.stdin.isTTY && !jsonMode;
+  const interactive = flags.has('interactive') && process.stdin.isTTY && !jsonMode;
   if (interactive) {
     return await runInteractive({ argv, canary, exfilBaseUrl, poisonedDoc, verbose, cloudCtx });
   }
@@ -228,11 +235,12 @@ async function prepareCloud() {
     return null;
   }
 
+  const cacheFile = path.join(dataDir, 'cloud-agent.json');
   const res = await registerOrLoadAgent({
     apiBase,
     jwt: creds.accessToken,
     publicKey,
-    cacheFile: path.join(dataDir, 'cloud-agent.json'),
+    cacheFile,
   });
   if (res.error) {
     warn(`agent registration failed (${res.error}).`, res.detail || '');
@@ -240,10 +248,16 @@ async function prepareCloud() {
   }
 
   const dashboardUrl = `${creds.aimUrl}/agents/${res.agentId}`;
+  const how = res.registered ? 'registered'
+    : res.keyUpdated ? 'key updated to this install\'s identity'
+    : 'loaded';
   console.log('');
   console.log(`  ${GREEN}cloud reporting on${RESET}  account: ${creds.userEmail}`);
-  console.log(`  agent ${res.registered ? 'registered' : 'loaded'}: dvaa-ragbot-aim  ->  ${dashboardUrl}`);
-  return { apiBase, agentId: res.agentId, core, publicKey, dashboardUrl };
+  console.log(`  agent ${how}: dvaa-ragbot-aim  ->  ${dashboardUrl}`);
+  if (res.keyUpdated) {
+    console.log(`  ${DIM}(the registration held a different public key, e.g. after .dvaa-aim was reset)${RESET}`);
+  }
+  return { apiBase, agentId: res.agentId, core, publicKey, dashboardUrl, cacheFile };
 }
 
 /**
@@ -272,9 +286,32 @@ async function postCloud(cloudCtx, runB, exfilBaseUrl) {
     out.push(`  ${DIM}open the dashboard, go to the agent's Verification Events to see it${RESET}`);
   } else {
     out.push(`  ${YELLOW}event post failed${RESET}  ${res.error}${res.status ? ' (HTTP ' + res.status + ')' : ''}`);
-    out.push(`  ${DIM}the local proof above is unaffected; check network / re-run aim-sdk login${RESET}`);
+    out.push(...postFailureHint(res, cloudCtx).map(l => `  ${DIM}${l}${RESET}`));
   }
   return out;
+}
+
+/**
+ * Next step for a failed verification post. The post is authenticated by the
+ * Ed25519 signature alone (no login token), so `aim-sdk login` cannot fix a
+ * 401: it means the registration does not hold this install's public key
+ * ("Public key mismatch") or the signature did not verify. The cached pairing
+ * is dropped so the next --cloud run asks the server again and updates the key.
+ */
+export function postFailureHint(res, cloudCtx, forget = forgetCachedAgent) {
+  const lines = ['the local proof above is unaffected.'];
+  if (res.status === 401) {
+    const reason = typeof res.body?.error === 'string' ? res.body.error : 'signature rejected';
+    forget(cloudCtx.cacheFile);
+    lines.push(`AIM rejected the event: ${reason}. The agent ${cloudCtx.agentId} does not hold this`);
+    lines.push(`install's key (${cloudCtx.publicKey.slice(0, 12)}...). The cached pairing was cleared; re-run`);
+    lines.push('dvaa demo aim-ab --cloud to re-check the registration and update its key.');
+  } else if (res.status === 403 || res.status === 404) {
+    lines.push(`AIM refused the agent ${cloudCtx.agentId} (HTTP ${res.status}); check it in the dashboard: ${cloudCtx.dashboardUrl}`);
+  } else {
+    lines.push(`check the network and that the AIM backend at ${cloudCtx.apiBase} is up, then re-run with --cloud.`);
+  }
+  return lines;
 }
 
 /**

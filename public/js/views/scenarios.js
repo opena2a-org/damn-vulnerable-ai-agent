@@ -288,7 +288,7 @@ function renderPanel(scenario, { result, error, fix }, ctx) {
         el('div', { className: 'scenario-result-banner-title' },
           `Remediated · ${resolvedCount} previously-firing check(s) now pass`),
         el('div', { className: 'scenario-result-banner-sub' },
-          'HackMyAgent auto-fix modified the vulnerable files to close the finding. Re-scan to confirm.'))
+          'HackMyAgent fixed a temporary copy and a re-scan of that copy confirmed it. The shipped fixture is unchanged, so Re-scan still shows the original findings.'))
     ));
   }
 
@@ -311,6 +311,7 @@ function renderPanel(scenario, { result, error, fix }, ctx) {
     list.appendChild(renderFindingRow(d));
   }
   panel.appendChild(list);
+  if (fix && result.changes) panel.appendChild(renderFixChanges(result.changes));
 
   // Action row inside the panel
   const actions = el('div', { className: 'scenario-result-actions' });
@@ -322,13 +323,8 @@ function renderPanel(scenario, { result, error, fix }, ctx) {
 
   if (scenario.autoFix && result.fired.length > 0 && !fix) {
     const fixBtn = el('button', { className: 'btn btn-warning btn-sm' }, 'Apply fix');
+    // The fix runs on a temporary copy, so nothing needs confirming or resetting.
     fixBtn.addEventListener('click', () => {
-      const ok = confirm(
-        `Apply HackMyAgent auto-fix to scenarios/${scenario.name}/vulnerable/?\n\n` +
-        `This modifies files. In Docker the changes are ephemeral (reset on restart). ` +
-        `Running DVAA from a clone? Use \`git checkout scenarios/${scenario.name}/vulnerable/\` to reset.`
-      );
-      if (!ok) return;
       runScanFlow(scenario, {
         scanBtn: fixBtn, panel: ctx.panel, card: ctx.panel.parentElement, state: ctx.state, fix: true,
       });
@@ -346,6 +342,23 @@ function renderPanel(scenario, { result, error, fix }, ctx) {
   panel.appendChild(actions);
 
   return panel;
+}
+
+// Files the fix changed in the temporary copy, with the first changed lines.
+function renderFixChanges(changes) {
+  const wrap = el('div', { className: 'scenario-result-list' });
+  wrap.appendChild(el('div', { className: 'scenario-result-meta' }, changes.files.length
+    ? `Files the fix changed in the temporary copy (${changes.files.length}):`
+    : 'The fix changed no files.'));
+  for (const f of changes.files) {
+    const counts = f.binary ? 'binary' : `+${f.added} -${f.removed}`;
+    wrap.appendChild(el('div', { className: 'scenario-result-meta' }, `${f.status} ${f.path} ${counts}`));
+    if (f.preview.length > 0) {
+      wrap.appendChild(el('pre', { className: 'scenario-file-body', style: { display: 'block', maxHeight: '12rem' } },
+        f.preview.join('\n') + (f.truncated ? '\n...' : '')));
+    }
+  }
+  return wrap;
 }
 
 function renderFindingRow(d) {

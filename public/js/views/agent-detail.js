@@ -117,7 +117,9 @@ export function renderAgentDetail(state) {
   } else {
     wrap.appendChild(el('div', { className: 'section-header' }, 'Vulnerabilities'));
     wrap.appendChild(el('p', { className: 'attack-detail-hint' },
-      'Hardened reference agent: no vulnerabilities enabled. Attacks are blocked.'));
+      agent.securityLevel === 'hardened'
+        ? 'Hardened reference agent: no vulnerabilities enabled. Attacks are blocked.'
+        : 'No vulnerability categories are declared for this agent.'));
   }
 
   // This agent's attack history

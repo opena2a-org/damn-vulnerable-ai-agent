@@ -5,8 +5,16 @@
  * piping into jq/CI. Formatters below keep both paths identical in content.
  */
 
-export function isJsonMode(argv) {
-  return argv.includes('--json');
+import { parseArgs } from 'node:util';
+
+/**
+ * True when JSON output was requested. Accepts either the raw argv array or
+ * the result of parseCommandArgs(); prefer the parsed form, because in raw
+ * argv a string option's value can itself be "--json" (`--message --json`).
+ */
+export function isJsonMode(argvOrParsed) {
+  if (Array.isArray(argvOrParsed)) return argvOrParsed.includes('--json');
+  return Boolean(argvOrParsed?.flags?.has('json'));
 }
 
 export function emit(data, argv) {
@@ -49,40 +57,76 @@ export function tableRows(rows, cols) {
   return out;
 }
 
+// Options every command parsed here accepts (`hma` passes its arguments to
+// HackMyAgent unparsed). `--offline` is the global telemetry switch;
+// src/index.js applies it before telemetry starts, so a command only has to
+// tolerate it (`dvaa agents --offline`).
+const COMMON_OPTIONS = {
+  help: { type: 'boolean', short: 'h' },
+  offline: { type: 'boolean' },
+};
+
 /**
- * Peel trailing flags (--json, --verbose, --follow, ...) from a positional arg.
- * Returns { positional, flags } so commands can quickly separate them.
+ * Parse a subcommand's argv with util.parseArgs in strict mode.
+ *
+ *   command   - the subcommand name, used in the "Run: dvaa <cmd> --help" hint
+ *   options   - util.parseArgs option specs: { name: { type, short? } }
+ *   maxPositionals - how many positional arguments the command takes
+ *
+ * A declared string option always takes its value from the token after it,
+ * even one that starts with "-": `--message "--- BEGIN"` and
+ * `--message=--- BEGIN` are the same, and `--name=value` splits on the first
+ * "=" only. Unknown options, a missing value, or an extra positional exit 1
+ * with a pointer to the command's help.
+ *
+ * Returns { positional, flags, values }: `flags` is the Set of boolean options
+ * that were given, `values` maps each given string option to its value.
  */
-export function splitArgs(argv) {
-  const positional = [];
+export function parseCommandArgs(command, argv, options = {}, { maxPositionals = Infinity } = {}) {
+  const spec = { ...COMMON_OPTIONS, ...options };
+  const takesValue = new Map();
+  for (const [name, opt] of Object.entries(spec)) {
+    if (opt.type !== 'string') continue;
+    takesValue.set(`--${name}`, name);
+    if (opt.short) takesValue.set(`-${opt.short}`, name);
+  }
+  // util.parseArgs rejects `--message "--- BEGIN"` as ambiguous in strict
+  // mode. Join each string option with the token after it into the
+  // unambiguous `--name=value` form first. Tokens after `--` are positionals.
+  const args = [];
+  for (let i = 0; i < argv.length; i++) {
+    const token = argv[i];
+    if (token === '--') {
+      args.push(...argv.slice(i));
+      break;
+    }
+    const name = takesValue.get(token);
+    if (name && i + 1 < argv.length) {
+      args.push(`--${name}=${argv[i + 1]}`);
+      i++;
+    } else {
+      args.push(token);
+    }
+  }
+
+  let parsed;
+  try {
+    parsed = parseArgs({ args, options: spec, allowPositionals: true, strict: true });
+  } catch (err) {
+    const unknown = err.code === 'ERR_PARSE_ARGS_UNKNOWN_OPTION' && /'([^']+)'/.exec(err.message);
+    const reason = unknown ? `Unknown option: ${unknown[1]}` : String(err.message).split('\n')[0];
+    fail(`dvaa ${command}: ${reason}\nRun: dvaa ${command} --help`);
+  }
+
+  const positional = parsed.positionals;
+  if (positional.length > maxPositionals && !parsed.values.help) {
+    fail(`dvaa ${command}: unexpected argument: ${positional[maxPositionals]}\nRun: dvaa ${command} --help`);
+  }
   const flags = new Set();
   const values = {};
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a.startsWith('--')) {
-      // --key=value
-      if (a.includes('=')) {
-        const [k, v] = a.slice(2).split('=', 2);
-        values[k] = v;
-      } else if (i + 1 < argv.length && !argv[i + 1].startsWith('-')) {
-        // --key value  (only peel if next token is not a flag)
-        const next = argv[i + 1];
-        // Heuristic: known boolean flags don't take a value.
-        const booleans = new Set(['json', 'follow', 'verbose', 'help', 'fix', 'list', 'all', 'llm']);
-        if (booleans.has(a.slice(2))) {
-          flags.add(a.slice(2));
-        } else {
-          values[a.slice(2)] = next;
-          i++;
-        }
-      } else {
-        flags.add(a.slice(2));
-      }
-    } else if (a.startsWith('-')) {
-      flags.add(a.slice(1));
-    } else {
-      positional.push(a);
-    }
+  for (const [name, value] of Object.entries(parsed.values)) {
+    if (spec[name]?.type === 'string') values[name] = value;
+    else if (value === true) flags.add(name);
   }
   return { positional, flags, values };
 }

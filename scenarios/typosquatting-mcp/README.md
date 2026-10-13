@@ -2,7 +2,7 @@
 
 **Category:** Supply Chain
 **Severity:** High
-**Check IDs:** None (see Detection status)
+**Check IDs:** SEM-MCP-007
 **OASB Control:** 8.3
 
 ## Description
@@ -49,11 +49,4 @@ npx hackmyagent secure scenarios/typosquatting-mcp/vulnerable
 
 ## Detection status
 
-**Automated static detection not yet implemented in HMA for this scenario.**
-
-**Deferred (future work):**
-
-- `SUPPLY-001` — real HMA check (fires on other fixtures); this fixture does not trigger it
-- `MCP-002` — real HMA check, but this fixture lacks the trigger file/condition
-
-See `../../docs/audits/2026-04-13-expected-checks.md` for full audit methodology.
+Detected by `SEM-MCP-007` (HackMyAgent 0.33.2, static scan): it reports the typosquatted MCP package in `mcp.json`.

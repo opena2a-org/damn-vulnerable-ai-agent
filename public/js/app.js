@@ -13,32 +13,12 @@ import { renderAttackLab } from './views/attack-lab.js';
 import { renderSettings } from './views/settings.js';
 import { renderScenarios } from './views/scenarios.js';
 
-// localStorage persistence for challenge progress
-const STORAGE_KEY = 'dvaa-challenge-state';
-
-function saveProgress(challenges) {
-  const saved = {};
-  challenges.forEach(c => {
-    if (c.completed?.completedAt) {
-      saved[c.id] = { completedAt: c.completed.completedAt, points: c.points, attempts: c.completed.attempts };
-    }
-  });
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(saved)); } catch {}
-}
-
-function loadProgress() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
-}
-
-function mergeProgress(challenges) {
-  const saved = loadProgress();
-  for (const c of challenges) {
-    if (!c.completed?.completedAt && saved[c.id]?.completedAt) {
-      c.completed = saved[c.id];
-    }
-  }
-  return challenges;
-}
+// Earlier versions mirrored challenge progress into localStorage and merged it
+// back over the server's answer, so a reset was undone on the next poll. The
+// server's scores file (.dvaa/scores.json) is the source of truth: challenge
+// state is shown exactly as the server reports it, and the stale browser copy
+// is dropped at startup.
+const LEGACY_PROGRESS_KEY = 'dvaa-challenge-state';
 
 // Global state
 const state = {
@@ -128,12 +108,9 @@ async function poll() {
     state.health = health;
     state.stats = stats;
     state.agents = agents;
-    state.challenges = mergeProgress(challenges);
+    state.challenges = challenges;
     state.attackLog = attackLog;
     state.online = !!health;
-
-    // Persist challenge progress to localStorage
-    saveProgress(state.challenges);
 
     // Scenarios (includes completion status from server)
     state.scenarios = await fetchScenarios().catch(() => []);
@@ -162,6 +139,8 @@ async function poll() {
 
 // Initialize
 function init() {
+  try { localStorage.removeItem(LEGACY_PROGRESS_KEY); } catch { /* storage unavailable */ }
+
   // Nav click handler
   document.getElementById('nav').addEventListener('click', (e) => {
     const link = e.target.closest('.nav-link');

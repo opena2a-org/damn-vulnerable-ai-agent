@@ -10,7 +10,7 @@
  * does not, (3) the score is floored and never collapses to zero.
  */
 
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert';
 import os from 'node:os';
 import path from 'node:path';
@@ -18,7 +18,9 @@ import fs from 'node:fs';
 
 // Point the enforcer at a throwaway data dir BEFORE first import/use so the
 // module-cached AIMCore writes its identity + audit log there, not in-repo.
+// Removed once the tests finish.
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dvaa-aim-behavioral-'));
+after(() => fs.rmSync(tmp, { recursive: true, force: true }));
 process.env.DVAA_AIM_DATA_DIR = tmp;
 delete process.env.AIM_ENFORCEMENT;
 

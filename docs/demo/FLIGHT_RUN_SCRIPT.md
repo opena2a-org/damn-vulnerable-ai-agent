@@ -80,9 +80,14 @@ history are verifiable on GitHub:
 ```
 git clone https://github.com/opena2a-org/dvaa-demo-captures
 cd dvaa-demo-captures
-npx dvaa demo flight --live --json | ./record.sh
+npx --package damn-vulnerable-ai-agent dvaa demo flight --live --json | ./record.sh
 git add -A && git commit -m "capture $(date -u +%FT%TZ)" && git push
 ```
+
+`--package damn-vulnerable-ai-agent` names the npm package that provides the
+`dvaa` binary. A bare `npx dvaa` would resolve a registry package literally
+named `dvaa`, which is not this project. With a global install
+(`npm install -g damn-vulnerable-ai-agent`), plain `dvaa demo flight ...` works.
 
 Because the trap is locked, the only data that can ever appear there is the
 demo's own synthetic wallet.
@@ -101,7 +106,9 @@ ephemeral agent audit log).
 | Target deals URL (base) | `DVAA_FLIGHT_URL` | `https://agentpwn.com/deals/cheap-flights` |
 | Demo key (gates the live injection) | `DVAA_FLIGHT_DEMO_KEY` | `dvaa-flight-demo` |
 | Live stats URL | `DVAA_STATS_URL` | `https://agentpwn.com/stats` |
-| Agent ports | `DVAA_FLIGHT_PORT` / `DVAA_FLIGHT_AIM_PORT` | `7017` / `7018` |
+
+The agents always listen on 7017 (FlightBot) and 7018 (FlightBot-AIM); there
+is no port setting.
 
 ## If something goes wrong on stage
 

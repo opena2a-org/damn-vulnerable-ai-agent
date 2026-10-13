@@ -16,7 +16,9 @@
  *   - list item       unordered list
  *   1. list item      ordered list
  *   ---               horizontal rule
- *   [text](url)       external link
+ *   [text](url)       external link: absolute http:, https: or mailto: only.
+ *                     Any other target (javascript:, data:, relative) is
+ *                     rendered as the literal markdown text.
  *
  * NOT supported (yet): tables, blockquotes, nested lists, images, footnotes.
  * If the LLM emits these, they render as literal text - acceptable until
@@ -24,6 +26,31 @@
  */
 
 import { el } from './utils.js';
+
+// Link targets come from agent and model output, which a learner's own attack
+// can steer. Only these schemes may become a clickable href.
+const SAFE_LINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
+
+/**
+ * Normalized href for an absolute http:, https: or mailto: URL, else null.
+ * Parsing with new URL() applies the browser's own rules (case, leading
+ * whitespace, embedded tabs) before the scheme is checked.
+ */
+export function safeLinkHref(target) {
+  let url;
+  try {
+    url = new URL(target);
+  } catch {
+    return null;
+  }
+  return SAFE_LINK_PROTOCOLS.has(url.protocol) ? url.href : null;
+}
+
+function linkOrText(m) {
+  const href = safeLinkHref(m[2]);
+  if (!href) return document.createTextNode(m[0]);
+  return el('a', { href, target: '_blank', rel: 'noopener noreferrer', className: 'md-link' }, m[1]);
+}
 
 export function renderMarkdown(input) {
   const nodes = [];
@@ -146,7 +173,7 @@ function renderInline(text) {
     { re: /\*\*([^*]+)\*\*/,           wrap: m => el('strong', {}, m[1]) },
     { re: /\*([^*]+)\*/,               wrap: m => el('em', {}, m[1]) },
     { re: /`([^`]+)`/,                 wrap: m => el('code', { className: 'md-inline-code' }, m[1]) },
-    { re: /\[([^\]]+)\]\(([^)]+)\)/,   wrap: m => el('a', { href: m[2], target: '_blank', rel: 'noopener noreferrer', className: 'md-link' }, m[1]) },
+    { re: /\[([^\]]+)\]\(([^)]+)\)/,   wrap: linkOrText },
   ];
 
   let remaining = text;

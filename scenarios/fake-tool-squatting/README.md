@@ -1,6 +1,6 @@
 # Fake Tool: MCP Tool Impersonation and Name Squatting
 
-**Check:** None (see Detection status) | Severity: Critical | Auto-Fix: No
+**Check:** None (see Detection status) | **Severity:** Critical | **Auto-Fix:** No
 
 ## Description
 

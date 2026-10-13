@@ -27,12 +27,17 @@ import readline from 'node:readline';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { emit, isJsonMode, fail } from '../format.js';
+import { fleetEnv } from '../fleet-env.js';
+import { getAllAgents } from '../../core/agents.js';
 import { seedCache } from '../../web-fetch.js';
 import { buildPoisonedFlightPage, FLIGHT_DEAL_URL, APWN_FLIGHT_EXFIL } from '../../payloads/agentpwn-flight-mirror.js';
 
 const HOST = process.env.DVAA_BASE || 'http://localhost';
-const FLIGHT_PORT = Number(process.env.DVAA_FLIGHT_PORT || 7017);
-const FLIGHT_AIM_PORT = Number(process.env.DVAA_FLIGHT_AIM_PORT || 7018);
+// The ports the spawned fleet binds, taken from the agent registry. The fleet
+// has no port override, so a runner-side knob (the former DVAA_FLIGHT_PORT)
+// could only point the runner at ports the spawned fleet does not bind.
+const FLIGHT_PORT = getAllAgents().find(a => a.id === 'flightbot').port;
+const FLIGHT_AIM_PORT = getAllAgents().find(a => a.id === 'flightbot-aim').port;
 const AGENT_LABEL = process.env.DVAA_AGENT_NAME || 'FlightBot';
 const STATS_URL = process.env.DVAA_STATS_URL || 'https://agentpwn.com/stats';
 
@@ -52,9 +57,28 @@ export default async function runFlight(argv, flags) {
   const verbose = flags.has('verbose') || flags.has('v');
   const interactive = (flags.has('interactive') || flags.has('i')) && process.stdin.isTTY && !jsonMode;
 
+  // Register the removal BEFORE the directory exists. ensureFleet() exits
+  // through fail() (a process.exit() that skips the finally block below) when
+  // the ports are taken or the agents never come up, and Ctrl+C skips it too.
+  // The 'exit' hook runs on process.exit() and on a normal exit; the signal
+  // handlers below stop the fleet and exit through process.exit().
+  let dataDir = null;
+  let fleetRef = null;
+  const removeDataDir = () => {
+    if (dataDir) { try { fs.rmSync(dataDir, { recursive: true, force: true }); } catch {} }
+  };
+  process.on('exit', removeDataDir);
+  for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143], ['SIGHUP', 129]]) {
+    process.on(signal, () => {
+      try { fleetRef?.stop(); } catch {}
+      removeDataDir();
+      process.exit(code);
+    });
+  }
+
   // Isolated data dir so the demo never collides with a developer's fleet
   // state, and so research-cache / AIM identities are ephemeral per run.
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dvaa-flight-'));
+  dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dvaa-flight-'));
   const canary = await startCanary();
   const exfilBaseUrl = `http://127.0.0.1:${canary.port}/api/canary/exfil-test`;
 
@@ -66,8 +90,9 @@ export default async function runFlight(argv, flags) {
   }
 
   const fleet = await ensureFleet(dataDir, { cache: !live });
+  fleetRef = fleet;
 
-  const cleanup = () => { try { canary.close(); } catch {} fleet.stop(); try { fs.rmSync(dataDir, { recursive: true, force: true }); } catch {} };
+  const cleanup = () => { try { canary.close(); } catch {} fleet.stop(); removeDataDir(); };
 
   try {
     const benign = await sendChat(FLIGHT_PORT, 'find me flights from LAX to JFK');
@@ -126,12 +151,14 @@ async function ensureFleet(dataDir, { cache }) {
     fail(`Ports ${FLIGHT_PORT}/${FLIGHT_AIM_PORT} are already in use by a running DVAA fleet.\n` +
       `The flight demo manages its own fleet. Stop the other one first (the demo is self-contained).`);
   }
-  const env = {
-    ...process.env,
+  // Explicit allowlist (src/cli/fleet-env.js), the same one the repo demo
+  // uses: the spawned fleet is built to be exploited, so it gets no credential
+  // from the presenter's shell. AIM_ENFORCEMENT stays passthrough.
+  const env = fleetEnv({
     DVAA_AIM_DATA_DIR: dataDir,
     OPENA2A_TELEMETRY: 'off',
-    ...(cache ? { DVAA_RESEARCH_CACHE: 'on' } : { DVAA_RESEARCH_CACHE: 'off' }),
-  };
+    DVAA_RESEARCH_CACHE: cache ? 'on' : 'off',
+  });
   // Scoped fleet: exactly the two agents this demo drives, and no dashboard.
   // Starting the whole fleet meant any port in 7001-7021 or 9000 being held by
   // another fleet killed the spawned process, and the only symptom the runner

@@ -1,6 +1,6 @@
 # Context Lifecycle: Priority Zone Hijacking
 
-**Check:** None (see Detection status) | Severity: Critical | Auto-Fix: No
+**Check:** None (see Detection status) | **Severity:** Critical | **Auto-Fix:** No
 
 ## Description
 

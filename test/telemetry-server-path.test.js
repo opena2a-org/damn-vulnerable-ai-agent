@@ -169,11 +169,11 @@ test('telemetry failure never breaks a request', async () => {
 test('each server instance has its own throttle state', async () => {
   // Otherwise one test run would silently suppress another's events.
   await withServer(async (base, sent) => {
-    await req(`${base}/api/reset`, { method: 'POST' });
+    await req(`${base}/api/reset`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
     assert.deepEqual(sent, ['lab-reset']);
   });
   await withServer(async (base, sent) => {
-    await req(`${base}/api/reset`, { method: 'POST' });
+    await req(`${base}/api/reset`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
     assert.deepEqual(sent, ['lab-reset'], 'a fresh server must not inherit a throttle');
   });
 });

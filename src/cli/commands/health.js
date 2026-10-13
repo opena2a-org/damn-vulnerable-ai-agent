@@ -3,14 +3,19 @@
  * Exit 0 if healthy, 1 if unreachable.
  */
 
-import { emit, isJsonMode, splitArgs } from '../format.js';
+import { emit, isJsonMode, parseCommandArgs } from '../format.js';
 
 const DEFAULT_BASE = process.env.DVAA_BASE || 'http://localhost';
 const DASHBOARD_PORT = 9000;
 
+// Publishes the dashboard and every agent port, on loopback only. A bare
+// `docker run` publishes nothing, so the old hint reached no agent at all.
+export const DOCKER_RUN_HINT =
+  'docker run --rm -p 127.0.0.1:9000:9000 -p 127.0.0.1:7001-7023:7001-7023 opena2a/dvaa:latest';
+
 export default async function run(argv) {
-  const { flags } = splitArgs(argv);
-  if (flags.has('help') || flags.has('h')) {
+  const parsed = parseCommandArgs('health', argv, { json: { type: 'boolean' } }, { maxPositionals: 0 });
+  if (parsed.flags.has('help')) {
     console.log(USAGE);
     return 0;
   }
@@ -28,14 +33,15 @@ export default async function run(argv) {
     error = err.message || String(err);
   }
 
-  if (isJsonMode(argv)) {
-    emit({ reachable: !error, url, data, error }, argv);
+  if (isJsonMode(parsed)) {
+    emit({ reachable: !error, url, data, error }, parsed);
     return error ? 1 : 0;
   }
 
   if (error) {
     process.stderr.write(`DVAA dashboard at ${base} unreachable: ${error}\n`);
-    process.stderr.write('Is the server running? Start with: dvaa  (or docker run opena2a/dvaa:0.8.0)\n');
+    process.stderr.write(`Is the server running? Start it with: dvaa\n`);
+    process.stderr.write(`  or with Docker: ${DOCKER_RUN_HINT}\n`);
     return 1;
   }
 
@@ -45,7 +51,7 @@ export default async function run(argv) {
     `  status:  ${data.status}`,
     `  agents:  ${data.agents}`,
     `  uptime:  ${uptime}`,
-  ], argv);
+  ], parsed);
   return 0;
 }
 

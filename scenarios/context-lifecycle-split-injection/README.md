@@ -1,6 +1,6 @@
 # Context Lifecycle: Cross-Component Split Injection
 
-**Check:** None (see Detection status) | Severity: Critical | Auto-Fix: No
+**Check:** None (see Detection status) | **Severity:** Critical | **Auto-Fix:** No
 
 ## Description
 
