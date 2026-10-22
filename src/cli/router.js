@@ -26,7 +26,7 @@ const COMMANDS = {
   scan:      { run: runScan,      summary: 'Run HackMyAgent against a scenario fixture; --fix to remediate.' },
   benchmark: { run: runBenchmark, summary: 'Run the OASB-1 compliance benchmark against a directory (default: current).' },
   hma:       { run: runHma,       summary: 'Pass-through to the bundled HackMyAgent CLI.' },
-  telemetry: { run: runTelemetry, summary: 'Inspect or toggle anonymous usage telemetry: on | off | status.' },
+  telemetry: { run: runTelemetry, summary: 'Inspect or toggle usage telemetry: on | off | status.' },
   demo:      { run: runDemo,      summary: 'Run a scripted AIM demo: aim-ab, flight, or repo (vulnerable vs AIM-secured agent).' },
   chat:      { run: runChat,      summary: 'Interactive REPL against a DVAA agent (default: researchbot-aim).' },
   // selftest runs src/browse.js; src/index.js dispatches it.

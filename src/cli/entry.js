@@ -133,7 +133,7 @@ Server options (default mode - start DVAA dashboard + agent fleet):
   --only <ids>   Start only these agents (comma-separated ids), no dashboard.
                  Lets a scoped fleet run beside one that is already up.
   --verbose, -v  Enable verbose logging
-  --offline      Airplane-mode: disable anonymous telemetry (no network calls).
+  --offline      Airplane-mode: disable usage telemetry (no network calls).
                  Also works before a command: dvaa --offline <command>
   --team <name>  Team mode (separate scoreboards per team)
   --timer <min>  Workshop timer (countdown in dashboard)
