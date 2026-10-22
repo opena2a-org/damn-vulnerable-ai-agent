@@ -397,7 +397,11 @@ These scenarios demonstrate real-world kill chains combining multiple ATM techni
 
 DVAA sends usage events to the OpenA2A Registry and reads nothing from it; nothing comes back to the tool.
 
-- **Sent:** one event per command, and one start event when the dashboard server starts (`dvaa` with no subcommand, `--all`, `--api`), to the OpenA2A Registry (`api.oa2a.org`).
+- **Sent**, to the OpenA2A Registry (`api.oa2a.org`):
+  - One `command` event per CLI subcommand (`agents`, `health`, `attack`, `logs`, `scan`, `benchmark`, `hma`, `chat`), or one `error` event instead when the subcommand throws. `dvaa telemetry`, `dvaa selftest`, `dvaa --help` and `dvaa --version` send nothing. `dvaa demo` turns telemetry off for its own run unless `OPENA2A_TELEMETRY` is already set; when it is set and on, `demo` reports like the other subcommands and the scoped server that `demo flight` or `demo repo` starts sends a `start` event.
+  - One `start` event each time the server starts, in every mode: `dvaa` with no subcommand, `--all`, `--api`, `--mcp`, `--a2a`, and `--only`, which runs no dashboard.
+  - From the dashboard, at most one `command` event per UTC day for each of seven actions: `lab-chat` (a message to an agent), `lab-challenge-verify`, `lab-scan`, `lab-fix`, `lab-tutor-ask`, `lab-llm-configure` and `lab-reset`. The count starts over when the server restarts. Other requests, including page loads, `/stats` and `/health`, send nothing.
+  - The bundled HackMyAgent's own events, under tool name `hackmyagent` and the same install ID, each time DVAA runs it: `dvaa scan`, `dvaa attack`, `dvaa benchmark`, `dvaa hma`, and a scan or fix started from the dashboard. The opt-outs below silence these too.
 
 DVAA sends usage data to the OpenA2A Registry: tool name (`dvaa`), version, command name (`scan`, `attack`, etc.), success, duration, platform, Node major version, and a persistent `install_id`. Each event carries an install ID that identifies the machine, so the data is personal data; https://opena2a.org/privacy explains how the ID is made. **No content is collected:** no scanned files, no attack payloads, no prompts, no responses, no env vars, no IPs (the Registry derives country code from the inbound `CF-IPCountry` header at ingest and discards the IP).
 
@@ -411,8 +415,6 @@ Disclosure surfaces and opt-out:
 - **Audit every payload:** `OPENA2A_TELEMETRY_DEBUG=print dvaa <anything>` echoes each event to stderr in JSON before sending.
 
 Telemetry is fire-and-forget with a 2-second timeout; network failures never block DVAA.
-
-Today nothing you send on any channel changes what another install detects.
 
 ## Running the tests
 
