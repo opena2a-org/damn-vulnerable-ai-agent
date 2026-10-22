@@ -45,10 +45,13 @@ test('README §Telemetry names each dashboard action in the telemetry allowlist'
   }
 });
 
-test('README §Telemetry names each kind of event the telemetry SDK sends', () => {
+test('README §Telemetry names each kind of event DVAA sends under its own tool name', () => {
   const section = telemetrySection();
-  // @opena2a/telemetry builds exactly these: start(), track() and error().
-  for (const kind of ['start', 'command', 'error']) {
+  // @opena2a/telemetry builds start(), track() ("command") and error() events.
+  // DVAA sends the first two. src/cli/router.js builds an error() event when a
+  // subcommand throws, but the process exits on the rethrown error before that
+  // event is sent, so the README does not list it.
+  for (const kind of ['start', 'command']) {
     assert.ok(names(section, kind), `README §Telemetry should name the \`${kind}\` event`);
   }
 });
