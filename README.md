@@ -1,9 +1,14 @@
-> **[OpenA2A](https://github.com/opena2a-org/opena2a)**: [CLI](https://github.com/opena2a-org/opena2a) · [HackMyAgent](https://github.com/opena2a-org/hackmyagent) · [Secretless](https://github.com/opena2a-org/secretless-ai) · [AIM](https://github.com/opena2a-org/agent-identity-management) · [Browser Guard](https://github.com/opena2a-org/AI-BrowserGuard) · [DVAA](https://github.com/opena2a-org/damn-vulnerable-ai-agent)
+# Damn Vulnerable AI Agent (DVAA)
 
-[![Status: reference-only](https://img.shields.io/badge/status-reference--only-blue)](./STATUS.md)
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Docker Hub](https://img.shields.io/docker/pulls/opena2a/dvaa)](https://hub.docker.com/r/opena2a/dvaa)
-[![OASB Compatible](https://img.shields.io/badge/OASB-1.0-teal)](https://oasb.ai)
+[![Status: reference-only](https://img.shields.io/badge/status-reference--only-blue)](STATUS.md)
+[![npm version](https://img.shields.io/npm/v/damn-vulnerable-ai-agent.svg)](https://www.npmjs.com/package/damn-vulnerable-ai-agent)
+[![Docker](https://img.shields.io/docker/pulls/opena2a/dvaa?label=docker%20pulls)](https://hub.docker.com/r/opena2a/dvaa)
+[![CI](https://github.com/opena2a-org/damn-vulnerable-ai-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/opena2a-org/damn-vulnerable-ai-agent/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+> **[OpenA2A](https://github.com/opena2a-org)**: [CLI](https://github.com/opena2a-org/opena2a) · [HackMyAgent](https://github.com/opena2a-org/hackmyagent) · [Secretless](https://github.com/opena2a-org/secretless-ai) · [AIM](https://github.com/opena2a-org/agent-identity-management) · [Browser Guard](https://github.com/opena2a-org/ai-browserguard) · **DVAA**
+
+[Website](https://opena2a.org/dvaa) · [Discord](https://discord.gg/uRZa3KXgEn)
 
 An intentionally vulnerable AI agent platform for security training, red-teaming, and validating security tools. 21 agents, 12 vulnerability categories, 3 protocols. The [DVWA](https://dvwa.co.uk/) of AI agents.
 
@@ -21,8 +26,6 @@ open http://localhost:9000
 **Network exposure.** The agents and the dashboard listen on `127.0.0.1` by default, so other machines cannot connect to them. The Docker image listens on `0.0.0.0` inside the container, and the `docker run` and Compose examples here publish its ports on `127.0.0.1`. To expose DVAA to a lab network on purpose, start it with `DVAA_HOST=0.0.0.0 npm start`, or publish the container's ports with `-p 0.0.0.0:9000:9000` (and the same for the agent ports). Anything that can reach those ports can drive the agents and extract their planted secrets.
 
 ![DVAA Demo](docs/dvaa-demo.gif)
-
----
 
 ## Agents
 
