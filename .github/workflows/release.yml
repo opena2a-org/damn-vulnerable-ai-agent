@@ -34,19 +34,27 @@ jobs:
       - name: Publish to npm with provenance
         run: npm publish --provenance --access public
 
+      # Passes only on an SLSA v1 provenance attestation for the exact version
+      # this run published (the package.json version). The query reads stdout
+      # only, so an error is never read as an attestation; the npm exit code is
+      # checked, then the predicate type. It polls (20 attempts, 15s apart)
+      # because the attestation can reach the registry after the publish
+      # returns. test/release-provenance-verify.test.js runs this block as written.
       - name: Verify provenance on npm
         run: |
-          deadline=$((SECONDS + 300))
-          while [ $SECONDS -lt $deadline ]; do
-            attestations=$(npm view "damn-vulnerable-ai-agent" dist.attestations --json 2>&1 || true)
-            if [ -n "$attestations" ] && [ "$attestations" != "null" ] && [ "$attestations" != "{}" ]; then
-              echo "Provenance verified for damn-vulnerable-ai-agent"
+          set -uo pipefail
+          version="$(node -p 'require("./package.json").version')"
+          for attempt in $(seq 1 20); do
+            if att="$(npm view "damn-vulnerable-ai-agent@$version" dist.attestations --json 2>/dev/null)" \
+               && [ -n "$att" ] \
+               && echo "$att" | jq -e '.provenance.predicateType == "https://slsa.dev/provenance/v1"' >/dev/null 2>&1; then
+              echo "Provenance verified for damn-vulnerable-ai-agent@$version"
               exit 0
             fi
-            echo "Attestations not yet visible, retrying in 15s... (elapsed ${SECONDS}s)"
+            echo "No SLSA v1 provenance attestation for damn-vulnerable-ai-agent@$version yet (attempt $attempt of 20), retrying in 15s..."
             sleep 15
           done
-          echo "::error::Provenance attestations missing from npm for damn-vulnerable-ai-agent after 5 minutes"
+          echo "::error::No SLSA v1 provenance attestation on npm for damn-vulnerable-ai-agent@$version after 20 attempts"
           exit 1
 
       - name: Create GitHub Release
