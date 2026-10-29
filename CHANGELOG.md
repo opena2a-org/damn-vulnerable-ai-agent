@@ -4,6 +4,12 @@
 
 The 2026-07-07 cut under this number was never published to any registry. Its entries are folded below and this entry supersedes it.
 
+### Added: OpenRouter and NVIDIA NIM support
+
+The dashboard and Attack Lab now support OpenRouter and NVIDIA NIM API keys.
+LLM settings verify the provider connection before enabling the configured
+model, and OpenRouter requests include the required attribution headers.
+
 ### Added: `dvaa demo repo` - repo-local agent-config injection
 
 The delivery channel is the one every developer uses daily: you clone a
