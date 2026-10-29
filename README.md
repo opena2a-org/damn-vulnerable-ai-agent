@@ -1,9 +1,14 @@
-> **[OpenA2A](https://github.com/opena2a-org/opena2a)**: [CLI](https://github.com/opena2a-org/opena2a) · [HackMyAgent](https://github.com/opena2a-org/hackmyagent) · [Secretless](https://github.com/opena2a-org/secretless-ai) · [AIM](https://github.com/opena2a-org/agent-identity-management) · [Browser Guard](https://github.com/opena2a-org/AI-BrowserGuard) · [DVAA](https://github.com/opena2a-org/damn-vulnerable-ai-agent)
+# Damn Vulnerable AI Agent (DVAA)
 
-[![Status: reference-only](https://img.shields.io/badge/status-reference--only-blue)](./STATUS.md)
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Docker Hub](https://img.shields.io/docker/pulls/opena2a/dvaa)](https://hub.docker.com/r/opena2a/dvaa)
-[![OASB Compatible](https://img.shields.io/badge/OASB-1.0-teal)](https://oasb.ai)
+[![Status: reference-only](https://img.shields.io/badge/status-reference--only-blue)](STATUS.md)
+[![npm version](https://img.shields.io/npm/v/damn-vulnerable-ai-agent.svg)](https://www.npmjs.com/package/damn-vulnerable-ai-agent)
+[![Docker](https://img.shields.io/docker/pulls/opena2a/dvaa?label=docker%20pulls)](https://hub.docker.com/r/opena2a/dvaa)
+[![CI](https://github.com/opena2a-org/damn-vulnerable-ai-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/opena2a-org/damn-vulnerable-ai-agent/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+> **[OpenA2A](https://github.com/opena2a-org)**: [CLI](https://github.com/opena2a-org/opena2a) · [HackMyAgent](https://github.com/opena2a-org/hackmyagent) · [Secretless](https://github.com/opena2a-org/secretless-ai) · [AIM](https://github.com/opena2a-org/agent-identity-management) · [Browser Guard](https://github.com/opena2a-org/ai-browserguard) · **DVAA**
+
+[Website](https://opena2a.org/dvaa) · [Discord](https://discord.gg/uRZa3KXgEn)
 
 An intentionally vulnerable AI agent platform for security training, red-teaming, and validating security tools. 21 agents, 12 vulnerability categories, 3 protocols. The [DVWA](https://dvwa.co.uk/) of AI agents.
 
@@ -21,8 +26,6 @@ open http://localhost:9000
 **Network exposure.** The agents and the dashboard listen on `127.0.0.1` by default, so other machines cannot connect to them. The Docker image listens on `0.0.0.0` inside the container, and the `docker run` and Compose examples here publish its ports on `127.0.0.1`. To expose DVAA to a lab network on purpose, start it with `DVAA_HOST=0.0.0.0 npm start`, or publish the container's ports with `-p 0.0.0.0:9000:9000` (and the same for the agent ports). Anything that can reach those ports can drive the agents and extract their planted secrets.
 
 ![DVAA Demo](docs/dvaa-demo.gif)
-
----
 
 ## Agents
 
@@ -150,7 +153,7 @@ dvaa --help
 | `dvaa scan <scenario> [--fix] [--json]` / `dvaa scan --list` | Run HMA against a scenario fixture and diff findings against `expected-checks.json`. `--fix` remediates and re-scans. `--list` enumerates all 86 scenarios. |
 | `dvaa benchmark [path] [--level L1\|L2\|L3] [--json]` | Run OASB-1 compliance benchmark against a target directory. |
 | `dvaa hma <args...>` | Pass-through to the bundled HackMyAgent CLI for anything not covered above. |
-| `dvaa telemetry [on\|off\|status]` | Inspect or toggle anonymous usage telemetry (see §Telemetry). |
+| `dvaa telemetry [on\|off\|status]` | Inspect or toggle usage telemetry (see §Telemetry). |
 | `dvaa selftest [--agents X] [--categories Y] [--json] [--verbose]` | Run the local DVAA agent fleet against the bundled AgentPwn payload mirror and report which agents comply. Formerly `dvaa browse`; the old name still works and warns. |
 | `dvaa demo aim-ab [-i] [--cloud] [--json] [--verbose]` | Run the deterministic A/B: same agent code, AIM enforcement off vs on. `-i` steps through it interactively for a live audience; `--cloud` mirrors the denied event to your AIM dashboard ([see below](#aim-protected-agent)). |
 | `dvaa demo flight [-i] [--live] [--json]` | Three-act story: a flight agent holding a synthetic wallet is compromised by a poisoned travel page, then the same agent under AIM blocks the exfil at the egress boundary. Self-contained: runs its own fleet, no pre-flight. See `docs/demo/FLIGHT_RUN_SCRIPT.md`. |
@@ -276,7 +279,7 @@ dvaa demo aim-ab --cloud       # Terminal 2
 
 It registers RAGBot-AIM under your account and posts the denied `http:post` as a signed verification event. Open the printed dashboard URL and go to the agent's Verification Events to see it. The local A/B stays authoritative and offline; `--cloud` only adds the dashboard view, and falls back to the local-only demo if you are not logged in.
 
-**Fully offline.** Add `--offline` to the fleet (`dvaa --api --offline`) to disable anonymous telemetry for an airplane-mode run. The A/B itself never needs the network: the canary binds to host loopback and AIM enforcement is local.
+**Fully offline.** Add `--offline` to the fleet (`dvaa --api --offline`) to disable usage telemetry for an airplane-mode run. The A/B itself never needs the network: the canary binds to host loopback and AIM enforcement is local.
 
 RAGBot-AIM also shows up in `dvaa selftest` as the agent that survives the RAG-poisoning + outbound-exfil payload while the rest of the fleet does not.
 
@@ -395,11 +398,19 @@ These scenarios demonstrate real-world kill chains combining multiple ATM techni
 
 ## Telemetry
 
-DVAA sends anonymous usage data to the OpenA2A Registry: tool name (`dvaa`), version, command name (`scan`, `attack`, etc.), success, duration, platform, Node major version, and a stable per-machine `install_id`. **No content is collected:** no scanned files, no attack payloads, no prompts, no responses, no env vars, no IPs (the Registry derives country code from the inbound `CF-IPCountry` header at ingest and discards the IP).
+DVAA sends usage events to the OpenA2A Registry and reads nothing from it; nothing comes back to the tool.
+
+- **Sent**, to the OpenA2A Registry (`api.oa2a.org`):
+  - One `command` event per run of a CLI subcommand (`agents`, `health`, `attack`, `logs`, `scan`, `benchmark`, `hma`, `chat`) that returns an exit code, a non-zero one included, such as `dvaa health` exiting 1 when no dashboard is running. A run that ends before its subcommand returns sends nothing: one that throws, and one that exits at once on an error, such as `dvaa logs` with no dashboard running, `dvaa chat` with no agent running or `dvaa scan` with a scenario that does not exist. `dvaa telemetry`, `dvaa selftest`, `dvaa --help` and `dvaa --version` send nothing. `dvaa demo` turns telemetry off for its own run unless `OPENA2A_TELEMETRY` is already set; when it is set and on, `demo` reports like the other subcommands, and the scoped server that `demo flight` or `demo repo` starts always runs with telemetry off, so it sends no `start` event.
+  - One `start` event each time the server starts, in every mode: `dvaa` with no subcommand, `--all`, `--api`, `--mcp`, `--a2a`, and `--only`, which runs no dashboard.
+  - From the dashboard, at most one `command` event per UTC day for each of seven actions: `lab-chat` (a message to an agent), `lab-challenge-verify`, `lab-scan`, `lab-fix`, `lab-tutor-ask`, `lab-llm-configure` and `lab-reset`. The count starts over when the server restarts. Other requests, including page loads, `/stats` and `/health`, send nothing.
+  - The bundled HackMyAgent's own events, under tool name `hackmyagent` and the same install ID, each time DVAA runs it: `dvaa scan`, `dvaa attack`, `dvaa benchmark`, `dvaa hma`, and a scan or fix started from the dashboard. The opt-outs below silence these too.
+
+DVAA sends usage data to the OpenA2A Registry: tool name (`dvaa`), version, command name (`scan`, `attack`, etc.), success, duration, platform, Node major version, and a persistent `install_id`. Each event carries an install ID that identifies the machine, so the data is personal data; https://opena2a.org/privacy explains how the ID is made. **No content is collected:** no scanned files, no attack payloads, no prompts, no responses, no env vars, no IPs (the Registry derives country code from the inbound `CF-IPCountry` header at ingest and discards the IP).
 
 Disclosure surfaces and opt-out:
 
-- **Policy page:** [opena2a.org/telemetry](https://opena2a.org/telemetry) covers the full schema, retention, and the `DELETE` endpoint to wipe your install_id.
+- **Policy page:** [opena2a.org/telemetry](https://opena2a.org/telemetry) covers the full schema, retention, and how to ask for deletion of your install ID's events.
 - **`dvaa --version`** shows current state and the one-line opt-out hint.
 - **`dvaa telemetry status`** prints state, install_id, config path, policy URL.
 - **Disable per-invocation:** `OPENA2A_TELEMETRY=off dvaa <anything>` (also accepts `0`, `false`, `no`).
