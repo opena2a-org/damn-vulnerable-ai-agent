@@ -17,6 +17,7 @@
  * (a) the E404 of an unpublished version fails the step;
  * (b) an older version's attestation does not satisfy the version published;
  * (c) 0.9.2 passes on its own attestation.
+ * (d) the step as it stood before this change accepts the E404 (the control for (a)).
  */
 
 import { test } from 'node:test';
@@ -30,6 +31,7 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORKFLOW = path.join(REPO_ROOT, '.github', 'workflows', 'release.yml');
 const STEP_NAME = 'Verify provenance on npm';
+const FIXTURE_BEFORE = path.join(REPO_ROOT, 'test', 'fixtures', 'release-provenance-verify-step-before.sh');
 const PKG = 'damn-vulnerable-ai-agent';
 
 const json = (value) => `${JSON.stringify(value, null, 2)}\n`;
@@ -109,7 +111,7 @@ echo "npm stub: no answer for: npm $*" >&2
 exit 2
 `;
 
-function runStep({ version, registry }) {
+function runStep({ version, registry, script = stepScript(STEP_NAME) }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dvaa-release-verify-'));
   try {
     const bin = path.join(dir, 'bin');
@@ -130,7 +132,7 @@ function runStep({ version, registry }) {
     fs.writeFileSync(path.join(bin, 'npm'), npmStub(answersDir, logFile), { mode: 0o755 });
     fs.writeFileSync(path.join(bin, 'sleep'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
     fs.writeFileSync(path.join(work, 'package.json'), JSON.stringify({ name: PKG, version }));
-    fs.writeFileSync(stepFile, stepScript(STEP_NAME));
+    fs.writeFileSync(stepFile, script);
     const env = { PATH: `${bin}${path.delimiter}${process.env.PATH}`, HOME: dir };
 
     // The stubs resolve first in the step's own shell, or the step would reach the registry.
@@ -173,4 +175,10 @@ test('0.9.2 passes on its own attestation', () => {
   });
   assert.equal(run.status, 0, run.output);
   assert.deepEqual(run.requests, [`${PKG}@0.9.2`]);
+});
+
+// (d) Control for (a): the step as it stood before this change, on the same all-E404 registry, did not fail.
+test('before this change, the E404 of an unpublished version did not fail the step (control)', () => {
+  const run = runStep({ version: '0.9.3', registry: { '*': E404_0_9_3 }, script: fs.readFileSync(FIXTURE_BEFORE, 'utf8') });
+  assert.equal(run.status, 0, run.output);
 });
