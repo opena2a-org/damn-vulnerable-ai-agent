@@ -10,9 +10,9 @@
  *
  * The Registry's `engaged` metric requires an install to be active on >= 2
  * distinct UTC days AND to have emitted >= 1 `command` event. Docker users could
- * satisfy neither. dvaa reported 177 monthly actives against 1 engaged user
- * while every other tool converted at 45-86%. The lab was being used; it just
- * never said so.
+ * satisfy neither. dvaa reported 177 monthly actives against fewer than ten
+ * engaged users while every other tool converted at 45-86%. The lab was being
+ * used; it just never said so.
  *
  * This fixes the COMMAND half only, and that is worth being precise about.
  * install_id still churns across container recreation (no volume for
