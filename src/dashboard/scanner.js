@@ -346,10 +346,16 @@ function diagnoseMissing(checkId, allFindings) {
 /**
  * Spawn a process, buffer stdout/stderr, enforce a timeout.
  * Never uses a shell — args are passed as argv.
+ *
+ * Every process started here is HackMyAgent doing work for the dashboard: the
+ * scan, the fix, `check-metadata` and `--version`. DVAA already records a
+ * dashboard scan or fix as its own `lab-scan` or `lab-fix` event, so each child
+ * runs with OPENA2A_TELEMETRY=off in its own environment only. The server's
+ * process.env is not changed, so DVAA's own events follow the user's setting.
  */
 function spawnCapture(cmd, args, timeoutMs) {
   return new Promise(resolve => {
-    const child = spawn(cmd, args, { shell: false });
+    const child = spawn(cmd, args, { shell: false, env: { ...process.env, OPENA2A_TELEMETRY: 'off' } });
     let stdout = '';
     let stderr = '';
     let timedOut = false;
