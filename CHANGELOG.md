@@ -116,6 +116,8 @@ receiver.
 
 - **`docker compose up` passes `OPENA2A_TELEMETRY` through to the container, and the image build runs its cache warm-up with telemetry off.**
 
+- **Every HackMyAgent process the dashboard starts (a scan, a fix and the cold-cache `check-metadata`) runs with `OPENA2A_TELEMETRY=off` in its own environment only; the dashboard server's own events are unchanged.**
+
 ### Security
 
 - **Scrubbed an internal role tag from public and shipped surfaces.** An internal role tag used to label the no-overclaim rule had leaked into reader-facing docs (`CHANGELOG.md`, `DEMO_BUILD.md`) and — missed by the original markdown-only check — into shipped source comments (`src/llm/prompts.js`, `src/llm/research-narration.js`), and shipped in the published npm tarball. Each occurrence is reworded to name the control directly ("No-overclaim rule"), preserving the sentence's meaning; nothing is deleted in a way that makes a claim false. The internal-terminology check is widened to cover source comments, not just markdown. This is a forward-only fix: whether to also patch the already-published `0.9.2` npm tarball is a separate owner decision and is **not** done in this change — no npm publish and no tag push are made here. The diegetic "CISO office" strings in the scenario knowledge-base fixtures are intentional attack content, not internal terminology, and are left unchanged.
