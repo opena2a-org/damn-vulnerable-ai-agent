@@ -23,7 +23,7 @@
  * acts on both — not for the README's hero `docker run` flow. The 177 denominator
  * is inflated by that same churn.
  *
- * So expect this to move the number off 1, but do NOT read the result as a rate
+ * So expect this to raise the number, but do NOT read the result as a rate
  * comparable to the other CLIs' 45-86%. It is a floor until the identity churn
  * is fixed too.
  *
