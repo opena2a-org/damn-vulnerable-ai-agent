@@ -50,12 +50,12 @@ const PREVIEW_LINES = 12;
 // Dashboard keeps an in-memory copy too so repeat /scan calls are instant.
 let checkRegistryCache = null;
 
-async function loadCheckRegistry(hmaBin) {
+async function loadCheckRegistry(hmaBin, { telemetryOff = false } = {}) {
   if (checkRegistryCache !== null) return checkRegistryCache;
 
   const pkgRoot = path.resolve(hmaBin, '../../..');
   const cacheDir = path.join(pkgRoot, '.hackmyagent-cache');
-  const version = await getHmaVersion(hmaBin);
+  const version = await getHmaVersion(hmaBin, { telemetryOff });
   const cacheFile = version
     ? path.join(cacheDir, `check-metadata-v${version}.json`)
     : null;
@@ -73,7 +73,7 @@ async function loadCheckRegistry(hmaBin) {
 
   // Cold path: spawn HMA and populate the cache.
   try {
-    const { stdout } = await spawnCapture(hmaBin, ['check-metadata'], 30_000);
+    const { stdout } = await spawnCapture(hmaBin, ['check-metadata'], 30_000, { telemetryOff });
     const parsed = JSON.parse(stdout);
     checkRegistryCache = parsed.checks || {};
     if (cacheFile) {
@@ -88,9 +88,9 @@ async function loadCheckRegistry(hmaBin) {
   return checkRegistryCache;
 }
 
-async function getHmaVersion(hmaBin) {
+async function getHmaVersion(hmaBin, { telemetryOff = false } = {}) {
   try {
-    const { stdout } = await spawnCapture(hmaBin, ['--version'], 5_000);
+    const { stdout } = await spawnCapture(hmaBin, ['--version'], 5_000, { telemetryOff });
     // HMA prints "hackmyagent 0.11.15" or just "0.11.15" depending on build.
     const match = stdout.match(/(\d+\.\d+\.\d+)/);
     return match ? match[1] : null;
@@ -109,9 +109,12 @@ async function getHmaVersion(hmaBin) {
  * @param {string[]} opts.expected   Expected check IDs from scenario's expected-checks.json.
  * @param {boolean}  [opts.fix=false] Apply HMA's --fix to the copy and report what changed.
  * @param {string}   [opts.hmaBin]   HackMyAgent binary; defaults to the resolved install.
+ * @param {boolean}  [opts.hmaTelemetryOff=false] Start every HackMyAgent child
+ *   with OPENA2A_TELEMETRY=off in its own environment. The dashboard passes
+ *   true; `dvaa scan` does not, so its children keep the user's setting.
  * @returns {Promise<ScanResult>}
  */
-export async function runScan({ pkgRoot, name, expected, fix = false, hmaBin = getHmaBinPath() }) {
+export async function runScan({ pkgRoot, name, expected, fix = false, hmaBin = getHmaBinPath(), hmaTelemetryOff = false }) {
   const fixtureDir = path.join(pkgRoot, 'scenarios', name, 'vulnerable');
 
   if (!hmaBin) {
@@ -122,7 +125,7 @@ export async function runScan({ pkgRoot, name, expected, fix = false, hmaBin = g
   }
 
   const started = Date.now();
-  const registry = await loadCheckRegistry(hmaBin);
+  const registry = await loadCheckRegistry(hmaBin, { telemetryOff: hmaTelemetryOff });
 
   const workRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dvaa-scan-'));
   try {
@@ -137,9 +140,9 @@ export async function runScan({ pkgRoot, name, expected, fix = false, hmaBin = g
     // Fix runs need a baseline to tell "fixed" apart from "never fired". The
     // fix is then judged by re-scanning the fixed copy, not by the --fix
     // output, whose shape differs between HMA versions.
-    const baseline = fix ? await runHma(hmaBin, workDir) : null;
-    if (fix) await runHma(hmaBin, workDir, { fix: true });
-    const current = await runHma(hmaBin, workDir);
+    const baseline = fix ? await runHma(hmaBin, workDir, { telemetryOff: hmaTelemetryOff }) : null;
+    if (fix) await runHma(hmaBin, workDir, { fix: true, telemetryOff: hmaTelemetryOff });
+    const current = await runHma(hmaBin, workDir, { telemetryOff: hmaTelemetryOff });
     const changes = fix ? diffTrees(fixtureDir, workDir) : null;
     const durationMs = Date.now() - started;
     return buildResult({ name, expected, fix, registry, baseline, current, changes, durationMs });
@@ -193,11 +196,11 @@ function buildResult({ name, expected, fix, registry, baseline, current, changes
   };
 }
 
-async function runHma(hmaBin, targetDir, { fix = false } = {}) {
+async function runHma(hmaBin, targetDir, { fix = false, telemetryOff = false } = {}) {
   const args = ['secure', targetDir, ...HMA_SCAN_FLAGS];
   if (fix) args.push('--fix');
 
-  const { stdout, stderr, code, timedOut } = await spawnCapture(hmaBin, args, SCAN_TIMEOUT_MS);
+  const { stdout, stderr, code, timedOut } = await spawnCapture(hmaBin, args, SCAN_TIMEOUT_MS, { telemetryOff });
   if (timedOut) {
     throw new Error(`HMA scan timed out after ${SCAN_TIMEOUT_MS / 1000}s`);
   }
@@ -347,15 +350,20 @@ function diagnoseMissing(checkId, allFindings) {
  * Spawn a process, buffer stdout/stderr, enforce a timeout.
  * Never uses a shell — args are passed as argv.
  *
- * Every process started here is HackMyAgent doing work for the dashboard: the
- * scan, the fix, `check-metadata` and `--version`. DVAA already records a
- * dashboard scan or fix as its own `lab-scan` or `lab-fix` event, so each child
- * runs with OPENA2A_TELEMETRY=off in its own environment only. The server's
- * process.env is not changed, so DVAA's own events follow the user's setting.
+ * runScan starts HackMyAgent here for two callers: the dashboard and
+ * `dvaa scan`. The dashboard counts a scan or fix under DVAA's own `lab-scan`
+ * or `lab-fix` action and passes hmaTelemetryOff, so each child behind it (the
+ * scan, the fix, `check-metadata` and `--version`) runs with
+ * OPENA2A_TELEMETRY=off in its own environment only. `dvaa scan` does not pass
+ * it: its children inherit the environment unchanged, so HackMyAgent follows
+ * the user's setting. process.env itself is never changed.
  */
-function spawnCapture(cmd, args, timeoutMs) {
+function spawnCapture(cmd, args, timeoutMs, { telemetryOff = false } = {}) {
   return new Promise(resolve => {
-    const child = spawn(cmd, args, { shell: false, env: { ...process.env, OPENA2A_TELEMETRY: 'off' } });
+    const options = telemetryOff
+      ? { shell: false, env: { ...process.env, OPENA2A_TELEMETRY: 'off' } }
+      : { shell: false };
+    const child = spawn(cmd, args, options);
     let stdout = '';
     let stderr = '';
     let timedOut = false;
