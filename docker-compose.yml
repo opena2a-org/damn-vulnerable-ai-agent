@@ -1,6 +1,9 @@
 services:
   dvaa:
     build: .
+    # Passes the shell's OPENA2A_TELEMETRY into the container only when it is set.
+    environment:
+      - OPENA2A_TELEMETRY
     ports:
       - "127.0.0.1:7001:7001"
       - "127.0.0.1:7002:7002"

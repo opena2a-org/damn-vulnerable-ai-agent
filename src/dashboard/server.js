@@ -823,11 +823,14 @@ export function createDashboardServer({ stats, attackLog, challengeState, agents
       }
 
       try {
+        // This request counts under DVAA's own `lab-scan` or `lab-fix` action,
+        // so the HackMyAgent runs behind it send no usage events of their own.
         const result = await runScan({
           pkgRoot: PKG_ROOT,
           name: scenario.name,
           expected: scenario.expectedChecks,
           fix: isFix,
+          hmaTelemetryOff: true,
         });
 
         // On non-fix scans, mark completed if every expected check fired.

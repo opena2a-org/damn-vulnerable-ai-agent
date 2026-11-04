@@ -8,10 +8,12 @@ COPY scenarios/ ./scenarios/
 # Pre-generate HMA's check-metadata registry so the first /scan after the
 # container starts is fast (~200ms) instead of paying the ~20s HMA
 # fixture-scan cost. The cache is keyed by HMA version; an HMA upgrade
-# auto-invalidates via scanner.js's version check.
+# auto-invalidates via scanner.js's version check. The warm-up is our build,
+# not anyone's use of HMA, so each hackmyagent call runs with telemetry off,
+# set on the command and not as an ENV so the container keeps the user's choice.
 RUN mkdir -p /app/.hackmyagent-cache && \
-    HMA_VER=$(node_modules/.bin/hackmyagent --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1) && \
-    node_modules/.bin/hackmyagent check-metadata \
+    HMA_VER=$(OPENA2A_TELEMETRY=off node_modules/.bin/hackmyagent --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1) && \
+    OPENA2A_TELEMETRY=off node_modules/.bin/hackmyagent check-metadata \
       > "/app/.hackmyagent-cache/check-metadata-v${HMA_VER}.json"
 # Drop root. /app needs to stay writable for the .dvaa scores directory and
 # for HMA's --fix runs against scenarios/<name>/vulnerable/.
