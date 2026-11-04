@@ -116,7 +116,7 @@ receiver.
 
 - **`docker compose up` passes `OPENA2A_TELEMETRY` through to the container, and the image build runs its cache warm-up with telemetry off.**
 
-- **Every HackMyAgent process the dashboard starts (a scan, a fix and the cold-cache `check-metadata`) runs with `OPENA2A_TELEMETRY=off` in its own environment only; the dashboard server's own events are unchanged.**
+- **Every HackMyAgent process the dashboard starts (a scan, a fix, the cold-cache `check-metadata` and the `--version` read) runs with `OPENA2A_TELEMETRY=off` in its own environment only; the dashboard server's own events are unchanged, and `dvaa scan` still runs HackMyAgent with the user's own setting.**
 
 ### Security
 

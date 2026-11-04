@@ -9,6 +9,12 @@
  * server's own process.env must not change, so DVAA's own events still follow
  * the user's setting.
  *
+ * The dashboard asks for this with runScan's `hmaTelemetryOff: true`, and the
+ * scan and fix cases below call runScan the same way. `dvaa scan` does not pass
+ * it, so its children keep the user's setting;
+ * test/hackmyagent-telemetry-callers.test.js drives the dashboard server and
+ * `dvaa scan` themselves.
+ *
  * A stub binary records the OPENA2A_TELEMETRY value each invocation received.
  * Each case imports its own instance of scanner.js, so the in-memory check
  * registry starts empty, and gives the stub its own scratch directory, so the
@@ -123,7 +129,7 @@ for (const parent of PARENT_STATES) {
     assert.equal(fs.existsSync(stub.cacheFile), false, 'the check cache starts cold');
     const { runScan } = await freshScanner();
 
-    await runScan({ pkgRoot: stub.pkgRoot, name: NAME, expected: EXPECTED, hmaBin: stub.bin });
+    await runScan({ pkgRoot: stub.pkgRoot, name: NAME, expected: EXPECTED, hmaBin: stub.bin, hmaTelemetryOff: true });
 
     const calls = stub.calls();
     assert.deepEqual(calls.map(label), ['--version', 'check-metadata', 'secure']);
@@ -137,7 +143,7 @@ for (const parent of PARENT_STATES) {
     const stub = makeStub(t);
     const { runScan } = await freshScanner();
 
-    await runScan({ pkgRoot: stub.pkgRoot, name: NAME, expected: EXPECTED, fix: true, hmaBin: stub.bin });
+    await runScan({ pkgRoot: stub.pkgRoot, name: NAME, expected: EXPECTED, fix: true, hmaBin: stub.bin, hmaTelemetryOff: true });
 
     const calls = stub.calls();
     assert.deepEqual(calls.map(label), ['--version', 'check-metadata', 'secure', 'secure --fix', 'secure']);
