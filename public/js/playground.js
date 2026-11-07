@@ -11,8 +11,13 @@ let llmSettings = {
 let sessionApiKey = '';
 
 const SETTINGS_KEY = 'dvaa-llm-settings';
-const PROVIDER_LABELS = { simulated: 'Simulated', openai: 'OpenAI', anthropic: 'Anthropic' };
-const VERDICT_LABELS = { blocked: 'Blocked', vulnerable: 'Vulnerable', inconclusive: 'Inconclusive' };
+const PROVIDER_LABELS = {
+  simulated: 'Simulated',
+  openai: 'OpenAI',
+  anthropic: 'Anthropic',
+  openrouter: 'OpenRouter',
+  nvidia: 'NVIDIA NIM'
+};const VERDICT_LABELS = { blocked: 'Blocked', vulnerable: 'Vulnerable', inconclusive: 'Inconclusive' };
 // CSS classes per verdict; "success" means the attack succeeded.
 const VERDICT_CLASSES = { blocked: 'blocked', vulnerable: 'success', inconclusive: 'inconclusive' };
 
@@ -491,6 +496,13 @@ const MODEL_OPTIONS = {
     { value: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5 (Recommended, ~$0.03/test)' },
     { value: 'claude-opus-4-6', label: 'Claude Opus 4.6 (Most Capable, ~$0.10/test)' },
     { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (Fastest, ~$0.01/test)' }
+  ],
+  openrouter: [
+    { value: 'openai/gpt-oss-20b', label: 'OpenAI GPT OSS 20B (Recommended)' },
+    { value: 'meta-llama/llama-3.3-70b-instruct', label: 'Llama 3.3 70B Instruct' }
+  ],
+  nvidia: [
+    { value: 'nvidia/nemotron-3.5-lightning-30b-a3b', label: 'Nemotron 3.5 Lightning 30B' }
   ]
 };
 
@@ -524,6 +536,7 @@ function saveSettings() {
   updateStatusText();
 }
 
+
 function updateStatusText() {
   if (llmSettings.provider === 'simulated') {
     statusText.textContent = 'Learning Mode';
@@ -536,6 +549,7 @@ function updateStatusText() {
     statusText.style.color = 'var(--amber)';
   }
 }
+
 
 function openSettings() {
   llmProvider.value = llmSettings.provider;
@@ -558,7 +572,7 @@ function updateProviderFields() {
     modelSection.style.display = 'none';
     testConnectionSection.style.display = 'none';
   } else {
-    // OpenAI and Anthropic need API key
+    // Real providers need an API key
     apiKeySection.style.display = 'block';
     modelSection.style.display = 'block';
     testConnectionSection.style.display = 'block';

@@ -8,6 +8,7 @@
 import { SimulatedLLM } from '../core/llm-simulator.js';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import { DEFAULT_MODELS } from '../llm/provider.js';
 
 // Attack payloads - we'll use HackMyAgent's payloads or define our own subset
 const ATTACK_PAYLOADS = {
@@ -91,9 +92,19 @@ const ATTACK_PAYLOADS = {
 };
 
 /** Real LLM providers the playground can call. */
-export const PROVIDERS = Object.freeze(['openai', 'anthropic']);
+export const PROVIDERS = Object.freeze([
+  'openai',
+  'anthropic',
+  'openrouter',
+  'nvidia',
+]);
 
-const PROVIDER_LABELS = { openai: 'OpenAI', anthropic: 'Anthropic' };
+const PROVIDER_LABELS = {
+  openai: 'OpenAI',
+  anthropic: 'Anthropic',
+  openrouter: 'OpenRouter',
+  nvidia: 'NVIDIA NIM',
+};
 
 /** How much of a response the leak checks read. */
 const MAX_ANALYZED_CHARS = 20000;
@@ -167,7 +178,7 @@ export class PlaygroundEngine {
       useRealLLM = false,
       apiKey = null,
       provider = 'openai',
-      model,
+      model = null,
       intensity = 'active'
     } = options;
 
@@ -634,15 +645,24 @@ export class PlaygroundEngine {
    */
   createRealLLM(provider, apiKey, model) {
     if (!PROVIDERS.includes(provider)) {
-      throw requestError(400, 'Unknown LLM provider. Use simulated, openai or anthropic.');
+      throw requestError(400, `Unknown LLM provider. Supported Providers: ${PROVIDERS.join(', ')}.`);
     }
     if (typeof apiKey !== 'string' || apiKey.trim() === '') {
       throw requestError(400, `An API key is required for ${PROVIDER_LABELS[provider]}.`);
     }
 
-    return provider === 'openai'
-      ? new OpenAIClient(apiKey, model)
-      : new AnthropicClient(apiKey, model);
+    switch (provider) {
+      case 'openai':
+        return new OpenAIClient(apiKey, model || DEFAULT_MODELS.openai);
+      case 'anthropic':
+        return new AnthropicClient(apiKey, model || DEFAULT_MODELS.anthropic);
+      case 'openrouter':
+        return new OpenAICompatibleClient(apiKey, model || DEFAULT_MODELS.openrouter, 'https://openrouter.ai/api/v1', 'OpenRouter');
+      case 'nvidia':
+        return new OpenAICompatibleClient(apiKey, model || DEFAULT_MODELS.nvidia, 'https://integrate.api.nvidia.com/v1', 'NVIDIA NIM');
+      default:
+        throw requestError(400, 'Unsupported LLM provider.');
+    }
   }
 }
 
@@ -740,6 +760,36 @@ class OpenAIClient {
     // A reply without text is judged as an empty response, not reported as
     // a connection failure.
     return response?.choices?.[0]?.message?.content || '';
+  }
+}
+
+class OpenAICompatibleClient {
+  constructor(apiKey, model, baseURL, providerName) {
+    this.client = new OpenAI({ apiKey, baseURL, defaultHeaders: providerName === 'OpenRouter' ? {
+      'HTTP-Referer': 'https://github.com/opena2a-org/damn-vulnerable-ai-agent',
+      'X-Title': 'Damn Vulnerable AI Agent'
+    } : undefined });
+    this.model = model;
+    this.providerName = providerName;
+  }
+
+  async generate({ systemPrompt, userMessage }) {
+    try {
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
+        temperature: 0.7,
+        max_tokens: 500
+      });
+
+      return response.choices[0]?.message?.content || '';
+    } catch (error) {
+      console.error(`${this.providerName} API error:`, error.message);
+      throw new Error(`${this.providerName} API call failed`);
+    }
   }
 }
 

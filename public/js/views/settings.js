@@ -18,7 +18,7 @@ const PRIVACY_FACTS = [
     + 'or run dvaa telemetry off, which saves the choice in ~/.config/opena2a/telemetry.json. '
     + 'The server reads this setting when it starts. dvaa telemetry status shows the current state.',
   'LLM mode: your API key goes from this page to the local DVAA server, which keeps it in memory only and uses it '
-    + 'to call the provider you chose (OpenAI or Anthropic). It is not written to disk and the API never returns it. '
+    + 'to call the provider you chose (OpenAI or Anthropic, OpenRouter or NVIDIA NIM). It is not written to disk and the API never returns it. '
     + 'Disable, or restarting the server, removes it.',
   'While LLM mode is on, agent conversations (your messages and the agent system prompts) and tutor requests '
     + 'are sent to that provider.',
@@ -44,6 +44,8 @@ export function renderSettings(state) {
   const providerSelect = el('select', { className: 'settings-input', id: 'llm-provider' });
   providerSelect.appendChild(el('option', { value: 'openai' }, 'OpenAI'));
   providerSelect.appendChild(el('option', { value: 'anthropic' }, 'Anthropic'));
+  providerSelect.appendChild(el('option', { value: 'openrouter' }, 'OpenRouter'));
+  providerSelect.appendChild(el('option', { value: 'nvidia' }, 'NVIDIA NIM'));
   providerRow.appendChild(providerSelect);
   llmSection.appendChild(providerRow);
 
@@ -53,7 +55,7 @@ export function renderSettings(state) {
   const keyInput = el('input', {
     className: 'settings-input',
     type: 'password',
-    placeholder: 'sk-... or sk-ant-...',
+    placeholder: 'Provider API key',
     id: 'llm-key',
   });
   keyRow.appendChild(keyInput);

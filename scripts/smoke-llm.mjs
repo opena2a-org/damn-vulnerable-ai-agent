@@ -19,12 +19,14 @@
  * Keys (set whichever you want to smoke; missing ones SKIP, never fail):
  *   OPENAI_API_KEY        + optional SMOKE_OPENAI_MODEL     (default: gpt-5)
  *   ANTHROPIC_API_KEY     + optional SMOKE_ANTHROPIC_MODEL  (default: claude-sonnet-4-6)
+ *   OPENROUTER_API_KEY    + optional SMOKE_OPENROUTER_MODEL
+ *   NVIDIA_API_KEY        + optional SMOKE_NVIDIA_MODEL
  *
  * Exit code: 0 if every provider with a key returned a completion (or was
  * skipped); 1 if any real call failed. Errors are printed by callLLM itself.
  */
 
-import { configureLLM, callLLM, disableLLM } from '../src/llm/provider.js';
+import { configureLLM, callLLM, disableLLM, DEFAULT_MODELS } from '../src/llm/provider.js';
 
 const CASES = [
   {
@@ -39,6 +41,18 @@ const CASES = [
     apiKey: process.env.ANTHROPIC_API_KEY,
     model: process.env.SMOKE_ANTHROPIC_MODEL || 'claude-sonnet-4-6',
     keyVar: 'ANTHROPIC_API_KEY',
+  },
+  {
+    provider: 'openrouter',
+    apiKey: process.env.OPENROUTER_API_KEY,
+    model: process.env.SMOKE_OPENROUTER_MODEL || DEFAULT_MODELS.openrouter,
+    keyVar: 'OPENROUTER_API_KEY',
+  },
+  {
+    provider: 'nvidia',
+    apiKey: process.env.NVIDIA_API_KEY,
+    model: process.env.SMOKE_NVIDIA_MODEL || DEFAULT_MODELS.nvidia,
+    keyVar: 'NVIDIA_API_KEY',
   },
 ];
 
@@ -85,8 +99,8 @@ for (const c of CASES) {
 }
 
 if (ran === 0) {
-  console.log('\nNo provider keys set — nothing smoked. Set OPENAI_API_KEY and/or');
-  console.log('ANTHROPIC_API_KEY to exercise the real provider path before release.');
+  console.log('\nNo provider keys set — nothing smoked. Set a provider API key to');
+  console.log('exercise the real provider path before release.');
 }
 
 console.log(`\nResults: ${ran - failed}/${ran} live calls passed${failed ? ` (${failed} FAILED)` : ''}`);

@@ -119,7 +119,7 @@ curl -X POST http://localhost:7020/a2a/message \
 
 ## Attack Lab
 
-The Attack Lab view in the dashboard (`http://localhost:9000` → Attack Lab) walks through multi-step kill chains interactively. **LLM mode is required for live kill-chain progression:** open Settings, paste an OpenAI or Anthropic API key, and the server will stream real progression through the reconnaissance → exploitation → exfiltration stages. Offline mode (default, no key) shows static stages for each scenario, useful for previewing the narrative but not for live exploitation.
+The Attack Lab view in the dashboard (`http://localhost:9000` → Attack Lab) walks through multi-step kill chains interactively. **LLM mode is required for live kill-chain progression:** open Settings, choose OpenAI, Anthropic, OpenRouter, or NVIDIA NIM, and paste the matching API key. The server will stream real progression through the reconnaissance → exploitation → exfiltration stages. Offline mode (default, no key) shows static stages for each scenario, useful for previewing the narrative but not for live exploitation.
 
 ## Reading attacks in the dashboard
 
