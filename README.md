@@ -19,6 +19,8 @@ open http://localhost:9000
 
 > This maps every port of the published image: the dashboard on `:9000` and its 19 agents on `7001-7021`, so the dashboard, `curl`, and HackMyAgent all work. The `127.0.0.1:` prefix publishes them to this machine only. The two newest agents (RepoBot 7022/7023, bringing the count to 21) are on main and ship with the next image. Docker does not publish ports without `-p`, so a bare `docker run` reaches nothing. (Only want the dashboard? `-p 127.0.0.1:9000:9000` alone is enough; it drives the whole fleet through `:9000`.)
 
+Official DVAA images on Docker Hub are published only as `opena2a/dvaa`, by this repository's release workflow.
+
 > **v0.8.0 breaking change:** agent ports moved from `3000`-base to `7000`-base to avoid the common `3000` collision with Next.js/React dev servers. Dashboard stays on `9000`. See [Upgrading from v0.7.x](#upgrading-from-v07x).
 
 > DVAA is intentionally insecure. Do not deploy in production or expose to the internet.
